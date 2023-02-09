@@ -36,9 +36,9 @@ class TransformerNetModel(nn.Module):
             hidden_t_dim,
             dropout=0,
             config=None,
-            config_name='bert-base-uncased',
+            # config_name='bert-base-uncased',
             vocab_size=None,
-            init_pretrained='no',
+            # init_pretrained='no',
             logits_mode=1,
             args=None,
     ):
@@ -47,14 +47,13 @@ class TransformerNetModel(nn.Module):
         if config is None:
             config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
             config.hidden_dropout_prob = dropout
-            config.bos_token_id = args.bos_token_id
             config.eos_token_id = 1
             config.hidden_size = args.seq_len
             config.max_position_embeddings = args.seq_len
             config.num_hidden_layers = args.num_hidden_layers
             config.pad_token_id = 0
             config.type_vocab_size = 2
-            config.vocab_size = 730
+            config.vocab_size = 729
 
         self.input_dims = input_dims
         self.hidden_t_dim = hidden_t_dim
@@ -63,7 +62,7 @@ class TransformerNetModel(nn.Module):
         self.logits_mode = logits_mode
         self.hidden_size = config.hidden_size
 
-        self.word_embedding = nn.Embedding(vocab_size, self.input_dims)
+        self.word_embedding = nn.Embedding(vocab_size, self.input_dims,padding_idx=0)
         self.lm_head = nn.Linear(self.input_dims, vocab_size)
         with th.no_grad():
             self.lm_head.weight = self.word_embedding.weight

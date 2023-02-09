@@ -10,8 +10,8 @@ import wandb
 
 from data import load_data_music
 
-from diffuseq.utils import dist_util, logger
-from diffuseq.step_sample import create_named_schedule_sampler
+from models.diffuseq.utils import dist_util, logger
+from models.diffuseq.step_sample import create_named_schedule_sampler
 from basic_utils import (
     load_defaults_config,
     create_model_and_diffusion,

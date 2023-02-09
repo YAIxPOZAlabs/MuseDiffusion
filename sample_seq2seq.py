@@ -12,7 +12,7 @@ import torch.distributed as dist
 from transformers import set_seed
 
 from data import load_data_music
-from diffuseq.rounding import denoised_fn_round, get_weights
+from models.diffuseq.rounding import denoised_fn_round, get_weights
 
 # from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 

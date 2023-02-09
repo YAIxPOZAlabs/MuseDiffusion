@@ -8,21 +8,21 @@ default = {
       "eval_interval": 1000,
       "ema_rate": "0.9999",
       "resume_checkpoint": "none",
-      "schedule_sampler": "lossaware",
-      "diffusion_steps": 1000,
+      "schedule_sampler": "lossaware", 
+      "diffusion_steps": 1000,          # Changed
       "noise_schedule": "sqrt",
       "timestep_respacing": "",
       "vocab": "bert",
       "use_plm_init": "no",
-      "vocab_size": 730,                    # Added
+      "vocab_size": 729,                    # Added
       "config_name": "huggingface-config",
       "notes": "folder-notes",
       "data_dir": "datasets/ComMU-processed",
       "dataset": "dataset-name",
       "checkpoint_path": "checkpoint-path",
-      "seq_len": 2085,                      # changed
-      "hidden_t_dim": 128,
-      "hidden_dim": 128,
+      "seq_len": 2096,                      # Changed
+      "hidden_t_dim": 128,      # TODO 
+      "hidden_dim": 8,        # TODO
       "dropout": 0.1,
       "use_fp16": False,
       "fp16_scale_growth": 0.001,
@@ -36,6 +36,5 @@ default = {
       "rescale_learned_sigmas": False,
       "sigma_small": False,
       "emb_scale_factor": 1.0,
-      "bos_token_id": 729,                  # Added
       "num_hidden_layers": 6                # Added
 }

@@ -3,14 +3,14 @@ import torch
 import json, os
 import time
 
-from diffuseq import gaussian_diffusion as gd
-from diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
-from diffuseq.transformer_model import TransformerNetModel
+from models.diffuseq import gaussian_diffusion as gd
+from models.diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
+from models.diffuseq.transformer_model import TransformerNetModel
 
 
 def load_model_emb(args):
     # random emb or pre-defined embedding like glove embedding. You can custome your own init here.
-    model = torch.nn.Embedding(args.vocab_size, args.hidden_dim)
+    model = torch.nn.Embedding(args.vocab_size, args.hidden_dim, padding_idx = 0)
     path_save = '{}/random_emb.torch'.format(args.checkpoint_path)
     path_save_ind = path_save + ".done"
     if int(os.environ['LOCAL_RANK']) == 0:
