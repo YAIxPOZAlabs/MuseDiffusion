@@ -14,10 +14,10 @@ default = {
       "timestep_respacing": "",
       "vocab": "bert",
       "use_plm_init": "no",
-      "vocab_size": 730,
+      "vocab_size": 730,                    # Added
       "config_name": "huggingface-config",
       "notes": "folder-notes",
-      "data_dir": "ComMU-processed",
+      "data_dir": "datasets/ComMU-processed",
       "dataset": "dataset-name",
       "checkpoint_path": "checkpoint-path",
       "seq_len": 2085,                      # changed
@@ -36,6 +36,6 @@ default = {
       "rescale_learned_sigmas": False,
       "sigma_small": False,
       "emb_scale_factor": 1.0,
-      "bos_token_id": 730,                  # Added
+      "bos_token_id": 729,                  # Added
       "num_hidden_layers": 6                # Added
 }
