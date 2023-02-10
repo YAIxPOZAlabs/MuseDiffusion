@@ -8,18 +8,17 @@ import json, os
 from transformers import set_seed
 import wandb
 
+from config import load_defaults_config
+
 from data import load_data_music
 
 from models.diffuseq.utils import dist_util, logger
 from models.diffuseq.step_sample import create_named_schedule_sampler
-from basic_utils import (
-    load_defaults_config,
-    create_model_and_diffusion,
-    args_to_dict,
-    add_dict_to_argparser,
-    load_model_emb
-)
-from train_util import TrainLoop
+
+from utils.initialization import create_model_and_diffusion, load_model_emb
+from utils.argument_parsing import add_dict_to_argparser, args_to_dict
+
+from utils.train_util import TrainLoop
 
 
 ### custom your wandb setting here ###

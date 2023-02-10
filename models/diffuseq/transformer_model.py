@@ -1,4 +1,4 @@
-from transformers import FNetConfig, FNetModel
+from transformers import FNetConfig
 from transformers.models.fnet.modeling_fnet import FNetEncoder
 # from transformers import BertEncoder
 # from transformers.models.bert.modeling_bert import FNetModel
@@ -7,7 +7,6 @@ import torch
 import numpy as np
 import torch as th
 import torch.nn as nn
-import torch.nn.functional as F
 
 from .utils.nn import (
     SiLU,
@@ -24,8 +23,6 @@ class TransformerNetModel(nn.Module):
     :param output_dims: dims of the output Tensor.
     :param hidden_t_dim: dims of time embedding.
     :param dropout: the dropout probability.
-    :param config/config_name: the config of PLMs.
-    :param init_pretrained: bool, init whole network params with PLMs.
     :param vocab_size: the size of vocabulary
     """
 
@@ -34,26 +31,25 @@ class TransformerNetModel(nn.Module):
             input_dims,
             output_dims,
             hidden_t_dim,
+            vocab_size,
+            seq_len,  # for FNet
+            num_hidden_layers,  # for FNet
             dropout=0,
-            config=None,
-            # config_name='bert-base-uncased',
-            vocab_size=None,
-            # init_pretrained='no',
             logits_mode=1,
-            args=None,
+            config=None,  # TODO
     ):
         super().__init__()
 
         if config is None:
             config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
             config.hidden_dropout_prob = dropout
-            config.eos_token_id = 1
-            config.hidden_size = args.seq_len
-            config.max_position_embeddings = args.seq_len
-            config.num_hidden_layers = args.num_hidden_layers
+            config.hidden_size = seq_len
+            config.max_position_embeddings = seq_len
+            config.vocab_size = vocab_size
+            config.num_hidden_layers = num_hidden_layers
             config.pad_token_id = 0
+            config.eos_token_id = 1
             config.type_vocab_size = 2
-            config.vocab_size = 729
 
         self.input_dims = input_dims
         self.hidden_t_dim = hidden_t_dim

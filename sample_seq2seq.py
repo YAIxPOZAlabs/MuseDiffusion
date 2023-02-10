@@ -4,28 +4,28 @@ numpy array. This can be used to produce samples for FID evaluation.
 """
 
 import argparse
-import os, json
+import os
+import json
+import time
 
 import numpy as np
 import torch as th
 import torch.distributed as dist
 from transformers import set_seed
 
-from data import load_data_music
-from models.diffuseq.rounding import denoised_fn_round, get_weights
-
 # from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
-import time
-from models.diffuseq.utils import dist_util, logger
 from functools import partial
-from basic_utils import (
-    load_defaults_config,
-    create_model_and_diffusion,
-    add_dict_to_argparser,
-    args_to_dict,
-    load_model_emb
-)
+
+from models.diffuseq.rounding import denoised_fn_round, get_weights
+from models.diffuseq.utils import dist_util, logger
+
+from config import load_defaults_config, load_defaults_config_key
+from data import load_data_music
+
+from utils.argument_parsing import add_dict_to_argparser, args_to_dict
+from utils.initialization import create_model_and_diffusion, load_model_emb
+
 
 def create_argparser():
     defaults = dict(model_path='', step=0, out_dir='', top_p=0)
@@ -203,6 +203,7 @@ def main():
 
     print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
     print(f'### Written the decoded output to {out_path}')
+
 
 if __name__ == "__main__":
     print("Not implemented")

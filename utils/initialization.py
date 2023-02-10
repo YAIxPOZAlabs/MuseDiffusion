@@ -1,7 +1,7 @@
-import argparse
-import torch
-import json, os
+import os
 import time
+
+import torch
 
 from models.diffuseq import gaussian_diffusion as gd
 from models.diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
@@ -10,7 +10,7 @@ from models.diffuseq.transformer_model import TransformerNetModel
 
 def load_model_emb(args):
     # random emb or pre-defined embedding like glove embedding. You can custome your own init here.
-    model = torch.nn.Embedding(args.vocab_size, args.hidden_dim, padding_idx = 0)
+    model = torch.nn.Embedding(args.vocab_size, args.hidden_dim, padding_idx=0)
     path_save = '{}/random_emb.torch'.format(args.checkpoint_path)
     path_save_ind = path_save + ".done"
     if int(os.environ['LOCAL_RANK']) == 0:
@@ -33,18 +33,14 @@ def load_model_emb(args):
     return model
 
 
-def load_defaults_config():
-    from copy import deepcopy
-    from config import default
-    return deepcopy(default)
-
-
 def create_model_and_diffusion(
         *,
         hidden_t_dim,
         hidden_dim,
         vocab_size,
         dropout,
+        seq_len,  # FNet Kwarg
+        num_hidden_layers,  # FNet Kwarg
         diffusion_steps,
         noise_schedule,
         learn_sigma,
@@ -60,8 +56,10 @@ def create_model_and_diffusion(
         input_dims=hidden_dim,
         output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
         hidden_t_dim=hidden_t_dim,
+        vocab_size=vocab_size,
         dropout=dropout,
-        vocab_size=vocab_size
+        seq_len=seq_len,  # FNet Kwarg
+        num_hidden_layers=num_hidden_layers,  # FNet Kwarg
     )
 
     betas = gd.get_named_beta_schedule(noise_schedule, diffusion_steps)
@@ -74,38 +72,10 @@ def create_model_and_diffusion(
         betas=betas,
         rescale_timesteps=rescale_timesteps,
         predict_xstart=predict_xstart,
-        learn_sigmas = learn_sigma,
-        sigma_small = sigma_small,
-        use_kl = use_kl,
+        learn_sigmas=learn_sigma,
+        sigma_small=sigma_small,
+        use_kl=use_kl,
         rescale_learned_sigmas=rescale_learned_sigmas
     )
 
     return model, diffusion
-
-
-def add_dict_to_argparser(parser, default_dict):
-    for k, v in default_dict.items():
-        v_type = type(v)
-        if v is None:
-            v_type = str
-        elif isinstance(v, bool):
-            v_type = str2bool
-        parser.add_argument(f"--{k}", default=v, type=v_type)
-
-
-def args_to_dict(args, keys):
-    return {k: getattr(args, k) for k in keys}
-
-
-def str2bool(v):
-    """
-    https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
-    """
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "y", "1"):
-        return True
-    elif v.lower() in ("no", "false", "f", "n", "0"):
-        return False
-    else:
-        raise argparse.ArgumentTypeError("boolean value expected")

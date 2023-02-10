@@ -8,7 +8,6 @@ import torch as th
 import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 from torch.optim import AdamW
-import io
 
 from models.diffuseq.utils import dist_util, logger
 from models.diffuseq.utils.fp16_util import (
@@ -127,6 +126,8 @@ class TrainLoop:
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
+        if not resume_checkpoint:
+            return
 
         if resume_checkpoint[-3:] == '.pt':
             self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
@@ -144,6 +145,8 @@ class TrainLoop:
         ema_params = copy.deepcopy(self.master_params)
 
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
+        if not main_checkpoint:
+            return
         ema_checkpoint = find_ema_checkpoint(main_checkpoint, self.resume_step, rate)
         if ema_checkpoint:
             if dist.get_rank() == 0:
@@ -158,6 +161,8 @@ class TrainLoop:
 
     def _load_optimizer_state(self):
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
+        if not main_checkpoint:
+            return
         if bf.exists(main_checkpoint):
             logger.log(f"loading optimizer state from checkpoint: {main_checkpoint}")
             state_dict = dist_util.load_state_dict(
@@ -404,7 +409,7 @@ def find_resume_checkpoint():
 
 
 def find_ema_checkpoint(main_checkpoint, step, rate):
-    if main_checkpoint is None:
+    if not main_checkpoint:
         return None
     filename = f"ema_{rate}_{(step):06d}.pt"
     path = bf.join(bf.dirname(main_checkpoint), filename)
