@@ -24,7 +24,6 @@ if __name__ == '__main__':
     parser.add_argument('--bsz', type=int, default=64, help='batch size')
     parser.add_argument('--microbatch', type=int, default=64, help='microbatch size')
     parser.add_argument('--seed', type=int, default=101, help='random seed')
-    parser.add_argument('--use_plm_init', type=str, default='no', choices=['no', 'bert'], help='load init parameter from the pre-trained lm')
 
     parser.add_argument('--notes', type=str, default='-', help='as training notes or specifical args')
     parser.add_argument('--app', type=str, default='', help='other input args')
@@ -59,7 +58,7 @@ if __name__ == '__main__':
                   f"TOKENIZERS_PARALLELISM=false " \
                   f"python train.py   " \
                   f"--checkpoint_path {Model_FILE} " \
-                  f"--dataset {args.dataset} --data_dir {args.data_dir} --use_plm_init {args.use_plm_init} " \
+                  f"--data_dir {args.data_dir} " \
                   f"--lr {args.lr} " \
                   f"--batch_size {args.bsz} --microbatch {args.microbatch} " \
                   f"--diffusion_steps {args.diff_steps} " \
