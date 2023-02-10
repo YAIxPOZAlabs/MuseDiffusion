@@ -17,7 +17,7 @@ from models.diffuseq.rounding import denoised_fn_round, get_weights
 # from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
 import time
-from diffuseq.utils import dist_util, logger
+from models.diffuseq.utils import dist_util, logger
 from functools import partial
 from basic_utils import (
     load_defaults_config,
