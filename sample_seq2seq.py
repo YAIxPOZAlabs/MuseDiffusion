@@ -81,7 +81,6 @@ def main():
         batch_size=args.batch_size,
         seq_len=args.seq_len,
         deterministic=True,
-        data_args=args,
         split=args.split,
         model_emb=model_emb.cpu(), # using the same embedding wight with tranining data
         loop=False
