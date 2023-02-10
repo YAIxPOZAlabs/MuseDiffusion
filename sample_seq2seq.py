@@ -160,49 +160,60 @@ def main():
         model_emb_copy.cpu()
         # print(samples[0].shape) # samples for each step
 
-        sample = samples[-1]
-        gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
-        dist.all_gather(gathered_samples, sample)
-        all_sentence = [sample.cpu().numpy() for sample in gathered_samples]
-
-        # print('sampling takes {:.2f}s .....'.format(time.time() - start_t))
-
-        word_lst_recover = []
-        word_lst_ref = []
-        word_lst_source = []
-
-
-        arr = np.concatenate(all_sentence, axis=0)
-        x_t = th.tensor(arr).cuda()
-        # print('decoding for seq2seq', )
-        # print(arr.shape)
-
-        reshaped_x_t = x_t
-        logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
-
-        cands = th.topk(logits, k=1, dim=-1)
-        sample = cands.indices
-        # tokenizer = load_tokenizer(args)
-
         # TODO: convert to midi
-        for seq, input_mask in zip(cands.indices, input_ids_mask_ori):
-            len_x = args.seq_len - sum(input_mask).tolist()
-            tokens = tokenizer.decode_token(seq[len_x:])
-            word_lst_recover.append(tokens)
+        # 여기서부터 밑으로 바꿔야됨
 
-        for seq, input_mask in zip(input_ids_x, input_ids_mask_ori):
-            # tokens = tokenizer.decode_token(seq)
-            len_x = args.seq_len - sum(input_mask).tolist()
-            word_lst_source.append(tokenizer.decode_token(seq[:len_x]))
-            word_lst_ref.append(tokenizer.decode_token(seq[len_x:]))
+        # 1. for loop 돌면서 맞는 형식인지 확인
+        # 질문 - 수정된 note seq가 input note seq와 길이가 다를 수 있나?
+        # 만약 길이가 같으면 pitch와 velocity같은거에서 바뀐게 있으면 input note seq에서 업데이트 시키기?
 
-        fout = open(out_path, 'a')
-        for (recov, ref, src) in zip(word_lst_recover, word_lst_ref, word_lst_source):
-            print(json.dumps({"recover": recov, "reference": ref, "source": src}), file=fout)
-        fout.close()
+        # 2. midi로 변환 및 저장
+        # commu/midi_generator/sequence_postprocessor.py 에 있는 클래스 활용하면 될듯
+        # 살짝 수정해야할 부분은 output path 만드는 부분
 
-    print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
-    print(f'### Written the decoded output to {out_path}')
+        # sample = samples[-1]
+        # gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
+        # dist.all_gather(gathered_samples, sample)
+        # all_sentence = [sample.cpu().numpy() for sample in gathered_samples]
+        #
+        # # print('sampling takes {:.2f}s .....'.format(time.time() - start_t))
+        #
+        # word_lst_recover = []
+        # word_lst_ref = []
+        # word_lst_source = []
+        #
+        #
+        # arr = np.concatenate(all_sentence, axis=0)
+        # x_t = th.tensor(arr).cuda()
+        # # print('decoding for seq2seq', )
+        # # print(arr.shape)
+        #
+        # reshaped_x_t = x_t
+        # logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
+        #
+        # cands = th.topk(logits, k=1, dim=-1)
+        # sample = cands.indices
+        # # tokenizer = load_tokenizer(args)
+        #
+        #
+        # for seq, input_mask in zip(cands.indices, input_ids_mask_ori):
+        #     len_x = args.seq_len - sum(input_mask).tolist()
+        #     tokens = tokenizer.decode_token(seq[len_x:])
+        #     word_lst_recover.append(tokens)
+        #
+        # for seq, input_mask in zip(input_ids_x, input_ids_mask_ori):
+        #     # tokens = tokenizer.decode_token(seq)
+        #     len_x = args.seq_len - sum(input_mask).tolist()
+        #     word_lst_source.append(tokenizer.decode_token(seq[:len_x]))
+        #     word_lst_ref.append(tokenizer.decode_token(seq[len_x:]))
+        #
+        # fout = open(out_path, 'a')
+        # for (recov, ref, src) in zip(word_lst_recover, word_lst_ref, word_lst_source):
+        #     print(json.dumps({"recover": recov, "reference": ref, "source": src}), file=fout)
+        # fout.close()
+
+    # print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
+    # print(f'### Written the decoded output to {out_path}')
 
 
 if __name__ == "__main__":
