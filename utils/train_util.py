@@ -56,7 +56,7 @@ class TrainLoop:
         self.eval_data = eval_data
         self.batch_size = batch_size
         self.microbatch = microbatch if microbatch > 0 else batch_size
-        self.lr = lr
+        self.lr = float(lr)
         self.ema_rate = (
             [ema_rate]
             if isinstance(ema_rate, float)
