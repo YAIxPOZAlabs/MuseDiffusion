@@ -47,7 +47,6 @@ def main():
     data = load_data_music(
         batch_size=args.batch_size,
         seq_len=args.seq_len,
-        data_args = args,
         model_emb=model_emb # use model's weights as init
     )
     next(data)
@@ -55,7 +54,6 @@ def main():
     data_valid = load_data_music(
         batch_size=args.batch_size,
         seq_len=args.seq_len,
-        data_args=args,
         split='valid',
         deterministic=True,
         model_emb=model_emb # using the same embedding wight with tranining data

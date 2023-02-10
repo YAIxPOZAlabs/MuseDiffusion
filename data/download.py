@@ -19,17 +19,15 @@ dataset_info = {
 }  # type: dict[str, (str, str)]
 
 
-def get_data_path(data_args):
-    try:
-        if data_args is None:
-            raise AttributeError
-        return pathlib.Path(data_args.data_dir).absolute()
-    except AttributeError:
+def get_data_dir(data_dir=None):
+    if data_dir is not None:
+        return pathlib.Path(data_dir).absolute()
+    else:
         return pathlib.Path(__file__).absolute().parent.parent.joinpath('datasets').joinpath('ComMU-processed')
 
 
-def check_hash(data_args):
-    download_path = get_data_path(data_args)
+def check_hash(data_dir):
+    download_path = get_data_dir(data_dir)
     for filename, (_, checksum) in dataset_info.items():
         filepath = download_path.joinpath(filename)
         with open(filepath, 'rb') as f:
@@ -38,8 +36,8 @@ def check_hash(data_args):
     return True
 
 
-def download_data(data_args, *, mode=0o755):
-    download_path = get_data_path(data_args)
+def download_data(data_dir, *, mode=0o755):
+    download_path = get_data_dir(data_dir)
     print('#' * 30, '\nDownloading Datasets...')
     download_path.parent.mkdir(mode=mode, exist_ok=True)
     download_path.mkdir(mode=mode, exist_ok=True)
@@ -48,27 +46,27 @@ def download_data(data_args, *, mode=0o755):
         print(filename, "({idx}/{total})".format(idx=idx, total=len(dataset_info)))
         urlretrieve(url, str(filepath))
         filepath.chmod(mode=mode)
-    check_hash(data_args)
+    check_hash(data_dir)
 
 
-def validate_checksum(data_args):
-    download_path = get_data_path(data_args)
+def validate_checksum(data_dir):
+    download_path = get_data_dir(data_dir)
     return download_path.parent.is_dir() and \
         download_path.is_dir() and \
         all((download_path.joinpath(filename).is_file() for filename in dataset_info.keys())) and \
-        check_hash(data_args)
+        check_hash(data_dir)
 
 
-def guarantee_data(data_args, *, mode=0o755):
-    if not validate_checksum(data_args):
-        download_data(data_args, mode=mode)
+def guarantee_data(data_dir, *, mode=0o755):
+    if not validate_checksum(data_dir):
+        download_data(data_dir, mode=mode)
     return True
 
 
 if __name__ == '__main__':
     print("Dataset is {0} to {1}.".format(
         "downloaded and validated" if validate_checksum(None) else "not downloaded",
-        get_data_path(None)))
+        get_data_dir(None)))
 
 
-__all__ = ('guarantee_data', 'validate_checksum', 'download_data', 'get_data_path')
+__all__ = ('guarantee_data', 'validate_checksum', 'download_data', 'get_data_dir')

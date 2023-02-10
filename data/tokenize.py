@@ -1,4 +1,4 @@
-from datasets import Dataset as ArrowDataset, DatasetDict
+from datasets import Dataset as ArrowDataset
 import torch
 
 
@@ -55,7 +55,7 @@ def helper_tokenize(sentence_lst, seq_len):
         group_lst['input_mask'] = mask
         return group_lst
 
-    tokenized_datasets = tokenized_datasets.map(
+    merged_datasets = tokenized_datasets.map(
         merge_and_mask,
         batched=True,
         num_proc=1,
@@ -68,16 +68,14 @@ def helper_tokenize(sentence_lst, seq_len):
         group_lst['input_mask'] = _collate_batch_helper(group_lst['input_mask'], 1, max_length)
         return group_lst
 
-    lm_datasets = tokenized_datasets.map(
+    padded_datasets = merged_datasets.map(
         pad_function,
         batched=True,
         num_proc=1,
         desc=f"padding",
     )
 
-    raw_datasets = DatasetDict()
-    raw_datasets['train'] = lm_datasets
-    return raw_datasets
+    return padded_datasets
 
 
 __all__ = ('helper_tokenize',)
