@@ -45,7 +45,7 @@ class TransformerNetModel(nn.Module):
             config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
             config.hidden_dropout_prob = dropout
             config.hidden_size = hidden_dim
-            config.intermediate_size = 512
+            config.intermediate_size = hidden_t_dim * 4  # TODO
             config.max_position_embeddings = seq_len
             config.vocab_size = vocab_size
             config.num_hidden_layers = num_hidden_layers
