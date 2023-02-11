@@ -72,7 +72,7 @@ if __name__ == '__main__':
                   f"TOKENIZERS_PARALLELISM=false " \
                   f"python train.py   " \
                   f"--checkpoint_path {Model_FILE} "
-    for k, v in train_py_configs:
+    for k, v in train_py_configs.items():
         if isinstance(v, bool):
             v = 'y' if v else 'n'
         COMMANDLINE += f"--{k} {v} "
