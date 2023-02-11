@@ -26,7 +26,7 @@ from data import load_data_music
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 from utils.initialization import create_model_and_diffusion, load_model_emb
 
-from utils.inference_util import execute
+from utils.decode_util import SeqeunceToMidi
 
 def create_argparser():
     defaults = dict(model_path='', step=0, out_dir='', top_p=0)
@@ -40,6 +40,7 @@ def create_argparser():
 
 def main():
     args = create_argparser().parse_args()
+    
 
     dist_util.setup_dist()
     logger.configure()
@@ -167,38 +168,29 @@ def main():
 
         model_emb_copy.cpu()
         # print(samples[0].shape) # samples for each step
+        
+        ########################################################################################       
+        # Decode
+        # Convert Note Sequence To Midi file
+        ########################################################################################
+        decoder = SeqeunceToMidi()
 
-        # TODO: convert to midi
-        # 이 함수 call 해서 note sequence를 midi로 변환 후 저장
-        execute(model, samples, meta_info_len = 11, output_dir= args.output_dir)
-        # commu/midi_generator/sequence_postprocessor.py 에 있는 클래스 활용하면 될듯
-        # 살짝 수정해야할 부분은 output path 만드는 부분
-
-        # sample = samples[-1]
-        # gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
-        # dist.all_gather(gathered_samples, sample)
-        # all_sentence = [sample.cpu().numpy() for sample in gathered_samples]
-        #
+        sample = samples[-1]
+        gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
+        dist.all_gather(gathered_samples, sample)
+        all_sentence = [sample.cpu().numpy() for sample in gathered_samples]
+        
         # # print('sampling takes {:.2f}s .....'.format(time.time() - start_t))
-        #
-        # word_lst_recover = []
-        # word_lst_ref = []
-        # word_lst_source = []
-        #
-        #
-        # arr = np.concatenate(all_sentence, axis=0)
-        # x_t = th.tensor(arr).cuda()
-        # # print('decoding for seq2seq', )
-        # # print(arr.shape)
-        #
-        # reshaped_x_t = x_t
-        # logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
-        #
-        # cands = th.topk(logits, k=1, dim=-1)
-        # sample = cands.indices
-        # # tokenizer = load_tokenizer(args)
-        #
-        #
+
+        arr = np.concatenate(all_sentence, axis=0)
+        x_t = th.tensor(arr).cuda()
+
+        reshaped_x_t = x_t
+        logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
+        cands = th.topk(logits, k=1, dim=-1)
+        sample = cands.indices
+        decoder(sequences=sample,input_ids_mask_ori=input_ids_mask_ori,seq_len=args.seq_len,output_dir=".")
+
         # for seq, input_mask in zip(cands.indices, input_ids_mask_ori):
         #     len_x = args.seq_len - sum(input_mask).tolist()
         #     tokens = tokenizer.decode_token(seq[len_x:])
@@ -210,13 +202,9 @@ def main():
         #     word_lst_source.append(tokenizer.decode_token(seq[:len_x]))
         #     word_lst_ref.append(tokenizer.decode_token(seq[len_x:]))
         #
-        # fout = open(out_path, 'a')
-        # for (recov, ref, src) in zip(word_lst_recover, word_lst_ref, word_lst_source):
-        #     print(json.dumps({"recover": recov, "reference": ref, "source": src}), file=fout)
-        # fout.close()
-
-    # print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
-    # print(f'### Written the decoded output to {out_path}')
+ 
+    print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
+    print(f'### Written the decoded output to {out_path}')
 
 
 if __name__ == "__main__":
