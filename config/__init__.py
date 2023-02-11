@@ -1,4 +1,5 @@
-from .defaults import DEFAULT_CONFIG, CHOICES
+from .defaults import DEFAULT_CONFIG
+from .choices import CHOICES
 
 
 def load_defaults_config():

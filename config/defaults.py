@@ -35,9 +35,3 @@ DEFAULT_CONFIG = MappingProxyType({
     "emb_scale_factor": 1.0,
     "num_hidden_layers": 6                  # Added for FNet
 })
-
-
-CHOICES = MappingProxyType({
-    "noise_schedule": ('linear', 'cosine', 'sqrt', 'trunc_cos', 'trunc_lin', 'pw_lin'),
-    "schedule_sampler": ('uniform', 'lossaware', 'fixstep')
-})
