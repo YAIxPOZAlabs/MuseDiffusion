@@ -14,6 +14,7 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         split='train',
         num_proc=4,
         loop=True,
+        return_raw_loader=False,  # for internal experiment
 ):
     """
     For a dataset, create a generator over (seqs, kwargs) pairs.
@@ -22,14 +23,16 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
     more keys, each of which map to a batched Tensor of their own.
     The kwargs dict can be used for some meta information.
 
-    :param batch_size: the batch size of each returned pair.
-    :param seq_len: the max sequence length (one-side).
-    :param deterministic: if True, yield results in a deterministic order.
-    :param data_dir: data directory.
-    :param model_emb: loaded word embeddings.
-    :param split: how to split data - train, or valid.
-    :param num_proc: num of worker while tokenizing.
-    :param loop: loop to get batch data or not.
+    param batch_size: the batch size of each returned pair.
+    param seq_len: the max sequence length (one-side).
+    param deterministic: if True, yield results in a deterministic order.
+    param data_dir: data directory.
+    param model_emb: loaded word embeddings.
+    param split: how to split data - train, or valid.
+    param num_proc: num of worker while tokenizing.
+    param loop: loop to get batch data or not.
+    param return_raw_loader: for experiment.
+                             if True, dataloader will be returned despite loop option.
     """
 
     import os
@@ -82,7 +85,11 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         # drop_last=True,
     )
 
-    if loop:
+    if return_raw_loader:
+        import warnings
+        warnings.warn("return_raw_loader option will ignore loop option.")
+        return data_loader
+    elif loop:
         def infinite_loader(iterable):
             while True:
                 yield from iterable
