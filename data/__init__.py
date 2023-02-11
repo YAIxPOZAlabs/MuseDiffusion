@@ -4,7 +4,7 @@ from . import io
 from . import tokenize
 
 
-# usage: from dataset import load_data_text
+# usage: from data import load_data_text
 def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         batch_size,
         seq_len,
@@ -13,8 +13,7 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         model_emb=None,  # TODO: Model_emb 구현
         split='train',
         num_proc=4,
-        loop=True,
-        return_raw_loader=False,  # for internal experiment
+        loop=True
 ):
     """
     For a dataset, create a generator over (seqs, kwargs) pairs.
@@ -31,9 +30,24 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
     param split: how to split data - train, or valid.
     param num_proc: num of worker while tokenizing.
     param loop: loop to get batch data or not.
-    param return_raw_loader: for experiment.
-                             if True, dataloader will be returned despite loop option.
     """
+
+    data_loader = _load_data_music_internal(
+        batch_size, seq_len, data_dir, deterministic, model_emb, split, num_proc,
+    )
+    iter_func = _infinite_loader if loop else iter
+    return iter_func(data_loader)
+
+
+def _load_data_music_internal(
+        batch_size,
+        seq_len,
+        data_dir,
+        deterministic,
+        model_emb,
+        split,
+        num_proc
+):
 
     import os
     import torch
@@ -72,28 +86,16 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
             else:
                 print("Saved tokenized data to: {}".format(tokenized_data_path))
 
-    dataset = EmbeddingWrappedDataset(
-        tokenized_data,
-        model_emb=model_emb
-    )
-
     data_loader = torch.utils.data.DataLoader(
-        dataset,
+        EmbeddingWrappedDataset(tokenized_data, model_emb=model_emb),
         batch_size=batch_size,
         shuffle=not deterministic,
         num_workers=0,
         # drop_last=True,
     )
+    return data_loader
 
-    if return_raw_loader:
-        import warnings
-        warnings.warn("return_raw_loader option will ignore loop option.")
-        return data_loader
-    elif loop:
-        def infinite_loader(iterable):
-            while True:
-                yield from iterable
-        return iter(infinite_loader(data_loader))
-    else:
-        # print(data_loader)
-        return iter(data_loader)
+
+def _infinite_loader(iterable):
+    while True:
+        yield from iterable
