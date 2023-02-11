@@ -3,17 +3,26 @@ from . import dataset_wrapper
 from . import io
 from . import tokenize
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import *
+    from torch.nn import Embedding
+    import os
+    PathLike = Union[str, os.PathLike]
+else:
+    PathLike = Embedding = None
+
 
 # usage: from data import load_data_text
 def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
-        batch_size,
-        seq_len,
-        data_dir=None,
-        deterministic=False,
-        model_emb=None,  # TODO: Model_emb 구현
-        split='train',
-        num_proc=4,
-        loop=True
+        batch_size: int,
+        seq_len: int,
+        data_dir: PathLike = None,
+        deterministic: bool = False,
+        model_emb: Embedding = None,  # TODO: Model_emb 구현
+        split: str = 'train',
+        num_proc: int = 4,
+        loop: bool = True
 ):
     """
     For a dataset, create a generator over (seqs, kwargs) pairs.
@@ -30,27 +39,53 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
     param split: how to split data - train, or valid.
     param num_proc: num of worker while tokenizing.
     param loop: loop to get batch data or not.
+        if loop is True - infinite iterator will be returned
+        if loop is False - default iterator will be returned
+        if loop is None - raw dataloader will be returned
     """
+    tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split, num_proc=num_proc)
+    data_loader = _wrap_data_loader(tokenized_data,
+                                    batch_size=batch_size, deterministic=deterministic, model_emb=model_emb)
+    if loop is None:  # Option for development
+        return data_loader
+    elif loop is True:
+        return _infinite_loader(data_loader)
+    elif loop is False:
+        return iter(data_loader)
+    else:
+        raise TypeError("loop argument expected to be bool or NoneType, got {!r}".format(loop))
 
-    data_loader = _load_data_music_internal(
-        batch_size, seq_len, data_dir, deterministic, model_emb, split, num_proc,
-    )
-    iter_func = _infinite_loader if loop else iter
-    return iter_func(data_loader)
 
-
-def _load_data_music_internal(
+def _wrap_data_loader(
+        tokenized_data,
+        *,
         batch_size,
-        seq_len,
-        data_dir,
         deterministic,
         model_emb,
+):
+
+    from torch.utils.data import DataLoader
+    from .dataset_wrapper import EmbeddingWrappedDataset
+
+    data_loader = DataLoader(
+        EmbeddingWrappedDataset(tokenized_data, model_emb=model_emb),
+        batch_size=batch_size,
+        shuffle=not deterministic,
+        num_workers=0,
+        # drop_last=True,
+    )
+    return data_loader
+
+
+def _tokenize_data(
+        *,
+        seq_len,
+        data_dir,
         split,
-        num_proc
+        num_proc,
 ):
 
     import os
-    import torch
     from datasets import Dataset as ArrowDataset
 
     from .download import guarantee_data, get_data_dir
@@ -61,19 +96,19 @@ def _load_data_music_internal(
     data_dir = get_data_dir(data_dir)
     guarantee_data(data_dir)  # Download data
 
-    print('#' * 30, '\nLoading text data...')
+    print('#' * 30, '\nLoading {split} text data...'.format(split=split.upper()))
 
-    tokenized_data_path = 'tokenized-{split}-{seq_len}'.format(split=split, seq_len=seq_len)
+    tokenized_data_path = 'tokenized-{split}-{seq_len}'.format(split=split.lower(), seq_len=seq_len)
     tokenized_data_path = os.path.join(data_dir, tokenized_data_path)
 
     tokenized_data = None
     try:
         if os.path.exists(tokenized_data_path):
             tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
-            print("Loaded tokenized data from disk successfully.")
+            print("Loaded tokenized {split} data from disk successfully.".format(split=split.upper()))
     except Exception as exc:
         print(repr(exc))
-        print("Loading tokenized data from disk failed, try tokenizing...")
+        print("Loading tokenized {split} data from disk failed, try tokenizing...".format(split=split.upper()))
     finally:
         if tokenized_data is None:
             sentence_lst = load_raw_data(data_dir, split=split)
@@ -82,18 +117,11 @@ def _load_data_music_internal(
                 tokenized_data.save_to_disk(tokenized_data_path)
             except Exception as exc:
                 print(repr(exc))
-                print("Saving tokenized data to disk failed, try tokenizing...")
+                print("Saving tokenized {split} data to disk failed, try tokenizing...".format(split=split.upper()))
             else:
-                print("Saved tokenized data to: {}".format(tokenized_data_path))
+                print("Saved tokenized {split} data to: {path}".format(split=split.upper(), path=tokenized_data_path))
 
-    data_loader = torch.utils.data.DataLoader(
-        EmbeddingWrappedDataset(tokenized_data, model_emb=model_emb),
-        batch_size=batch_size,
-        shuffle=not deterministic,
-        num_workers=0,
-        # drop_last=True,
-    )
-    return data_loader
+    return tokenized_data
 
 
 def _infinite_loader(iterable):
