@@ -26,6 +26,7 @@ from data import load_data_music
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 from utils.initialization import create_model_and_diffusion, load_model_emb
 
+from utils.inference_util import execute
 
 def create_argparser():
     defaults = dict(model_path='', step=0, out_dir='', top_p=0)
@@ -168,13 +169,8 @@ def main():
         # print(samples[0].shape) # samples for each step
 
         # TODO: convert to midi
-        # 여기서부터 밑으로 바꿔야됨
-
-        # 1. for loop 돌면서 맞는 형식인지 확인
-        # 질문 - 수정된 note seq가 input note seq와 길이가 다를 수 있나?
-        # 만약 길이가 같으면 pitch와 velocity같은거에서 바뀐게 있으면 input note seq에서 업데이트 시키기?
-
-        # 2. midi로 변환 및 저장
+        # 이 함수 call 해서 note sequence를 midi로 변환 후 저장
+        execute(model, samples, meta_info_len = 11, output_dir= args.output_dir)
         # commu/midi_generator/sequence_postprocessor.py 에 있는 클래스 활용하면 될듯
         # 살짝 수정해야할 부분은 output path 만드는 부분
 
