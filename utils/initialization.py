@@ -55,6 +55,7 @@ def create_model_and_diffusion(
     model = TransformerNetModel(
         input_dims=hidden_dim,
         output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
+        hidden_dim=hidden_dim,  # FNet Kwarg
         hidden_t_dim=hidden_t_dim,
         vocab_size=vocab_size,
         dropout=dropout,
