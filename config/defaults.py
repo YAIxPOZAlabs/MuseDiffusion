@@ -1,7 +1,7 @@
 from types import MappingProxyType
 
-default_config = MappingProxyType({
-    "lr": "0.0001",
+DEFAULT_CONFIG = MappingProxyType({
+    "lr": 0.0001,
     "batch_size": 2048,
     "microbatch": 64,
     "learning_steps": 320000,
