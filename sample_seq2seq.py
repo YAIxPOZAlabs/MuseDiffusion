@@ -115,6 +115,8 @@ def main():
     
     from tqdm import tqdm
 
+    #forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
+
     for cond in tqdm(all_test_data):
 
         input_ids_x = cond.pop('input_ids').to(dist_util.dev())
@@ -122,18 +124,24 @@ def main():
         input_ids_mask = cond.pop('input_mask')
         input_ids_mask_ori = input_ids_mask
 
-        noise = th.randn_like(x_start)
-        input_ids_mask = th.broadcast_to(input_ids_mask.unsqueeze(dim=-1), x_start.shape).to(dist_util.dev())
-        x_noised = th.where(input_ids_mask==0, x_start, noise)
-
-        model_kwargs = {}
-
+        #noise = th.randn_like(x_start)
         if args.step == args.diffusion_steps:
             args.use_ddim = False
             step_gap = 1
         else:
             args.use_ddim = True
             step_gap = args.diffusion_steps//args.step
+
+        model_kwargs = {}
+        input_ids_mask = th.broadcast_to(input_ids_mask.unsqueeze(dim=-1), x_start.shape).to(dist_util.dev())
+        if args.use_ddim_reverse:
+            noise = x_start
+            for i in range(args.diffusion_steps):
+                noise = diffusion.ddim_reverse_sample(model, noise, t = i, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )
+        else:
+            noise = diffusion.q_sample(x_start, args.diffusion_steps, mask=input_ids_mask)
+        
+        x_noised = th.where(input_ids_mask==0, x_start, noise)
 
         sample_fn = (
             diffusion.p_sample_loop if not args.use_ddim else diffusion.ddim_sample_loop
