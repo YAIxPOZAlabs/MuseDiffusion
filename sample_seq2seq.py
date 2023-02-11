@@ -20,13 +20,13 @@ from functools import partial
 from models.diffuseq.rounding import denoised_fn_round, get_weights
 from models.diffuseq.utils import dist_util, logger
 
-from config import load_defaults_config, load_defaults_config_key
+from config import load_defaults_config, CHOICES
 from data import load_data_music
 
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 from utils.initialization import create_model_and_diffusion, load_model_emb
 
-from utils.decode_util import SeqeunceToMidi
+from utils.decode_util import SequenceToMidi
 
 def create_argparser():
     defaults = dict(model_path='', step=0, out_dir='', top_p=0)
@@ -34,7 +34,7 @@ def create_argparser():
     defaults.update(load_defaults_config())
     defaults.update(decode_defaults)
     parser = argparse.ArgumentParser()
-    add_dict_to_argparser(parser, defaults)
+    add_dict_to_argparser(parser, defaults, CHOICES)
     return parser
 
 
@@ -173,7 +173,7 @@ def main():
         # Decode
         # Convert Note Sequence To Midi file
         ########################################################################################
-        decoder = SeqeunceToMidi()
+        decoder = SequenceToMidi()
 
         sample = samples[-1]
         gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]

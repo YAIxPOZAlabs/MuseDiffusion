@@ -8,7 +8,7 @@ import json, os
 from transformers import set_seed
 import wandb
 
-from config import load_defaults_config
+from config import load_defaults_config, CHOICES
 
 from data import load_data_music
 
@@ -27,10 +27,10 @@ os.environ["WANDB_MODE"] = "offline"
 
 
 def create_argparser():
-    defaults = dict()
+    defaults = dict(checkpoint_path='')
     defaults.update(load_defaults_config())
     parser = argparse.ArgumentParser()
-    add_dict_to_argparser(parser, defaults) # update latest args according to argparse
+    add_dict_to_argparser(parser, defaults, CHOICES)  # update latest args according to argparse
     return parser
 
 
