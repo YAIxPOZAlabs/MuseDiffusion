@@ -15,7 +15,7 @@ def _collate_batch_helper(examples, pad_token_id, max_length, return_mask=False)
     return result
 
 
-def helper_tokenize(sentence_lst, seq_len):
+def helper_tokenize(sentence_lst, seq_len, num_proc=4):
     raw_datasets = ArrowDataset.from_dict(sentence_lst)
 
     def tokenize_function(examples):
@@ -25,7 +25,7 @@ def helper_tokenize(sentence_lst, seq_len):
     tokenized_datasets = raw_datasets.map(
         tokenize_function,
         batched=True,
-        num_proc=4,
+        num_proc=num_proc,
         remove_columns=['src', 'trg'],
         load_from_cache_file=True,
         desc="Running tokenizer on dataset",
@@ -58,7 +58,7 @@ def helper_tokenize(sentence_lst, seq_len):
     merged_datasets = tokenized_datasets.map(
         merge_and_mask,
         batched=True,
-        num_proc=1,
+        num_proc=num_proc,
         desc=f"merge and mask",
     )
 
@@ -71,7 +71,7 @@ def helper_tokenize(sentence_lst, seq_len):
     padded_datasets = merged_datasets.map(
         pad_function,
         batched=True,
-        num_proc=1,
+        num_proc=num_proc,
         desc=f"padding",
     )
 
