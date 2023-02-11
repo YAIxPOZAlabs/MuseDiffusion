@@ -13,3 +13,7 @@ tqdm
 transformers==4.22.2
 wandb
 datasets
+
+miditoolkit==0.1.16
+pretty-midi==0.2.9
+pydantic==1.9.1
