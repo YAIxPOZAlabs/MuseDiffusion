@@ -1,14 +1,3 @@
 python -m torch.distributed.launch --nproc_per_node=4 --master_port=12233 --use_env run_train.py \
---diff_steps 1000 \
---lr 0.0001 \
---learning_steps 20000 \
---save_interval 5000 \
---seed 102 \
---noise_schedule sqrt \
---hidden_dim 128 \
---bsz 2048 \
---dataset ComMU \
---data_dir ./datasets/ComMU-processed \
---seq_len 128 \
---schedule_sampler lossaware \
+--config_file train_cfg.json \
 --notes test-commu
