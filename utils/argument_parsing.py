@@ -1,14 +1,20 @@
 import argparse
 
 
-def add_dict_to_argparser(parser, default_dict):
+def add_dict_to_argparser(parser, default_dict, choices):
+    if choices is None:
+        choices = {}
     for k, v in default_dict.items():
         v_type = type(v)
         if v is None:
             v_type = str
         elif isinstance(v, bool):
             v_type = str2bool
-        parser.add_argument(f"--{k}", default=v, type=v_type)
+        if k in choices:
+            kwargs = dict(default=v, type=v_type, choices=choices[k])
+        else:
+            kwargs = dict(default=v, type=v_type)
+        parser.add_argument(f"--{k}", **kwargs)
 
 
 def args_to_dict(args, keys):

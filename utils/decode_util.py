@@ -7,7 +7,7 @@ from models.commu.preprocessor.utils.container import MidiInfo
 from miditoolkit import MidiFile
 
 
-class SeqeunceToMidi:
+class SequenceToMidi:
     def __init__(self) -> None:
         self.decoder = EventSequenceEncoder()
 

@@ -15,8 +15,8 @@ DEFAULT_CONFIG = MappingProxyType({
     "noise_schedule": "sqrt",
     "timestep_respacing": "",
     "vocab_size": 729,                      # Added
+    "dataset": "ComMU",
     "data_dir": "datasets/ComMU-processed",
-    "checkpoint_path": "checkpoint-path",
     "seq_len": 2096,                        # Changed
     "hidden_t_dim": 128,      # TODO
     "hidden_dim": 8,        # TODO
@@ -34,4 +34,10 @@ DEFAULT_CONFIG = MappingProxyType({
     "sigma_small": False,
     "emb_scale_factor": 1.0,
     "num_hidden_layers": 6                  # Added for FNet
+})
+
+
+CHOICES = MappingProxyType({
+    "noise_schedule": ('linear', 'cosine', 'sqrt', 'trunc_cos', 'trunc_lin', 'pw_lin'),
+    "schedule_sampler": ('uniform', 'lossaware', 'fixstep')
 })
