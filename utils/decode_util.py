@@ -15,15 +15,17 @@ class SequenceToMidi:
     def set_output_file_path(idx: int, output_dir: Union[str, os.PathLike]) -> str:
         return "{output_dir}/{idx}.mid".format(idx=idx, output_dir=output_dir)
 
-    def post_process(self, generation_result):  # TODO
+    def remove_padding(self, generation_result):
         '''
         TODO
         Future Work
         '''
         npy = np.array(generation_result)
-        eos_idxs = np.where(npy == 1)[0] # eos token == 1
-        if len(eos_idxs) >= 1:
-            eos_idx = eos_idxs[0].item()
+        assert npy.ndim == 1
+
+        eos_idx = np.where(npy == 1)[0] # eos token == 1
+        if len(eos_idx) > 0:
+            eos_idx = eos_idx[0].item() # note seq의 첫 eos이후에 나온 토큰들은 모두 패딩이 잘못 생성된거로 간주
             return generation_result[:eos_idx + 1]
         else:
             raise Exception('Error in note sequence, no eos token')
@@ -47,26 +49,28 @@ class SequenceToMidi:
 
     def decode_event_sequence(
             self,
-            generation_result: List[int],  # 형식: meta (11) + eos + midi
-            num_meta: int
+            encoded_meta,
+            note_seq
     ) -> MidiFile:
-        encoded_meta = generation_result[: num_meta + 1]
-        event_sequence = generation_result[num_meta + 2:]
         decoded_midi = self.decoder.decode(
-            midi_info=MidiInfo(*encoded_meta, event_seq=event_sequence),
+            midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),
         )
         return decoded_midi
+        
 
     def __call__(self, sequences, output_dir, input_ids_mask_ori, seq_len) -> None:
         for idx, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
             len_meta = seq_len - int((input_mask.sum()))
             assert len_meta == 12  # meta와 midi사이에 들어가는 meta eos까지 12(11+1)
+
+            encoded_meta = seq[:len_meta-1] #meta의 eos 토큰 제외 11개만 가져오기
             note_seq = seq[len_meta:]
-            note_seq = self.post_process(note_seq)
+            note_seq = self.remove_padding(note_seq)
+
             if self.validate_generated_sequence(note_seq):
                 decoded_midi = self.decode_event_sequence(
-                    generation_result=seq,
-                    num_meta=len_meta,
+                    encoded_meta,
+                    note_seq
                 )
                 output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
                 decoded_midi.dump(output_file_path)
