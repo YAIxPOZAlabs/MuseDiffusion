@@ -17,3 +17,4 @@ datasets
 miditoolkit==0.1.16
 pretty-midi==0.2.9
 pydantic==1.9.1
+parmap==1.5.3
