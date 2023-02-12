@@ -5,7 +5,7 @@ import time
 import json
 
 
-if __name__ == '__main__':
+def original_main():
 
     parser = argparse.ArgumentParser(description='training args.')
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     # parser.add_argument('--bsz', type=int, default=64, help='batch size')
     # parser.add_argument('--microbatch', type=int, default=64, help='microbatch size')
     # parser.add_argument('--seed', type=int, default=101, help='random seed')
-    
+
     args = parser.parse_args()
 
     # set working dir to the upper folder
@@ -85,3 +85,72 @@ if __name__ == '__main__':
 
     print(COMMANDLINE)
     os.system(COMMANDLINE)
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description='training args.')
+
+    parser.add_argument('--nproc_per_node', type=int, default=4, help='number of gpu used in distributed')
+    parser.add_argument('--master_port', type=int, default=12233, help='master port used in distributed')
+    parser.add_argument('--config_file', type=str, default='', help='path to training config')
+
+    parser.add_argument('--notes', type=str, default='-', help='as training notes or specifical args')
+    parser.add_argument('--app', type=str, default='', help='other input args')
+
+    args = parser.parse_args()
+
+    # set working dir to the upper folder
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    dname = os.path.dirname(dname)
+    sys.path.append(dname)  # Assure upper folder import
+    os.chdir(dname)
+
+    import config
+
+    config_file = args.config_file
+    if not os.path.isfile(config_file):
+        raise argparse.ArgumentTypeError("config_file does not exist: {}".format(config_file))
+    with open(args.config_file) as fp:
+        train_py_configs = json.load(fp)
+    args.__dict__.update(config.load_dict_config(train_py_configs))
+
+    folder_name = "diffusion_models/"
+
+    if not os.path.isdir(folder_name):
+        os.mkdir(folder_name)
+
+    Model_FILE = f"diffuseq_{args.dataset}_h{args.hidden_dim}_lr{args.lr}" \
+                 f"_t{args.diffusion_steps}_{args.noise_schedule}_{args.schedule_sampler}" \
+                 f"_seed{args.seed}"
+    if args.notes:
+        args.notes += time.strftime("%Y%m%d-%H:%M:%S")
+        Model_FILE = Model_FILE + f'_{args.notes}'
+    Model_FILE = os.path.join(folder_name, Model_FILE)
+
+    if not os.path.isdir(Model_FILE):
+        os.mkdir(Model_FILE)
+
+    COMMANDLINE = f"OPENAI_LOGDIR={Model_FILE} " \
+                  f"TOKENIZERS_PARALLELISM=false " \
+                  f"python -m torch.distributed.launch " \
+                  f"--nproc_per_node={args.nproc_per_node} --master_port={args.master_port} --use_env " \
+                  f"train.py  " \
+                  f"--checkpoint_path {Model_FILE} "
+    for k, v in train_py_configs.items():
+        if isinstance(v, bool):
+            v = 'y' if v else 'n'
+        COMMANDLINE += f"--{k} {v} "
+
+    COMMANDLINE += " " + args.app
+
+    with open(os.path.join(Model_FILE, 'saved_bash.sh'), 'w') as f:
+        print(COMMANDLINE, file=f)
+
+    print(COMMANDLINE)
+    os.system(COMMANDLINE)
+
+
+if __name__ == '__main__':
+    main()
