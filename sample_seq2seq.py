@@ -188,8 +188,8 @@ def main():
         reshaped_x_t = x_t
         logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
         cands = th.topk(logits, k=1, dim=-1)
-        sample = cands.indices
-        decoder(sequences=sample,input_ids_mask_ori=input_ids_mask_ori,seq_len=args.seq_len,output_dir=".")
+        sample_tokens = cands.indices
+        decoder(sequences=sample_tokens,input_ids_mask_ori=input_ids_mask_ori,seq_len=args.seq_len,output_dir=".")
 
         # for seq, input_mask in zip(cands.indices, input_ids_mask_ori):
         #     len_x = args.seq_len - sum(input_mask).tolist()

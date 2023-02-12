@@ -4,7 +4,7 @@ import inspect
 import math
 from typing import Any, Callable, Dict, List, Union
 
-from commu.preprocessor.utils.exceptions import ErrorMessage, UnprocessableMidiError
+from models.commu.preprocessor.utils.exceptions import ErrorMessage, UnprocessableMidiError
 from ..utils import constants
 from ..utils.container import MidiMeta
 from .event_tokens import TOKEN_OFFSET
