@@ -8,17 +8,19 @@ from models.diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
 from models.diffuseq.transformer_model import TransformerNetModel
 
 
-def load_model_emb(args):
-    # random emb or pre-defined embedding like glove embedding. You can custome your own init here.
+def load_model_emb(args, log_function=print):
+    # random emb or pre-defined embedding like glove embedding. You can customize your own init here.
     model = torch.nn.Embedding(args.vocab_size, args.hidden_dim, padding_idx=0)
     path_save = '{}/random_emb.torch'.format(args.checkpoint_path)
     path_save_ind = path_save + ".done"
-    if int(os.environ['LOCAL_RANK']) == 0:
+    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         if os.path.exists(path_save):
-            print('reload the random embeddings', model)
+            if log_function is not None:
+                log_function('reload the random embeddings {}'.format(model))
             model.load_state_dict(torch.load(path_save))
         else:
-            print('initializing the random embeddings', model)
+            if log_function is not None:
+                log_function('initializing the random embeddings {}'.format(model))
             torch.nn.init.normal_(model.weight)
             torch.save(model.state_dict(), path_save)
             os.sync()
@@ -27,7 +29,8 @@ def load_model_emb(args):
     else:
         while not os.path.exists(path_save_ind):
             time.sleep(1)
-        print('reload the random embeddings', model)
+        if log_function is not None:
+            log_function('reload the random embeddings {}'.format(model))
         model.load_state_dict(torch.load(path_save))
 
     return model

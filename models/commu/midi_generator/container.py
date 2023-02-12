@@ -5,9 +5,9 @@ from typing import Dict, Any, List
 
 from pydantic import BaseModel, validator
 
-from commu.preprocessor.encoder import encoder_utils, TOKEN_OFFSET
-from commu.preprocessor.utils import constants
-from commu.preprocessor.utils.container import MidiMeta
+from ..preprocessor.encoder import encoder_utils, TOKEN_OFFSET
+from ..preprocessor.utils import constants
+from ..preprocessor.utils.container import MidiMeta
 
 
 class ModelArguments(BaseModel):

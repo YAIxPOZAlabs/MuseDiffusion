@@ -7,10 +7,10 @@ import torch.nn.functional as F
 import yacs.config
 
 from logger import logger
-from commu.midi_generator.container import TransXlInputData
-from commu.model.model import MemTransformerLM
-from commu.preprocessor.encoder import TOKEN_OFFSET
-from commu.preprocessor.utils.constants import DEFAULT_POSITION_RESOLUTION
+from .container import TransXlInputData
+from ..model.model import MemTransformerLM
+from ..preprocessor.encoder import TOKEN_OFFSET
+from ..preprocessor.utils.constants import DEFAULT_POSITION_RESOLUTION
 
 
 class TeacherForceTask:

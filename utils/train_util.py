@@ -9,7 +9,6 @@ import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel as DDP
 from torch.optim import AdamW
 
-from models.diffuseq.utils import dist_util, logger
 from models.diffuseq.utils.fp16_util import (
     make_master_params,
     master_params_to_model_params,
@@ -19,6 +18,8 @@ from models.diffuseq.utils.fp16_util import (
 )
 from models.diffuseq.utils.nn import update_ema
 from models.diffuseq.step_sample import LossAwareSampler, UniformSampler
+
+from utils import dist_util, logger
 
 # For ImageNet experiments, this was a good default value.
 # We found that the lg_loss_scale quickly climbed to

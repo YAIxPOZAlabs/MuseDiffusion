@@ -1,5 +1,6 @@
 import os
 import types
+import torch.distributed.launch
 
 
 class CreditPrinter(object):

@@ -12,8 +12,9 @@ from config import load_defaults_config, CHOICES
 
 from data import load_data_music
 
-from models.diffuseq.utils import dist_util, logger
 from models.diffuseq.step_sample import create_named_schedule_sampler
+
+from utils import dist_util, logger
 
 from utils.initialization import create_model_and_diffusion, load_model_emb
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
@@ -21,7 +22,7 @@ from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 from utils.train_util import TrainLoop
 
 
-### custom your wandb setting here ###
+### custom your wandb setting here ### TODO
 # os.environ["WANDB_API_KEY"] = ""
 os.environ["WANDB_MODE"] = "offline"
 
@@ -35,7 +36,7 @@ def create_argparser():
 
 
 def print_credit():
-    if ('LOCAL_RANK' not in os.environ) or (int(os.environ['LOCAL_RANK']) == 0):
+    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         try:
             from utils.etc import credit
             credit()
@@ -59,9 +60,9 @@ def main():
         data_dir=args.data_dir,
         split='train',
         deterministic=False,
-        model_emb=model_emb # use model's weights as init
+        model_emb=model_emb  # use model's weights as init
     )
-    next(data)
+    next(data)  # try iter
 
     data_valid = load_data_music(
         batch_size=args.batch_size,
@@ -69,18 +70,17 @@ def main():
         data_dir=args.data_dir,
         split='valid',
         deterministic=True,
-        model_emb=model_emb # using the same embedding wight with tranining data
+        model_emb=model_emb  # using the same embedding wight with tranining data
     )
 
-    print('#'*30, 'size of vocab', args.vocab_size)
+    # print('#'*30, 'size of vocab', args.vocab_size)
 
     logger.log("### Creating model and diffusion...")
     # print('#'*30, 'CUDA_VISIBLE_DEVICES', os.environ['CUDA_VISIBLE_DEVICES'])
     model, diffusion = create_model_and_diffusion(
         **args_to_dict(args, load_defaults_config().keys())
     )
-    # print('#'*30, 'cuda', dist_util.dev())
-    model.to(dist_util.dev()) #  DEBUG **
+    model.to(dist_util.dev())
     # model.cuda() #  DEBUG **
 
     pytorch_total_params = sum(p.numel() for p in model.parameters())
@@ -92,7 +92,7 @@ def main():
     with open(f'{args.checkpoint_path}/training_args.json', 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
-    if ('LOCAL_RANK' not in os.environ) or (int(os.environ['LOCAL_RANK']) == 0):
+    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         wandb.init(
             project=os.getenv("WANDB_PROJECT", "YAIxPOZAlabs"),
             name=args.checkpoint_path,

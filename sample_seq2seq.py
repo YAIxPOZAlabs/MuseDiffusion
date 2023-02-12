@@ -18,10 +18,11 @@ from transformers import set_seed
 from functools import partial
 
 from models.diffuseq.rounding import denoised_fn_round, get_weights
-from models.diffuseq.utils import dist_util, logger
 
 from config import load_defaults_config, CHOICES
 from data import load_data_music
+
+from utils import dist_util, logger
 
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 from utils.initialization import create_model_and_diffusion, load_model_emb
@@ -39,7 +40,7 @@ def create_argparser():
 
 
 def print_credit():
-    if ('LOCAL_RANK' not in os.environ) or (int(os.environ['LOCAL_RANK']) == 0):
+    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         try:
             from utils.etc import credit
             credit()

@@ -3,9 +3,9 @@ from typing import List
 
 from miditoolkit import MidiFile
 
-from commu.midi_generator.container import TransXlInputData
-from commu.preprocessor.encoder import EventSequenceEncoder
-from commu.preprocessor.utils.container import MidiInfo
+from .container import TransXlInputData
+from ..preprocessor.encoder import EventSequenceEncoder
+from ..preprocessor.utils.container import MidiInfo
 
 
 class PostprocessTask:
