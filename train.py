@@ -34,18 +34,18 @@ def create_argparser():
     return parser
 
 
-def print_logo():
+def print_credit():
     if ('LOCAL_RANK' not in os.environ) or (int(os.environ['LOCAL_RANK']) == 0):
         try:
-            from utils.etc import logo
-            logo()
+            from utils.etc import credit
+            credit()
         except ImportError:
             pass
 
 
 def main():
     args = create_argparser().parse_args()
-    print_logo()
+    print_credit()
     set_seed(args.seed) 
     dist_util.setup_dist()
     logger.configure()
