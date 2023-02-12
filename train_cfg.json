@@ -1,0 +1,11 @@
+{
+  "diffusion_steps": 1000,
+  "microbatch": 128,
+  "learning_steps": 20000,
+  "log_interval": 20,
+  "save_interval": 5000,
+  "eval_interval": 1000,
+  "hidden_t_dim": 128,
+  "hidden_dim": 8,
+  "num_hidden_layers": 6
+}
