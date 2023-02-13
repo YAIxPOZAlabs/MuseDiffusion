@@ -6,7 +6,7 @@ import blobfile as bf
 import numpy as np
 import torch as th
 import torch.distributed as dist
-from torch.nn.parallel.distributed import DistributedDataParallel as DDP
+from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
 from models.diffuseq.utils.fp16_util import (
@@ -14,7 +14,7 @@ from models.diffuseq.utils.fp16_util import (
     master_params_to_model_params,
     model_grads_to_master_grads,
     unflatten_master_params,
-    zero_grad,
+    convert_module_to_f16
 )
 from models.diffuseq.utils.nn import update_ema
 from models.diffuseq.step_sample import LossAwareSampler, UniformSampler
@@ -83,7 +83,7 @@ class TrainLoop:
         self.lg_loss_scale = INITIAL_LOG_LOSS_SCALE
         self.sync_cuda = th.cuda.is_available()
 
-        self.checkpoint_path = checkpoint_path # DEBUG **
+        self.checkpoint_path = checkpoint_path  # DEBUG **
 
         self._load_and_sync_parameters()
         if self.use_fp16:
@@ -105,10 +105,10 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if th.cuda.is_available(): # DEBUG **
+        if th.cuda.is_available():  # DEBUG **
             self.use_ddp = True
             print(dist_util.dev())
-            self.ddp_model = DDP(
+            self.ddp_model = DistributedDataParallel(
                 self.model,
                 device_ids=[dist_util.dev()],
                 output_device=dist_util.dev(),
@@ -173,7 +173,8 @@ class TrainLoop:
 
     def _setup_fp16(self):
         self.master_params = make_master_params(self.model_params)
-        self.model.convert_to_fp16()
+        self.model: th.nn.Module
+        self.model.apply(convert_module_to_f16)
 
     def run_loop(self):
         while (
@@ -207,61 +208,54 @@ class TrainLoop:
             self.optimize_normal()
         self.log_step()
 
+    def _zero_grad(self):
+        for param in self.model_params:
+            # Taken from https://pytorch.org/docs/stable/_modules/torch/optim/optimizer.html#Optimizer.add_param_group
+            if param.grad is not None:
+                param.grad.detach_()
+                param.grad.zero_()
+
+    def _microbatch_common_forward(self, batch, cond, i):
+
+        micro = batch[i:i + self.microbatch].to(dist_util.dev())
+        micro_cond = {
+            k: v[i: i + self.microbatch].to(dist_util.dev())
+            for k, v in cond.items()
+        }
+        last_batch = (i + self.microbatch) >= batch.shape[0]
+        t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
+        # print(micro_cond.keys())
+
+        compute_losses = functools.partial(
+            self.diffusion.training_losses,
+            self.ddp_model,
+            micro,
+            t,
+            model_kwargs=micro_cond,
+        )
+
+        if last_batch or not self.use_ddp:
+            losses = compute_losses()
+        else:
+            with self.ddp_model.no_sync():
+                losses = compute_losses()
+
+        return losses, t, weights
+
+    @th.no_grad()
     def forward_only(self, batch, cond):
-        with th.no_grad():
-            zero_grad(self.model_params)
-            for i in range(0, batch.shape[0], self.microbatch):
-                micro = batch[i: i + self.microbatch].to(dist_util.dev())
-                micro_cond = {
-                    k: v[i: i + self.microbatch].to(dist_util.dev())
-                    for k, v in cond.items()
-                }
-                last_batch = (i + self.microbatch) >= batch.shape[0]
-                t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
-                # print(micro_cond.keys())
-                compute_losses = functools.partial(
-                    self.diffusion.training_losses,
-                    self.ddp_model,
-                    micro,
-                    t,
-                    model_kwargs=micro_cond,
-                )
-
-                if last_batch or not self.use_ddp:
-                    losses = compute_losses()
-                else:
-                    with self.ddp_model.no_sync():
-                        losses = compute_losses()
-
-                log_loss_dict(
-                    self.diffusion, t, {f"eval_{k}": v * weights for k, v in losses.items()}
-                )
-
-
-    def forward_backward(self, batch, cond):
-        zero_grad(self.model_params)
+        self._zero_grad()
         for i in range(0, batch.shape[0], self.microbatch):
-            micro = batch[i : i + self.microbatch].to(dist_util.dev())
-            micro_cond = {
-                k: v[i : i + self.microbatch].to(dist_util.dev())
-                for k, v in cond.items()
-            }
-            last_batch = (i + self.microbatch) >= batch.shape[0]
-            t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
-            # print(micro_cond.keys())
-            compute_losses = functools.partial(
-                self.diffusion.training_losses,
-                self.ddp_model,
-                micro,
-                t,
-                model_kwargs=micro_cond,
+            losses, t, weights = self._microbatch_common_forward(batch, cond, i)
+
+            log_loss_dict(
+                self.diffusion, t, {f"eval_{k}": v * weights for k, v in losses.items()}
             )
 
-            if last_batch or not self.use_ddp:
-                losses = compute_losses()
-            else:
-                with self.ddp_model.no_sync():
-                    losses = compute_losses()
+    def forward_backward(self, batch, cond):
+        self._zero_grad()
+        for i in range(0, batch.shape[0], self.microbatch):
+            losses, t, weights = self._microbatch_common_forward(batch, cond, i)
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(
@@ -296,7 +290,7 @@ class TrainLoop:
 
     def grad_clip(self):
         # print('doing gradient clipping')
-        max_grad_norm=self.gradient_clipping #3.0
+        max_grad_norm = self.gradient_clipping  # 3.0
         if hasattr(self.opt, "clip_grad_norm"):
             # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
             self.opt.clip_grad_norm(max_grad_norm)
@@ -308,7 +302,7 @@ class TrainLoop:
         else:
             # Revert to normal clipping otherwise, handling Apex or full precision
             th.nn.utils.clip_grad_norm_(
-                self.model.parameters(), #amp.master_params(self.opt) if self.use_apex else
+                self.model.parameters(),  # amp.master_params(self.opt) if self.use_apex else
                 max_grad_norm,
             )
 
@@ -328,7 +322,7 @@ class TrainLoop:
             # print(cnt, p) ## DEBUG
             # print(cnt, p.grad)
             # cnt += 1
-            if p.grad != None:
+            if p.grad is not None:
                 sqsum += (p.grad ** 2).sum().item()
         logger.logkv_mean("grad_norm", np.sqrt(sqsum))
 
@@ -359,20 +353,20 @@ class TrainLoop:
                 print('writing to', bf.join(self.checkpoint_path, filename))
                 # with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
                 #     th.save(state_dict, f)
-                with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f: # DEBUG **
-                    th.save(state_dict, f) # save locally
+                with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:  # DEBUG **
+                    th.save(state_dict, f)  # save locally
                     # pass # save empty
 
         # save_checkpoint(0, self.master_params)
-        for rate, params in zip(self.ema_rate, self.ema_params):
-            save_checkpoint(rate, params)
+        for r, p in zip(self.ema_rate, self.ema_params):
+            save_checkpoint(r, p)
 
         dist.barrier()
 
     def _master_params_to_state_dict(self, master_params):
         if self.use_fp16:
             master_params = unflatten_master_params(
-                list(self.model.parameters()), master_params # DEBUG **
+                list(self.model.parameters()), master_params  # DEBUG **
             )
         state_dict = self.model.state_dict()
         for i, (name, _value) in enumerate(self.model.named_parameters()):
@@ -386,6 +380,8 @@ class TrainLoop:
             return make_master_params(params)
         else:
             return params
+
+    __call__ = run_loop
 
 
 def parse_resume_step_from_filename(filename):
@@ -412,7 +408,7 @@ def find_resume_checkpoint():
 def find_ema_checkpoint(main_checkpoint, step, rate):
     if not main_checkpoint:
         return None
-    filename = f"ema_{rate}_{(step):06d}.pt"
+    filename = f"ema_{rate}_{step:06d}.pt"
     path = bf.join(bf.dirname(main_checkpoint), filename)
     if bf.exists(path):
         return path
