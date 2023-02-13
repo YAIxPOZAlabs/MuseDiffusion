@@ -29,7 +29,6 @@ os.environ["WANDB_MODE"] = "offline"
 
 def create_argparser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint_path", type=str)
     add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)  # update latest args according to argparse
     return parser
 
