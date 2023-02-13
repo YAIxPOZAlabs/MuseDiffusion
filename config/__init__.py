@@ -6,10 +6,6 @@ def load_defaults_config():
     return dict(DEFAULT_CONFIG)
 
 
-def load_defaults_config_key():
-    return DEFAULT_CONFIG.keys()
-
-
 def load_dict_config(config_dict):
     cfg = load_defaults_config()
     for key in config_dict:

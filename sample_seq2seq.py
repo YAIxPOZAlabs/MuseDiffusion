@@ -19,7 +19,7 @@ from functools import partial
 
 from models.diffuseq.rounding import denoised_fn_round, get_weights
 
-from config import load_defaults_config, CHOICES
+from config import CHOICES, DEFAULT_CONFIG
 from data import load_data_music
 
 from utils import dist_util, logger
@@ -32,7 +32,7 @@ from utils.decode_util import SequenceToMidi
 def create_argparser():
     defaults = dict(model_path='', step=0, out_dir='', top_p=0)
     decode_defaults = dict(split='valid', clamp_step=0, seed2=105, clip_denoised=False)
-    defaults.update(load_defaults_config())
+    defaults.update(DEFAULT_CONFIG)
     defaults.update(decode_defaults)
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, defaults, CHOICES)
@@ -63,10 +63,11 @@ def main():
         training_args = json.load(f)
     training_args['batch_size'] = args.batch_size
     args.__dict__.update(training_args)
+    args.__dict__.update(checkpoint_path=config_path)
 
     logger.log("### Creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
-        **args_to_dict(args, load_defaults_config().keys())
+        **args_to_dict(args, DEFAULT_CONFIG.keys())
     )
 
     model.load_state_dict(

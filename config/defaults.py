@@ -32,6 +32,7 @@ DEFAULT_CONFIG = MappingProxyType({
     "rescale_timesteps": True,
     "rescale_learned_sigmas": False,
     "sigma_small": False,
+    "checkpoint_path": ".",
     "emb_scale_factor": 1.0,
     "num_hidden_layers": 6                  # Added for FNet
 })
