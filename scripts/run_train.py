@@ -1,5 +1,6 @@
 import sys
 import os
+import psutil
 import argparse
 import time
 import json
@@ -140,7 +141,9 @@ def main():
     if not os.path.isdir(model_file):
         os.mkdir(model_file)
 
-    commandline = f"OPENAI_LOGDIR={model_file} " \
+    os.environ.setdefault("OMP_NUM_THREADS", str(psutil.cpu_count(logical=False) // int(args.nproc_per_node)))
+
+    commandline = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} OPENAI_LOGDIR={model_file} " \
                   f"python -m {distributed_run} " \
                   f"--nproc_per_node={args.nproc_per_node} --master_port={args.master_port} {use_env} " \
                   f"train.py " \
