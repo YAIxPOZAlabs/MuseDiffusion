@@ -59,6 +59,7 @@ class SequenceToMidi:
         
 
     def __call__(self, sequences, output_dir, input_ids_mask_ori, seq_len) -> None:
+        num_valid_seq = 0
         for idx, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
             len_meta = seq_len - int((input_mask.sum()))
             assert len_meta == 12  # meta와 midi사이에 들어가는 meta eos까지 12(11+1)
@@ -74,5 +75,9 @@ class SequenceToMidi:
                 )
                 output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
                 decoded_midi.dump(output_file_path)
+                num_valid_seq +=1
             else:
-                raise ValueError("Validation of generated sequence failed:\n{!r}".format(note_seq))
+                print(f"{idx+1}th sequence is invalid")
+
+        if num_valid_seq == 0 :
+            raise ValueError("Validation of generated sequence failed:\n{!r}".format(note_seq))
