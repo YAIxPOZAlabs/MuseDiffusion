@@ -141,6 +141,7 @@ def main():
     if not os.path.isdir(model_file):
         os.mkdir(model_file)
 
+    print(os.environ.get("OMP_NUM_THREADS", 0))
     os.environ.setdefault("OMP_NUM_THREADS", str(psutil.cpu_count(logical=False) // int(args.nproc_per_node)))
 
     commandline = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} OPENAI_LOGDIR={model_file} " \
