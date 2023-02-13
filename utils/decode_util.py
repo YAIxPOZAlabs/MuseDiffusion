@@ -6,7 +6,6 @@ from models.commu.preprocessor.utils.container import MidiInfo
 
 from miditoolkit import MidiFile
 
-
 class SequenceToMidi:
     def __init__(self) -> None:
         self.decoder = EventSequenceEncoder()
@@ -21,7 +20,7 @@ class SequenceToMidi:
         Future Work
         '''
         npy = np.array(generation_result)
-        assert npy.ndim == 1
+        #assert npy.ndim == 1
 
         eos_idx = np.where(npy == 1)[0] # eos token == 1
         if len(eos_idx) > 0:
@@ -81,3 +80,19 @@ class SequenceToMidi:
 
         if num_valid_seq == 0 :
             raise ValueError("Validation of generated sequence failed:\n{!r}".format(note_seq))
+
+    def save_tokens(self, input_tokens, output_tokens, output_dir, index):
+        out_list = []
+        for idx, (in_seq, out_seq) in enumerate(zip(input_tokens, output_tokens)):
+            len_meta = 12 #seq_len - int((input_mask.sum()))
+            #assert len_meta == 12  # meta와 midi사이에 들어가는 meta eos까지 12(11+1)
+
+            encoded_meta = in_seq[:len_meta-1] #meta의 eos 토큰 제외 11개만 가져오기
+            in_note_seq = in_seq[len_meta:]
+            in_note_seq = self.remove_padding(in_note_seq)
+            out_note_seq = out_seq[len_meta:]
+            out_note_seq = self.remove_padding(out_note_seq)
+            #output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
+            out_list.append(np.concatenate((encoded_meta, in_note_seq, [0], out_note_seq)))
+        path = os.path.join(output_dir, str(index), '.npy')
+        np.save(path, out_list)
