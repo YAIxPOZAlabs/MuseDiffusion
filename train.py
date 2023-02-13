@@ -8,7 +8,7 @@ import json, os
 from transformers import set_seed
 import wandb
 
-from config import load_defaults_config, CHOICES
+from config import CHOICES, DEFAULT_CONFIG
 
 from data import load_data_music
 
@@ -28,10 +28,9 @@ os.environ["WANDB_MODE"] = "offline"
 
 
 def create_argparser():
-    defaults = dict(checkpoint_path='')
-    defaults.update(load_defaults_config())
     parser = argparse.ArgumentParser()
-    add_dict_to_argparser(parser, defaults, CHOICES)  # update latest args according to argparse
+    parser.add_argument("--checkpoint_path", type=str)
+    add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)  # update latest args according to argparse
     return parser
 
 
@@ -78,7 +77,7 @@ def main():
     logger.log("### Creating model and diffusion...")
     # print('#'*30, 'CUDA_VISIBLE_DEVICES', os.environ['CUDA_VISIBLE_DEVICES'])
     model, diffusion = create_model_and_diffusion(
-        **args_to_dict(args, load_defaults_config().keys())
+        **args_to_dict(args, DEFAULT_CONFIG.keys())
     )
     model.to(dist_util.dev())
     # model.cuda() #  DEBUG **

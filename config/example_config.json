@@ -30,6 +30,7 @@
   "rescale_timesteps": true,
   "rescale_learned_sigmas": false,
   "sigma_small": false,
+  "checkpoint_path": ".",
   "emb_scale_factor": 1.0,
   "num_hidden_layers": 6
 }
