@@ -3,9 +3,9 @@ Train a diffusion model on images.
 """
 
 import argparse
-import json, os
+import os
+import json
 
-from transformers import set_seed
 import wandb
 
 from config import CHOICES, DEFAULT_CONFIG
@@ -16,7 +16,7 @@ from models.diffuseq.step_sample import create_named_schedule_sampler
 
 from utils import dist_util, logger
 
-from utils.initialization import create_model_and_diffusion, load_model_emb
+from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 
 from utils.train_util import TrainLoop
@@ -27,13 +27,13 @@ from utils.train_util import TrainLoop
 os.environ["WANDB_MODE"] = "offline"
 
 
-def create_argparser():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)  # update latest args according to argparse
-    return parser
+    return parser.parse_args(argv)
 
 
-def print_credit():
+def print_credit():  # Optional
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         try:
             from utils.etc import credit
@@ -42,10 +42,8 @@ def print_credit():
             pass
 
 
-def main():
-    args = create_argparser().parse_args()
-    print_credit()
-    set_seed(args.seed) 
+def main(args):
+    random_seed_all(args.seed)
     dist_util.setup_dist()
     logger.configure()
     logger.log("### Creating data loader...")
@@ -123,4 +121,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    arg = parse_args()
+    print_credit()
+    main(arg)
