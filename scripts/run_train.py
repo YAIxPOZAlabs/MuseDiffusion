@@ -149,6 +149,8 @@ def main():
                   f"train.py " \
                   f"--checkpoint_path {model_file} "
     for k, v in train_py_configs.items():
+        if isinstance(v, str) and not v:
+            continue
         if isinstance(v, bool):
             v = 'y' if v else 'n'
         commandline += f"--{k} {v} "
