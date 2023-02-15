@@ -128,7 +128,7 @@ def main():
     if not os.path.isfile(config_file):
         raise argparse.ArgumentTypeError("--config_file does not exist: {}".format(config_file))
 
-    with open(args.config_file) as fp:
+    with open(config_file) as fp:
         train_py_configs = json.load(fp)
 
     if resume_checkpoint is not None:
