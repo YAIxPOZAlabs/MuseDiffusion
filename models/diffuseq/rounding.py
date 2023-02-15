@@ -25,6 +25,7 @@ def get_efficient_knn(model_emb, text_emb):
     dist = torch.clamp(dist, 0.0, np.inf)
     print(dist.shape)
     topk_out = torch.topk(-dist, k=1, dim=0)
+    print(1)
     return topk_out.values, topk_out.indices
 
 def rounding_func(text_emb_lst, model, tokenizer, emb_scale_factor=1.0):
