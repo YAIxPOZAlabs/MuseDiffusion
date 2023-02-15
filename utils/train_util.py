@@ -91,10 +91,10 @@ class TrainLoop:
 
         self.opt = AdamW(self.master_params, lr=self.lr, weight_decay=self.weight_decay)
         if self.resume_step:
-            # self._load_optimizer_state()
-            frac_done = (self.step + self.resume_step) / self.learning_steps
-            lr = self.lr * (1 - frac_done)
-            self.opt = AdamW(self.master_params, lr=lr, weight_decay=self.weight_decay)
+            self._load_optimizer_state()
+            # frac_done = (self.step + self.resume_step) / self.learning_steps
+            # lr = self.lr * (1 - frac_done)
+            # self.opt = AdamW(self.master_params, lr=lr, weight_decay=self.weight_decay)
             # Model was resumed, either due to a restart or a checkpoint
             # being specified at the command line.
             self.ema_params = [
@@ -118,7 +118,7 @@ class TrainLoop:
                     find_unused_parameters=False,
                 )
             else:
-                if dist.get_world_size() > 1:
+                if dist.is_initialized() and dist.get_world_size() > 1:
                     logger.warn(
                         "Distributed training requires CUDA. "
                         "Gradients will not be synchronized properly!"
@@ -134,15 +134,14 @@ class TrainLoop:
         if not resume_checkpoint:
             return
 
-        if resume_checkpoint[-3:] == '.pt':
-            self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
-            if dist.get_rank() == 0:
-                logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
-                self.model.load_state_dict(
-                    dist_util.load_state_dict(
-                        actual_model_path(resume_checkpoint), map_location=dist_util.dev()
-                    )
+        self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
+            self.model.load_state_dict(
+                dist_util.load_state_dict(
+                    actual_model_path(resume_checkpoint), map_location=dist_util.dev()
                 )
+            )
 
         dist_util.sync_params(self.model.parameters())
 
@@ -154,7 +153,7 @@ class TrainLoop:
             return
         ema_checkpoint = find_ema_checkpoint(main_checkpoint, self.resume_step, rate)
         if ema_checkpoint:
-            if dist.get_rank() == 0:
+            if not dist.is_initialized() or dist.get_rank() == 0:
                 logger.log(f"loading EMA from checkpoint: {ema_checkpoint}...")
                 state_dict = dist_util.load_state_dict(
                     actual_model_path(ema_checkpoint), map_location=dist_util.dev()
@@ -168,10 +167,11 @@ class TrainLoop:
         main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
         if not main_checkpoint:
             return
-        if bf.exists(main_checkpoint):
-            logger.log(f"loading optimizer state from checkpoint: {main_checkpoint}")
+        opt_checkpoint = find_opt_checkpoint(main_checkpoint, self.resume_step)
+        if bf.exists(opt_checkpoint):
+            logger.log(f"loading optimizer state from checkpoint: {opt_checkpoint}")
             state_dict = dist_util.load_state_dict(
-                actual_model_path(main_checkpoint), map_location=dist_util.dev()
+                actual_model_path(opt_checkpoint), map_location=dist_util.dev()
             )
             self.opt.load_state_dict(state_dict)
 
@@ -345,27 +345,37 @@ class TrainLoop:
             logger.logkv("lg_loss_scale", self.lg_loss_scale)
 
     def save(self):
-        def save_checkpoint(rate, params):
-            state_dict = self._master_params_to_state_dict(params)
-            if dist.get_rank() == 0:
-                logger.log(f"saving model {rate}...")
-                if not rate:
-                    filename = f"model{(self.step+self.resume_step):06d}.pt"
-                else:
-                    filename = f"ema_{rate}_{(self.step+self.resume_step):06d}.pt"
-                print('writing to', bf.join(get_blob_logdir(), filename))
-                print('writing to', bf.join(self.checkpoint_path, filename))
-                # with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
-                #     th.save(state_dict, f)
-                with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:  # DEBUG **
-                    th.save(state_dict, f)  # save locally
-                    # pass # save empty
-
-        # save_checkpoint(0, self.master_params)
+        self._save_checkpoint(0, self.master_params)
         for r, p in zip(self.ema_rate, self.ema_params):
-            save_checkpoint(r, p)
+            self._save_checkpoint(r, p)
+        self._save_opt()
+        if dist.is_initialized():
+            dist.barrier()
 
-        dist.barrier()
+    def _save_checkpoint(self, rate, params):
+        state_dict = self._master_params_to_state_dict(params)
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            logger.log(f"saving model {rate}...")
+            if not rate:
+                filename = f"model_{(self.step+self.resume_step):06d}.pt"
+            else:
+                filename = f"ema_{rate}_{(self.step+self.resume_step):06d}.pt"
+            # print('writing to', bf.join(get_blob_logdir(), filename))
+            # with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
+            #     th.save(state_dict, f)
+            print('writing to', bf.join(self.checkpoint_path, filename))
+            with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:  # DEBUG **
+                th.save(state_dict, f)  # save locally
+                # pass # save empty
+
+    def _save_opt(self):
+        if not dist.is_initialized() or dist.get_rank() == 0:
+            logger.log(f"saving optimizer...")
+            filename = f"opt_{(self.step+self.resume_step):06d}.pt"
+            print('writing to', bf.join(self.checkpoint_path, filename))
+            with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:  # DEBUG **
+                th.save(self.opt.state_dict(), f)  # save locally
+                # pass # save empty
 
     def _master_params_to_state_dict(self, master_params):
         if self.use_fp16:
@@ -393,10 +403,9 @@ def parse_resume_step_from_filename(filename):
     Parse filenames of the form path/to/modelNNNNNN.pt, where NNNNNN is the
     checkpoint's number of steps.
     """
-    if filename[-3:] == '.pt':
-        return int(filename[-9:-3])
-    else:
-        return 0
+    filename: str = os.path.basename(filename)
+    assert filename.startswith('model') and filename[-3] == '.pt', "Invalid model name"
+    return int(filename[-9:-3])
 
 
 def get_blob_logdir():
@@ -404,15 +413,27 @@ def get_blob_logdir():
 
 
 def find_resume_checkpoint():
-    # On your infrastructure, you may want to override this to automatically
-    # discover the latest checkpoint on your blob storage, etc.
-    return None
+    log_dir = logger.get_current().dir
+    model_weights = sorted(filter(lambda s: s.endswith(".pt") and s.startswith("model"), os.listdir(log_dir)))
+    if model_weights:
+        path = os.path.join(log_dir, model_weights[-1])
+        return path
 
 
 def find_ema_checkpoint(main_checkpoint, step, rate):
     if not main_checkpoint:
         return None
     filename = f"ema_{rate}_{step:06d}.pt"
+    path = bf.join(bf.dirname(main_checkpoint), filename)
+    if bf.exists(path):
+        return path
+    return None
+
+
+def find_opt_checkpoint(main_checkpoint, step):
+    if not main_checkpoint:
+        return None
+    filename = f"opt_{step:06d}.pt"
     path = bf.join(bf.dirname(main_checkpoint), filename)
     if bf.exists(path):
         return path

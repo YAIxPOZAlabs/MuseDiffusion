@@ -67,6 +67,8 @@ def create_model_and_diffusion(
         dropout,
         seq_len,  # FNet Kwarg
         num_hidden_layers,  # FNet Kwarg
+        fnet_hidden_dim,  # FNet Kwarg
+        fnet_intermediate_dim,  # FNet Kwarg
         diffusion_steps,
         noise_schedule,
         learn_sigma,
@@ -81,7 +83,8 @@ def create_model_and_diffusion(
     model = TransformerNetModel(
         input_dims=hidden_dim,
         output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
-        hidden_dim=hidden_dim,  # FNet Kwarg
+        fnet_hidden_dim=fnet_hidden_dim,  # FNet Kwarg
+        fnet_intermediate_dim=fnet_intermediate_dim,  # FNet Kwarg
         hidden_t_dim=hidden_t_dim,
         vocab_size=vocab_size,
         dropout=dropout,
