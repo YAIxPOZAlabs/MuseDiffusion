@@ -94,7 +94,7 @@ def main():
 
     parser.add_argument('--nproc_per_node', type=int, default=4, help='number of gpu used in distributed')
     parser.add_argument('--master_port', type=int, default=12233, help='master port used in distributed')
-    parser.add_argument('--config_file', type=str, required=True, help='path to training config')
+    parser.add_argument('--config_file', type=str, default='', help='path to training config')
     parser.add_argument('--resume_checkpoint', type=str, default='',
                         help='(optional) resume checkpoint to use. '
                              'in this case, config_file will automatically be found.')
@@ -116,19 +116,25 @@ def main():
     if args.resume_checkpoint:   # TODO : RESUME 있을때 없을때 다 잘되는가 확인하기
         resume_checkpoint = args.resume_checkpoint
         if not os.path.isfile(resume_checkpoint):
-            raise argparse.ArgumentTypeError("resume_checkpoint does not exist: {}".format(resume_checkpoint))
+            raise argparse.ArgumentTypeError("--resume_checkpoint does not exist: {}".format(resume_checkpoint))
+        elif args.config_file:
+            raise argparse.ArgumentTypeError("You should specify only one of --config_file or --resume_checkpoint.")
         config_file = os.path.join(os.path.dirname(resume_checkpoint), 'training_args.json')
     else:
         resume_checkpoint = None
         config_file = args.config_file
+        if not config_file:
+            raise argparse.ArgumentTypeError("You should specify either --config_file or --resume_checkpoint.")
     if not os.path.isfile(config_file):
-        raise argparse.ArgumentTypeError("config_file does not exist: {}".format(config_file))
+        raise argparse.ArgumentTypeError("--config_file does not exist: {}".format(config_file))
+
     with open(args.config_file) as fp:
         train_py_configs = json.load(fp)
-        if resume_checkpoint is not None:
-            train_py_configs['resume_checkpoint'] = resume_checkpoint
-            if 'checkpoint_path' in train_py_configs:
-                train_py_configs.pop('checkpoint_path')
+
+    if resume_checkpoint is not None:
+        train_py_configs['resume_checkpoint'] = resume_checkpoint
+        if 'checkpoint_path' in train_py_configs:
+            train_py_configs.pop('checkpoint_path')
     args.__dict__.update(config.load_dict_config(train_py_configs))
 
     from importlib.util import find_spec
