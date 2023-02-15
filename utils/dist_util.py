@@ -27,6 +27,7 @@ def is_available():
                 "In Windows, Distributed is unavailable by default settings. "
                 "To enable Distributed, edit utils.dist_util.USE_DIST_IN_WINDOWS to True."
             )
+        os.sync = lambda: None
     elif dist.is_available():  # All condition passed
         return True
     os.environ.setdefault("LOCAL_RANK", str(0))

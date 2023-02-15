@@ -192,7 +192,6 @@ class GaussianDiffusion:
         self.add_mask_noise = False # TODO
 
     def training_losses(self, model, *args, **kwargs):
-        self.model = model
         return self.training_losses_seq2seq(model, *args, **kwargs)
 
     def _predict_xstart_from_eps(self, x_t, t, eps):
@@ -600,7 +599,7 @@ class GaussianDiffusion:
         x_start_mean = model.model.module.get_embeds(input_ids_x)
         
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
-                                   th.tensor([0]).to(x_start_mean.device),
+                                   th.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
         # print(std.shape, )
         # x_start_log_var = 2 * th.log(std)
@@ -626,7 +625,7 @@ class GaussianDiffusion:
         terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
 
         # tT_mask = (t == self.num_timesteps - 1)
-        out_mean, _, _ = self.q_mean_variance(x_start, th.LongTensor([self.num_timesteps - 1]).to(x_start.device))
+        out_mean, _, _ = self.q_mean_variance(x_start, th.tensor([self.num_timesteps - 1], dtype=th.long, device=x_start.device))
         tT_loss =  mean_flat(out_mean ** 2)
 
         decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x) # embedding regularization
@@ -836,7 +835,7 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
                             dimension equal to the length of timesteps.
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
-    res = th.from_numpy(arr).to(device=timesteps.device)[timesteps].float()
+    res = th.as_tensor(arr, device=timesteps.device, dtype=th.float)[timesteps]
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)

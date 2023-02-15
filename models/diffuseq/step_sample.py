@@ -14,10 +14,12 @@ def create_named_schedule_sampler(name, diffusion):
     """
     if name == "uniform":
         return UniformSampler(diffusion)
-    elif name == "lossaware":
-        return LossSecondMomentResampler(diffusion)
     elif name == "fixstep":
         return FixSampler(diffusion)
+    elif name == "lossaware":
+        if not dist.is_initialized():
+            raise RuntimeError("Cannot use lossaware sampler without distributed runtime.")
+        return LossSecondMomentResampler(diffusion)
     else:
         raise NotImplementedError(f"unknown schedule sampler: {name}")
 
@@ -54,9 +56,9 @@ class ScheduleSampler(ABC):
         w = self.weights()
         p = w / np.sum(w)
         indices_np = np.random.choice(len(p), size=(batch_size,), p=p)
-        indices = th.from_numpy(indices_np).long().to(device)
+        indices = th.as_tensor(indices_np, device=device, dtype=th.long)
         weights_np = 1 / (len(p) * p[indices_np])
-        weights = th.from_numpy(weights_np).float().to(device)
+        weights = th.as_tensor(weights_np, device=device, dtype=th.float)
         return indices, weights
 
 
@@ -107,8 +109,8 @@ class LossAwareSampler(ScheduleSampler):
         batch_sizes = [x.item() for x in batch_sizes]
         max_bs = max(batch_sizes)
 
-        timestep_batches = [th.zeros(max_bs).to(local_ts) for bs in batch_sizes]
-        loss_batches = [th.zeros(max_bs).to(local_losses) for bs in batch_sizes]
+        timestep_batches = [th.zeros(max_bs, dtype=local_ts.dtype, device=local_ts.device) for bs in batch_sizes]
+        loss_batches = [th.zeros(max_bs, dtype=local_losses.dtype, device=local_losses.device) for bs in batch_sizes]
         dist.all_gather(timestep_batches, local_ts)
         dist.all_gather(loss_batches, local_losses)
         timesteps = [

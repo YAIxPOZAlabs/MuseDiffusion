@@ -58,7 +58,6 @@ def main(args):
         deterministic=False,
         model_emb=model_emb  # use model's weights as init
     )
-    next(data)  # try iter
 
     data_valid = load_data_music(
         batch_size=args.batch_size,
@@ -84,9 +83,12 @@ def main(args):
     logger.log(f'### The parameter count is {pytorch_total_params}')
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion)
 
-    logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
-    with open(f'{args.checkpoint_path}/training_args.json', 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
+        training_args_path = f'{args.checkpoint_path}/training_args.json'
+        if not args.resume_checkpoint and not os.path.exists(training_args_path):
+            logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
+            with open(training_args_path, 'w') as f:
+                json.dump(args.__dict__, f, indent=2)
 
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         wandb.init(

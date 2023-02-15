@@ -30,9 +30,10 @@ class TransformerNetModel(nn.Module):
             self,
             input_dims,
             output_dims,
-            hidden_dim,
             hidden_t_dim,
             vocab_size,
+            fnet_hidden_dim,  # for FNet
+            fnet_intermediate_dim,  # for FNet
             seq_len,  # for FNet
             num_hidden_layers,  # for FNet
             dropout=0,
@@ -44,8 +45,8 @@ class TransformerNetModel(nn.Module):
         if config is None:
             config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
             config.hidden_dropout_prob = dropout
-            config.hidden_size = hidden_dim
-            config.intermediate_size = hidden_t_dim * 4  # TODO
+            config.hidden_size = fnet_hidden_dim
+            config.intermediate_size = fnet_intermediate_dim
             config.max_position_embeddings = seq_len
             config.vocab_size = vocab_size
             config.num_hidden_layers = num_hidden_layers

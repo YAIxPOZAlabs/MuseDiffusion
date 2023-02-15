@@ -6,7 +6,7 @@ DEFAULT_CONFIG = MappingProxyType({
     "microbatch": 64,
     "learning_steps": 320000,
     "log_interval": 20,
-    "save_interval": 40000,
+    "save_interval": 2000,
     "eval_interval": 1000,
     "ema_rate": "0.9999",
     "resume_checkpoint": "",
@@ -19,7 +19,9 @@ DEFAULT_CONFIG = MappingProxyType({
     "data_dir": "datasets/ComMU-processed",
     "seq_len": 2096,                        # Changed
     "hidden_t_dim": 128,      # TODO
-    "hidden_dim": 8,        # TODO
+    "hidden_dim": 32,        # TODO
+    "fnet_hidden_dim": 32,        # FNet
+    "fnet_intermediate_dim": 32,        # FNet
     "dropout": 0.1,
     "use_fp16": False,
     "fp16_scale_growth": 0.001,
