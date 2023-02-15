@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
             COMMAND = f'python -m torch.distributed.launch --nproc_per_node=1 --master_port={12233 + int(args.seed)} --use_env sample_seq2seq.py ' \
             f'--model_path {checkpoint_one} --step {args.step} ' \
-            f'--batch_size {args.bsz} --seed2 {args.seed} --split {args.split} ' \
+            f'--batch_size {args.bsz} --sample_seed {args.seed} --split {args.split} ' \
             f'--out_dir {out_dir} --top_p {args.top_p} '
             print(COMMAND)
             
