@@ -6,6 +6,3 @@ OMP_NUM_THREADS=`expr $TOTAL_CORES / $TOTAL_GPUS`
 OMP_NUM_THREADS=${OMP_NUM_THREADS} python -u run_train.py --nproc_per_node=${TOTAL_GPUS} --master_port=12233 \
 --config_file train_cfg.json \
 --notes test-commu
-#python -m torch.distributed.launch --nproc_per_node=4 --master_port=12233 --use_env run_train.py \
-#--config_file train_cfg.json \
-#--notes test-commu
