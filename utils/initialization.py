@@ -29,7 +29,12 @@ def load_model_emb(args, sync_weight=True, log_function=print):
     # In training, you must synchronize weights of each process.
     # So save it in gpu 0 and load it in other gpus.
     if sync_weight:
-        path_save = '{}/random_emb.torch'.format(args.checkpoint_path)
+        path_save_format = '{}/random_emb.torch'
+        if args.resume_checkpoint:
+            path_save = path_save_format.format(os.path.dirname(args.resume_checkpoint))
+            assert os.path.exists(path_save)
+        else:
+            path_save = path_save_format.format(args.checkpoint_path)
         path_save_ind = path_save + ".done"
         if int(os.environ.get('LOCAL_RANK', "0")) == 0:
             if os.path.exists(path_save):
