@@ -42,7 +42,7 @@ def parse_args(argv=None):
     parser.add_argument('--out_dir', type=str, default='./output/', help='output directory to store generated midi')
     parser.add_argument('--midi_out_dir', type=str, default='./output/midi/', help='output directory to store generated midi')
     parser.add_argument('--token_out_dir', type=str, default='./output/token/', help='output directory to store genearted token')
-    parser.add_argument('--use_ddim_reverse', type=bool, default=False, help='choose forward process as ddim or not')
+    parser.add_argument('--use_ddim_reverse', type=bool, default=True, help='choose forward process as ddim or not')
     parser.add_argument('--top_p', type=int, default=0, help='이거는 어떤 역할을 하는지 확인 필요')
     parser.add_argument('--split', type=str, default='valid', help='dataset type used in sampling')
     parser.add_argument('--clamp_step', type=int, default=0, help='in clamp_first mode, choose end clamp step, otherwise starting clamp step')
@@ -173,7 +173,8 @@ def main(args):
         if args.use_ddim_reverse:  # TODO ################################################################################
             noise = x_start
             for i in range(args.diffusion_steps):
-                noise = diffusion.ddim_reverse_sample(model, noise, t=i, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )
+                timestep = th.full((args.batch_size, ), i, device=dist_util.dev())
+                noise = diffusion.ddim_reverse_sample(model, noise, t=timestep, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )["sample"]
         else:
             timestep = th.full((args.batch_size, 1), args.diffusion_steps - 1, device=dist_util.dev())
             noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask)
@@ -239,7 +240,7 @@ def main(args):
             batch_index=batch_index,
             batch_size=args.batch_size
         )
-
+        #break
         dist.barrier()
 
         # decoder(
