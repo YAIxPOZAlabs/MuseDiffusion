@@ -9,53 +9,51 @@ if TYPE_CHECKING:
     from torch.nn import Embedding
     import os
     PathLike = Union[str, os.PathLike]
-else:
-    PathLike = Embedding = Callable = None
 
 
 # usage: from data import load_data_text
 def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         batch_size: int,
         seq_len: int,
-        data_dir: PathLike = None,
+        data_dir: "PathLike" = None,
         deterministic: bool = False,
-        model_emb: Embedding = None,  # TODO: Model_emb 구현
+        model_emb: "Embedding" = None,
         split: str = 'train',
-        num_proc: int = 4,
-        loop: bool = True,
-        log_function: Callable = print
+        num_preprocess_proc: int = 4,
+        num_loader_proc: int = 0,
+        loop: bool = False,
+        log_function: "Callable" = print
 ):
     """
-    For a dataset, create a generator over (seqs, kwargs) pairs.
+For a dataset, create a generator over (seqs, kwargs) pairs.
 
-    Each seq is an (bsz, len, h) float tensor, and the kwargs dict contains zero or
-    more keys, each of which map to a batched Tensor of their own.
-    The kwargs dict can be used for some meta information.
+Each seq is an (bsz, len, h) float tensor, and the kwargs dict contains zero or
+more keys, each of which map to a batched Tensor of their own.
+The kwargs dict can be used for some meta information.
 
-    param batch_size: the batch size of each returned pair.
-    param seq_len: the max sequence length (one-side).
-    param deterministic: if True, yield results in a deterministic order.
-    param data_dir: data directory.
-    param model_emb: loaded word embeddings.
-    param split: how to split data - train, or valid.
-    param num_proc: num of worker while tokenizing.
-    param loop: loop to get batch data or not.
-        if loop is True - infinite iterator will be returned
-        if loop is False - default iterator will be returned
-        if loop is None - raw dataloader will be returned
-    """
-    tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split, num_proc=num_proc,
-                                    log_function=log_function)
+:param batch_size: the batch size of each returned pair.
+:param seq_len: the max sequence length (one-side).
+:param deterministic: if True, yield results in a deterministic order.
+:param data_dir: data directory.
+:param model_emb: loaded word embeddings.
+:param split: how to split data - train, or valid.
+:param num_preprocess_proc: num of worker while tokenizing.
+:param num_loader_proc: num of worker for data loader.
+:param loop: loop to get batch data or not.
+    if loop is True - infinite iterator will be returned
+    if loop is False - default iterator will be returned
+    if loop is None - raw dataloader will be returned
+:param log_function: custom function for log. default is print.
+"""
+    tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split,
+                                    num_proc=num_preprocess_proc, log_function=log_function)
     data_loader = _wrap_data_loader(tokenized_data,
-                                    batch_size=batch_size, deterministic=deterministic, model_emb=model_emb)
-    if loop is None:  # Option for development
-        return data_loader
-    elif loop is True:
+                                    batch_size=batch_size, deterministic=deterministic, model_emb=model_emb,
+                                    num_workers=num_loader_proc)
+    if loop:
         return _infinite_loader(data_loader)
-    elif loop is False:
-        return iter(data_loader)
     else:
-        raise TypeError("loop argument expected to be bool or NoneType, got {!r}".format(loop))
+        return data_loader
 
 
 def _wrap_data_loader(
@@ -64,6 +62,7 @@ def _wrap_data_loader(
         batch_size,
         deterministic,
         model_emb,
+        num_workers,
 ):
 
     from torch.utils.data import DataLoader
@@ -73,7 +72,7 @@ def _wrap_data_loader(
         EmbeddingWrappedDataset(tokenized_data, model_emb=model_emb),
         batch_size=batch_size,
         shuffle=not deterministic,
-        num_workers=0,
+        num_workers=num_workers,
         # drop_last=True,
     )
     return data_loader

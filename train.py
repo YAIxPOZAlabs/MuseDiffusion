@@ -3,9 +3,9 @@ Train a diffusion model on images.
 """
 
 import argparse
-import json, os
+import os
+import json
 
-from transformers import set_seed
 import wandb
 
 from config import CHOICES, DEFAULT_CONFIG
@@ -16,7 +16,7 @@ from models.diffuseq.step_sample import create_named_schedule_sampler
 
 from utils import dist_util, logger
 
-from utils.initialization import create_model_and_diffusion, load_model_emb
+from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 
 from utils.train_util import TrainLoop
@@ -27,13 +27,13 @@ from utils.train_util import TrainLoop
 os.environ["WANDB_MODE"] = "offline"
 
 
-def create_argparser():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)  # update latest args according to argparse
-    return parser
+    return parser.parse_args(argv)
 
 
-def print_credit():
+def print_credit():  # Optional
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         try:
             from utils.etc import credit
@@ -42,10 +42,8 @@ def print_credit():
             pass
 
 
-def main():
-    args = create_argparser().parse_args()
-    print_credit()
-    set_seed(args.seed) 
+def main(args):
+    random_seed_all(args.seed)
     dist_util.setup_dist()
     logger.configure()
     logger.log("### Creating data loader...")
@@ -60,7 +58,6 @@ def main():
         deterministic=False,
         model_emb=model_emb  # use model's weights as init
     )
-    next(data)  # try iter
 
     data_valid = load_data_music(
         batch_size=args.batch_size,
@@ -86,9 +83,12 @@ def main():
     logger.log(f'### The parameter count is {pytorch_total_params}')
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion)
 
-    logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
-    with open(f'{args.checkpoint_path}/training_args.json', 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
+    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
+        training_args_path = f'{args.checkpoint_path}/training_args.json'
+        if not args.resume_checkpoint and not os.path.exists(training_args_path):
+            logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
+            with open(training_args_path, 'w') as f:
+                json.dump(args.__dict__, f, indent=2)
 
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         wandb.init(
@@ -123,4 +123,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    arg = parse_args()
+    print_credit()
+    main(arg)

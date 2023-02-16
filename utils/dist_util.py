@@ -5,22 +5,43 @@ Helpers for distributed training.
 import io
 import os
 import socket
+import functools
 
 import blobfile as bf
 
 import torch as th
 import torch.distributed as dist
+from torch.cuda import is_available as _cuda_available
 
 # Change this to reflect your cluster layout.
+
+USE_DIST_IN_WINDOWS = False
+
+
+@functools.lru_cache(maxsize=None)
+def is_available():
+    if os.name == 'nt' and not USE_DIST_IN_WINDOWS:
+        if os.environ.get("LOCAL_RANK", str(0)) == str(0):
+            import warnings
+            warnings.warn(
+                "In Windows, Distributed is unavailable by default settings. "
+                "To enable Distributed, edit utils.dist_util.USE_DIST_IN_WINDOWS to True."
+            )
+        os.sync = lambda: None
+    elif dist.is_available():  # All condition passed
+        return True
+    os.environ.setdefault("LOCAL_RANK", str(0))
+    return False
+
 
 def setup_dist():
     """
     Setup a distributed process group.
     """
-    if dist.is_initialized():
+    if not is_available() or dist.is_initialized():
         return
 
-    backend = "gloo" if not th.cuda.is_available() else "nccl"
+    backend = "gloo" if not _cuda_available() else "nccl"
 
     if backend == "gloo":
         hostname = "localhost"
@@ -42,8 +63,8 @@ def dev():
     """
     Get the device to use for torch.distributed.
     """
-    if th.cuda.is_available():
-        return th.device(f"cuda:{os.environ['LOCAL_RANK']}")
+    if _cuda_available():
+        return th.device(f"cuda:{os.environ.get('LOCAL_RANK', '0')}")
     return th.device("cpu")
 
 
@@ -61,16 +82,15 @@ def sync_params(params):
     """
     Synchronize a sequence of Tensors across ranks from rank 0.
     """
+    if not is_available():
+        return
     for p in params:
         with th.no_grad():
             dist.broadcast(p, 0)
 
 
 def _find_free_port():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
-    finally:
-        s.close()
