@@ -171,7 +171,7 @@ def main(args):
         input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
         if args.use_ddim_reverse:
             noise = x_start
-            timestep = th.zeros((args.batch_size, ), device=dev)
+            timestep = th.zeros((args.batch_size, ), device=dev, dtype=th.long)
             for i in range(args.diffusion_steps):
                 timestep.fill_(i)
                 noise = diffusion.ddim_reverse_sample(model, noise, t=timestep, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )["sample"]
