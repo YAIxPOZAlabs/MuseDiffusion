@@ -72,8 +72,6 @@ def parse_args(argv=None):
             raise argparse.ArgumentTypeError("You should specify --model_path: no trained model in ./diffusion_models")
         args.model_path = model_path
 
-    args.batch_size = 32  # batch size 살짝 조정.  # TODO
-
     return args
 
 
@@ -136,8 +134,6 @@ def main(args):
         num_preprocess_proc=1
     )
 
-    # 동하 TODO: 윗부분 Arg & 여기서부터
-
     start_t = time.time()
 
     # batch, cond = next(data_valid)
@@ -153,17 +149,16 @@ def main(args):
     out_path = os.path.join(out_path, f"seed{args.sample_seed}_step{args.clamp_step}.json")
     # fout = open(out_path, 'a')
 
-    # TODO #######################################
-
     if args.step == args.diffusion_steps:
         args.use_ddim = False
         step_gap = 1
+        sample_fn = diffusion.p_sample_loop
     else:
         args.use_ddim = True
         step_gap = args.diffusion_steps // args.step
+        sample_fn = diffusion.ddim_sample_loop
 
     # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
-    sample_fn = diffusion.ddim_sample_loop if args.use_ddim else diffusion.p_sample_loop
 
     for batch_index, (_, cond) in tqdm(enumerate(data_loader), total=len(data_loader)):
 
@@ -228,15 +223,16 @@ def main(args):
         # sample_tokens = cands.indices
         sample_tokens = th.argmax(logits, dim=-1).unsqueeze(-1)  # topk(k=1, dim=-1) -> max & unsquueze(-1)
 
-        SequenceToMidi.save_tokens(
-            input_ids_x.cpu().numpy(),
-            sample_tokens.cpu().squeeze(-1).numpy(),
-            output_dir=args.token_out_dir,
-            batch_index=batch_index
-        )
+        print(sample_tokens.shape)
+        # SequenceToMidi.save_tokens(
+        #     input_ids_x.cpu().numpy(),
+        #     sample_tokens.cpu().squeeze(-1).numpy(),
+        #     output_dir=args.token_out_dir,
+        #     batch_index=batch_index
+        # )
 
         decoder(
-            sequences=sample_tokens.unsqueeze(-1).cpu().numpy(),
+            sequences=sample_tokens.cpu().numpy(),
             input_ids_mask_ori=input_ids_mask_ori,
             seq_len=args.seq_len,
             output_dir=".",
