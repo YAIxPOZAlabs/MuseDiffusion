@@ -86,6 +86,7 @@ def print_credit():  # Optional
             pass
 
 
+@th.no_grad()
 def main(args):
 
     dist_util.setup_dist()
