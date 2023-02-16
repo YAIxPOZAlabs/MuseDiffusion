@@ -3,7 +3,7 @@ import numpy as np
 from miditoolkit import MidiFile
 
 from models.commu.preprocessor.utils.container import MidiInfo
-from models.commu.preprocessor.encoder import EventSequenceEncoder, TOKEN_OFFSET
+from models.commu.preprocessor.encoder import EventSequenceEncoder
 from models.commu.midi_generator.midi_inferrer import InferenceTask
 
 import contextlib
@@ -12,18 +12,12 @@ import io
 
 class SequenceToMidi:
 
-    decoder: "EventSequenceEncoder"
+    output_file_format = "{output_dir}/{original_index}_batch{batch_index}_{index}.midi"
 
     def __init__(self):
         self.decoder = EventSequenceEncoder()
 
-    # Shorten set_output_file_path method
-    @staticmethod
-    def set_output_file_path(*, output_dir, original_index, batch_index, index):
-        return "{output_dir}/{original_index}_batch{batch_index}_{index}.midi".format(
-            output_dir=output_dir, original_index=original_index,
-            batch_index=batch_index, index=index
-        )
+    decoder: "EventSequenceEncoder"
 
     @staticmethod
     def remove_padding(generation_result):
@@ -41,9 +35,7 @@ class SequenceToMidi:
         else:
             raise ValueError('Error in note sequence, no eos token')
 
-    # # Get method from pre-declared class
-    # validate_generated_sequence = InferenceTask.validate_generated_sequence  # TODO
-
+    # Get method from pre-declared class
     validate_generated_sequence = InferenceTask.validate_generated_sequence
 
     def decode_event_sequence(
@@ -56,7 +48,25 @@ class SequenceToMidi:
         )
         return decoded_midi
 
-    def __call__(
+    def _decode_single(self, seq, input_mask, seq_len):
+        len_meta = seq_len - int((input_mask.sum()))
+        assert len_meta == 12
+
+        encoded_meta = seq[:len_meta - 1]  # meta의 eos 토큰 제외 11개만 가져오기
+        note_seq = seq[len_meta:]
+        note_seq = self.remove_padding(note_seq)
+
+        if self.validate_generated_sequence(note_seq):
+            decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
+            return decoded_midi
+        else:
+            return None
+
+    def decode_single(self, seq, input_mask, seq_len, output_file_path):
+        decoded_midi = self._decode_single(seq, input_mask, seq_len)
+        decoded_midi.dump(output_file_path)
+
+    def decode_multi_verbose(
             self, sequences, output_dir, input_ids_mask_ori, seq_len, batch_index, batch_size
     ) -> "None":
 
@@ -65,41 +75,38 @@ class SequenceToMidi:
         assert len(sequences) == batch_size, "Length of sequence differs from batch size"
 
         for idx, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
+            logger = io.StringIO()
             try:
-                len_meta = seq_len - int((input_mask.sum()))
-                assert len_meta == 12  # meta와 midi사이에 들어가는 meta eos까지 12(11+1)
-
-                encoded_meta = seq[:len_meta-1]  # meta의 eos 토큰 제외 11개만 가져오기
-                note_seq = seq[len_meta:]
-                note_seq = self.remove_padding(note_seq)
-
-                if self.validate_generated_sequence(note_seq):
-                    log = io.StringIO()
-                    with contextlib.redirect_stdout(log):
-                        decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
-                    log = log.getvalue()
+                with contextlib.redirect_stdout(logger):
+                    decoded_midi = self._decode_single(seq, input_mask, seq_len)
+            except Exception as exc:
+                print(logger.getvalue())
+                print(f"<Error> {exc.__class__.__qualname__}: {exc} occurred "
+                      f"while generating midi of Batch {batch_index} Index {idx}\n"
+                      f" (Original Index: {num_files_before_batch + idx}).")
+                raise
+            except BaseException:
+                print(logger.getvalue())
+                raise
+            else:
+                log = logger.getvalue()
+                if decoded_midi is not None:  # Validation Succeeded
                     if log:
                         print(f"<Warning> Batch {batch_index} Index {idx} (Original: {num_files_before_batch + idx})"
                               f" - {' '.join(log.splitlines())}")
-
-                    output_file_path = self.set_output_file_path(
+                    output_file_path = self.output_file_format.format(
                         original_index=num_files_before_batch + idx,
                         batch_index=batch_index,
                         index=idx,
                         output_dir=output_dir
                     )
                     decoded_midi.dump(output_file_path)
-
                 else:
                     print(f"<Warning> Batch {batch_index} Index {idx} (Original: {num_files_before_batch + idx}) "
                           f"- VALIDATION OF SEQUENCE FAILED")
+                    if log:
+                        print(log)
                     invalid_idxes.add(idx)
-
-            except Exception as exc:
-                print(f"<Error> {exc.__class__.__qualname__}: {exc} occurred "
-                      f"while generating midi of Batch {batch_index} Index {idx}\n"
-                      f" (Original Index: {num_files_before_batch + idx}).")
-                raise
 
         valid_count = len(sequences) - len(invalid_idxes)
 
@@ -110,6 +117,8 @@ class SequenceToMidi:
             invalid_idxes=invalid_idxes,
             output_dir=output_dir
         )
+
+    __call__ = decode_multi_verbose
 
     @staticmethod
     def print_summary(batch_index, batch_size, valid_count, invalid_idxes, output_dir):

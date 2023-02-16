@@ -8,7 +8,7 @@ class EmbeddingWrappedDataset(torch.utils.data.Dataset):
         super().__init__()
         self.dataset = dataset
         self.length = len(dataset)
-        self.model_emb = model_emb
+        self.model_emb = model_emb.eval().requires_grad_(False)
 
     def __len__(self):
         return self.length

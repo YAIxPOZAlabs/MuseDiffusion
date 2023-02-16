@@ -8,17 +8,16 @@ import os
 import json
 import time
 
-import numpy as np
 import torch as th
-import torch.distributed as dist
 
-from tqdm.auto import tqdm
-
-# from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from io import StringIO
+from contextlib import redirect_stdout
 
 from functools import partial
 
-from models.diffuseq.rounding import denoised_fn_round, get_weights
+from tqdm.auto import tqdm
+
+from models.diffuseq.rounding import denoised_fn_round
 
 from config import CHOICES, DEFAULT_CONFIG
 from data import load_data_music
@@ -39,7 +38,7 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, default='', help='folder where model checkpoint exist')
     parser.add_argument('--step', type=int, default=100, help='ddim step, if not using ddim, should be same as diffusion step')
-    parser.add_argument('--out_dir', type=str, default='./output/', help='output directory to store generated midi')
+    parser.add_argument('--out_dir', type=str, default='./generation_outputs/', help='output directory to store generated midi')
     parser.add_argument('--midi_out_dir', type=str, default='./output/midi/', help='output directory to store generated midi')
     parser.add_argument('--token_out_dir', type=str, default='./output/token/', help='output directory to store genearted token')
     parser.add_argument('--use_ddim_reverse', type=bool, default=True, help='choose forward process as ddim or not')
@@ -88,11 +87,14 @@ def print_credit():  # Optional
 def main(args):
 
     dist_util.setup_dist()
+    world_size = dist_util.get_world_size()
+    rank = dist_util.get_rank()
+    dev = dist_util.dev()
     logger.configure()
 
     # load configurations.
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
-    print(config_path)
+    print("### Loading training config from", config_path)
     # sys.setdefaultencoding('utf-8')
     with open(config_path, 'rb') as f:
         training_args = json.load(f)
@@ -101,23 +103,17 @@ def main(args):
     args.checkpoint_path = config_path
 
     logger.log("### Creating model and diffusion...")
-    model, diffusion = create_model_and_diffusion(
-        **args_to_dict(args, DEFAULT_CONFIG.keys())
-    )
-
-    model.load_state_dict(
-        dist_util.load_state_dict(args.model_path, map_location="cpu")
-    )
+    model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
 
     pytorch_total_params = sum(p.numel() for p in model.parameters())
     logger.log(f'### The parameter count is {pytorch_total_params}')
 
-    model.to(dist_util.dev())
-    model.eval()
+    model_emb_for_data = load_model_emb(args, weight=model.word_embedding.weight)
+    model_emb_for_sample = load_model_emb(args, weight=model.word_embedding.weight)
 
-    model_emb = load_model_emb(args, sync_weight=False)
-    model_emb.weight = th.nn.Parameter(model.word_embedding.weight.clone().cpu())
-    model_emb_copy = get_weights(model_emb, args)
+    model.eval().requires_grad_(False).to(dev)
+    model_emb_for_sample.eval().requires_grad_(False).to(dev)
 
     random_seed_all(args.sample_seed)
 
@@ -129,25 +125,21 @@ def main(args):
         seq_len=args.seq_len,
         deterministic=True,
         split=args.split,
-        model_emb=model_emb.cpu(),  # using the same embedding wight with tranining data
+        model_emb=model_emb_for_data,  # using the same embedding wight with training data
         loop=False,
         num_preprocess_proc=1
     )
 
     start_t = time.time()
 
-    # batch, cond = next(data_valid)
-    # print(batch.shape)
-
-    model_base_name = os.path.basename(os.path.split(args.model_path)[0]) + f'.{os.path.split(args.model_path)[1]}'
+    model_base_name = os.path.basename(os.path.split(args.model_path)[0])
+    model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
     out_path = os.path.join(
         args.out_dir,
-        f"{model_base_name.split('.ema')[0]}",
-        f"ema{model_base_name.split('.ema')[1]}.samples"
+        model_base_name,
+        model_detailed_name + ".samples"
     )
     os.makedirs(out_path, exist_ok=True)
-    out_path = os.path.join(out_path, f"seed{args.sample_seed}_step{args.clamp_step}.json")
-    # fout = open(out_path, 'a')
 
     if args.step == args.diffusion_steps:
         args.use_ddim = False
@@ -160,25 +152,33 @@ def main(args):
 
     # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
 
+    total_batch = len(data_loader)  # 25
+
     for batch_index, (_, cond) in tqdm(enumerate(data_loader), total=len(data_loader)):
 
-        input_ids_x = cond.pop('input_ids').to(dist_util.dev())
+        if batch_index % world_size != rank:
+            continue
+
+        print(f"### Batch {batch_index}")
+
+        input_ids_x = cond.pop('input_ids').to(dev)
         x_start = model.get_embeds(input_ids_x)
         input_ids_mask_ori = cond.pop('input_mask')
 
         # noise = th.randn_like(x_start)
 
         model_kwargs = {}
-        input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dist_util.dev()).unsqueeze(dim=-1), x_start.shape)
-        if args.use_ddim_reverse:  # TODO ################################################################################
+        input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
+        if args.use_ddim_reverse:
             noise = x_start
+            timestep = th.zeros((args.batch_size, ), device=dev)
             for i in range(args.diffusion_steps):
-                timestep = th.full((args.batch_size, ), i, device=dist_util.dev())
+                timestep.fill_(i)
                 noise = diffusion.ddim_reverse_sample(model, noise, t=timestep, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )["sample"]
-        else:
-            timestep = th.full((args.batch_size, 1), args.diffusion_steps - 1, device=dist_util.dev())
+        else:  # TODO: CHECK DDPM FORWARD ################################################################################
+            timestep = th.full((args.batch_size, 1), args.diffusion_steps - 1, device=dev)
             noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask)
-        
+
         x_noised = th.where(input_ids_mask == 0, x_start, noise.squeeze(-1))  # TODO: SQUEEZED ###########################
 
         sample_shape = (x_start.shape[0], args.seq_len, args.hidden_dim)
@@ -188,7 +188,7 @@ def main(args):
             sample_shape,
             noise=x_noised,
             clip_denoised=args.clip_denoised,
-            denoised_fn=partial(denoised_fn_round, args, model_emb_copy.cuda()),
+            denoised_fn=partial(denoised_fn_round, args, model_emb_for_sample),
             model_kwargs=model_kwargs,
             top_p=args.top_p,
             clamp_step=args.clamp_step,
@@ -197,8 +197,6 @@ def main(args):
             x_start=x_start,
             gap=step_gap
         )
-
-        model_emb_copy.cpu()
 
         # #################################################################################### #
         #                                        Decode                                        #
@@ -209,48 +207,35 @@ def main(args):
 
         sample = samples[-1]  # Sample last step
 
-        gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
-        dist.all_gather(gathered_samples, sample)
-        all_sentence = [sample.cpu().numpy() for sample in gathered_samples]
-
-        # print('sampling takes {:.2f}s .....'.format(time.time() - start_t))
-
-        arr = np.concatenate(all_sentence, axis=0)
-        x_t = th.tensor(arr).cuda()
-
-        reshaped_x_t = x_t
+        reshaped_x_t = sample
         logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
-        # cands = th.topk(logits, k=1, dim=-1)
-        # sample_tokens = cands.indices
-        sample_tokens = th.argmax(logits, dim=-1)  # topk(k=1, dim=-1) -> max & unsqueeze(-1) # PATCH: remove unsqueeze
+        sample_tokens = th.argmax(logits, dim=-1)
 
-        print(sample_tokens.shape)
-        # SequenceToMidi.save_tokens(
-        #     input_ids_x.cpu().numpy(),
-        #     sample_tokens.cpu().squeeze(-1).numpy(),
-        #     output_dir=args.token_out_dir,
-        #     batch_index=batch_index
-        # )
+        out = StringIO()
+        try:
+            with redirect_stdout(out):
+                # SequenceToMidi.save_tokens(
+                #     input_ids_x.cpu().numpy(),
+                #     sample_tokens.cpu().squeeze(-1).numpy(),
+                #     output_dir=out_path,
+                #     batch_index=batch_index
+                # )
+                decoder(
+                    sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - 원래 토큰으로 할 때
+                    input_ids_mask_ori=input_ids_mask_ori,
+                    seq_len=args.seq_len,
+                    output_dir=out_path,
+                    batch_index=batch_index,
+                    batch_size=args.batch_size
+                )
+        finally:
+            print(out.getvalue())
+        dist_util.barrier()
 
-        decoder(
-            sequences=sample_tokens.cpu().numpy(),
-            input_ids_mask_ori=input_ids_mask_ori,
-            seq_len=args.seq_len,
-            output_dir=".",
-            batch_index=batch_index,
-            batch_size=args.batch_size
-        )
-        #break
-        dist.barrier()
-
-        # decoder(
-        #     sequences=input_ids_x.cpu().numpy(),
-        #     input_ids_mask_ori=input_ids_mask_ori,
-        #     seq_len=args.seq_len,
-        #     output_dir=args.midi_out_dir,
-        #     batch_index=batch_index,
-        #     batch_size=args.batch_size
-        # )  # 원래 token으로 decoding 진행
+    # Sync each distributed node with dummy barrier() call
+    rem = total_batch % world_size
+    if rem and rank >= rem:
+        dist_util.barrier()
  
     print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
     print(f'### Written the decoded output to {args.midi_out_dir}')
