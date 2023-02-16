@@ -125,7 +125,7 @@ class SequenceToMidi:
         invalid_idxes = sorted(invalid_idxes)
         log = (
             "\n"
-            f"{f' Summary of Batch {batch_index} ':=^40\n}"
+            f"{f' Summary of Batch {batch_index} ':=^40}\n"
             f" * Original index: from {batch_index * batch_size} to {(batch_index + 1) * batch_size - 1}\n"
             f" * {valid_count} valid sequences are converted to midi into path:\n"
             f"     {os.path.abspath(output_dir)}\n"
