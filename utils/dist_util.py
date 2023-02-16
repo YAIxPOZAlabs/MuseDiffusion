@@ -1,5 +1,6 @@
 """
 Helpers for distributed training.
+this utility FORCES distributed learning at first.
 """
 
 import io
@@ -18,8 +19,20 @@ from torch.cuda import is_available as _cuda_available
 USE_DIST_IN_WINDOWS = False
 
 
-@functools.lru_cache(maxsize=None)
 def is_available():
+    if is_available.cache is None:
+        is_available.cache = setup_dist()
+    return is_available.cache
+
+
+is_available.cache = None
+
+
+@functools.lru_cache(maxsize=None)
+def setup_dist():
+    """
+    Setup a distributed process group.
+    """
     if os.name == 'nt' and not USE_DIST_IN_WINDOWS:
         if os.environ.get("LOCAL_RANK", str(0)) == str(0):
             import warnings
@@ -29,16 +42,21 @@ def is_available():
             )
         os.sync = lambda: None
     elif dist.is_available():  # All condition passed
-        return True
+        try:
+            _setup_dist()
+            if os.environ["LOCAL_RANK"] == str(0):
+                print("<INFO> torch.distributed setup success, using distributed setting..")
+            return True
+        except Exception as exc:
+            print(f"<INFO> {exc.__class__.__qualname__}: {exc}")
     os.environ.setdefault("LOCAL_RANK", str(0))
+    if int(os.environ["LOCAL_RANK"]) == 0:
+        print("<INFO> torch.distributed setup failed, skipping distributed setting..")
     return False
 
 
-def setup_dist():
-    """
-    Setup a distributed process group.
-    """
-    if not is_available() or dist.is_initialized():
+def _setup_dist():
+    if dist.is_initialized():
         return
 
     backend = "gloo" if not _cuda_available() else "nccl"
@@ -55,8 +73,25 @@ def setup_dist():
         port = _find_free_port()
         os.environ["MASTER_PORT"] = str(port)
         os.environ['LOCAL_RANK'] = str(0)
-    
+
     dist.init_process_group(backend=backend, init_method="env://")
+
+
+def get_rank(group=None):
+    if is_available():
+        return dist.get_rank(group=group)
+    return 0
+
+
+def get_world_size(group=None):
+    if is_available():
+        return dist.get_world_size(group=group)
+    return 1
+
+
+def barrier(*args, **kwargs):
+    if is_available():
+        return dist.barrier(*args, **kwargs)
 
 
 def dev():

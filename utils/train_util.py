@@ -76,7 +76,7 @@ class TrainLoop:
 
         self.step = 0
         self.resume_step = 0
-        self.global_batch = self.batch_size * (dist.get_world_size() if dist.is_initialized() else 1)
+        self.global_batch = self.batch_size * dist_util.get_world_size()
 
         self.model_params = list(self.model.parameters())
         self.master_params = self.model_params
@@ -105,7 +105,7 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if dist_util.is_available() and dist.is_initialized():
+        if dist_util.is_available():
             if th.cuda.is_available():  # DEBUG **
                 self.use_ddp = True
                 print(dist_util.dev())
@@ -118,7 +118,7 @@ class TrainLoop:
                     find_unused_parameters=False,
                 )
             else:
-                if dist.is_initialized() and dist.get_world_size() > 1:
+                if dist_util.get_world_size() > 1:
                     logger.warn(
                         "Distributed training requires CUDA. "
                         "Gradients will not be synchronized properly!"
@@ -135,7 +135,7 @@ class TrainLoop:
             return
 
         self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
-        if not dist.is_initialized() or dist.get_rank() == 0:
+        if dist_util.get_rank() == 0:
             logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
             self.model.load_state_dict(
                 dist_util.load_state_dict(
@@ -153,7 +153,7 @@ class TrainLoop:
             return
         ema_checkpoint = find_ema_checkpoint(main_checkpoint, self.resume_step, rate)
         if ema_checkpoint:
-            if not dist.is_initialized() or dist.get_rank() == 0:
+            if dist_util.get_rank() == 0:
                 logger.log(f"loading EMA from checkpoint: {ema_checkpoint}...")
                 state_dict = dist_util.load_state_dict(
                     actual_model_path(ema_checkpoint), map_location=dist_util.dev()
@@ -349,12 +349,11 @@ class TrainLoop:
         for r, p in zip(self.ema_rate, self.ema_params):
             self._save_checkpoint(r, p)
         self._save_opt()
-        if dist.is_initialized():
-            dist.barrier()
+        dist_util.barrier()
 
     def _save_checkpoint(self, rate, params):
         state_dict = self._master_params_to_state_dict(params)
-        if not dist.is_initialized() or dist.get_rank() == 0:
+        if dist_util.get_rank() == 0:
             logger.log(f"saving model {rate}...")
             if not rate:
                 filename = f"model_{(self.step+self.resume_step):06d}.pt"
@@ -369,7 +368,7 @@ class TrainLoop:
                 # pass # save empty
 
     def _save_opt(self):
-        if not dist.is_initialized() or dist.get_rank() == 0:
+        if dist_util.get_rank() == 0:
             logger.log(f"saving optimizer...")
             filename = f"opt_{(self.step+self.resume_step):06d}.pt"
             print('writing to', bf.join(self.checkpoint_path, filename))

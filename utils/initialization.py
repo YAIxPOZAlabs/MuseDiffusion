@@ -21,14 +21,15 @@ def random_seed_all(seed):
         seed_fn(seed)
 
 
-def load_model_emb(args, sync_weight=True, log_function=print):
+def load_model_emb(args, weight: "torch.Tensor" = None, log_function=print):
 
     # random emb or pre-defined embedding like glove embedding. You can customize your own init here.
-    model = torch.nn.Embedding(args.vocab_size, args.hidden_dim, padding_idx=0)
+    init_kwargs = dict(num_embeddings=args.vocab_size, embedding_dim=args.hidden_dim, padding_idx=0)
 
-    # In training, you must synchronize weights of each process.
-    # So save it in gpu 0 and load it in other gpus.
-    if sync_weight:
+    if weight is None:
+        model = torch.nn.Embedding(**init_kwargs)
+        # In training, you must synchronize weights of each process.
+        # So save it in gpu 0 and load it in other gpus.
         path_save_format = '{}/random_emb.torch'
         if args.resume_checkpoint:
             path_save = path_save_format.format(os.path.dirname(args.resume_checkpoint))
@@ -55,6 +56,9 @@ def load_model_emb(args, sync_weight=True, log_function=print):
             if log_function is not None:
                 log_function('reload the random embeddings {}'.format(model))
             model.load_state_dict(torch.load(path_save))
+
+    else:
+        model = torch.nn.Embedding(**init_kwargs, _weight=weight.clone().cpu())
 
     return model
 
