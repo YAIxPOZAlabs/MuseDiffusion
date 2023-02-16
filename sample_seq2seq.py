@@ -211,7 +211,7 @@ def main(args):
 
         decoder = SequenceToMidi()
 
-        sample = samples[-1]
+        sample = samples[-1]  # Sample last step
 
         gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
         dist.all_gather(gathered_samples, sample)
@@ -224,8 +224,7 @@ def main(args):
 
         reshaped_x_t = x_t
         logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
-        cands = th.topk(logits, k=1, dim=-1)
-        sample_tokens = cands.indices
+        sample_tokens = th.argmax(logits, dim=-1).unsqueeze(-1)
 
         SequenceToMidi.save_tokens(
             input_ids_x.cpu().numpy(),
