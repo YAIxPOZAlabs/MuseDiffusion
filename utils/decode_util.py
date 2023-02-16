@@ -102,7 +102,8 @@ class SequenceToMidi:
                           f"(Original Index: {num_files_before_batch + idx}).")
                     invalid_idxes.add(idx)
             except Exception as exc:
-                print(f"Error: {type(exc)} occurred while generating midi of Batch {batch_index} Index {idx}\n"
+                print(f"Error: {exc.__class__.__qualname__}: {exc} occurred "
+                      f"while generating midi of Batch {batch_index} Index {idx}\n"
                       f" (Original Index: {num_files_before_batch + idx}).")
                 raise
 
