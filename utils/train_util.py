@@ -76,7 +76,7 @@ class TrainLoop:
 
         self.step = 0
         self.resume_step = 0
-        self.global_batch = self.batch_size * dist.get_world_size()
+        self.global_batch = self.batch_size * (dist.get_world_size() if dist.is_initialized() else 1)
 
         self.model_params = list(self.model.parameters())
         self.master_params = self.model_params
@@ -105,7 +105,7 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if dist_util.is_available():
+        if dist_util.is_available() and dist.is_initialized():
             if th.cuda.is_available():  # DEBUG **
                 self.use_ddp = True
                 print(dist_util.dev())
