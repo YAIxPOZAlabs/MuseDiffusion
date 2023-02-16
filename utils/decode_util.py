@@ -4,7 +4,10 @@ from miditoolkit import MidiFile
 
 from models.commu.preprocessor.utils.container import MidiInfo
 from models.commu.preprocessor.encoder import EventSequenceEncoder, TOKEN_OFFSET
-# from models.commu.midi_generator.midi_inferrer import InferenceTask  # TODO
+from models.commu.midi_generator.midi_inferrer import InferenceTask
+
+import contextlib
+import io
 
 
 class SequenceToMidi:
@@ -41,22 +44,7 @@ class SequenceToMidi:
     # # Get method from pre-declared class
     # validate_generated_sequence = InferenceTask.validate_generated_sequence  # TODO
 
-    @staticmethod
-    def validate_generated_sequence(seq):
-        num_note = 0  # NOQA (코드 중복)
-        for idx, token in enumerate(seq):
-            if idx + 2 > len(seq) - 1:
-                break
-            if token in range(TOKEN_OFFSET.NOTE_VELOCITY.value, TOKEN_OFFSET.CHORD_START.value):
-                if (
-                    seq[idx - 1] in range(TOKEN_OFFSET.POSITION.value, TOKEN_OFFSET.BPM.value)
-                    and seq[idx + 1]
-                    in range(TOKEN_OFFSET.PITCH.value, TOKEN_OFFSET.NOTE_VELOCITY.value)
-                    and seq[idx + 2]
-                    in range(TOKEN_OFFSET.NOTE_DURATION.value, TOKEN_OFFSET.POSITION.value)
-                ):
-                    num_note += 1
-        return num_note > 0
+    validate_generated_sequence = InferenceTask.validate_generated_sequence
 
     def decode_event_sequence(
             self,
@@ -86,10 +74,14 @@ class SequenceToMidi:
                 note_seq = self.remove_padding(note_seq)
 
                 if self.validate_generated_sequence(note_seq):
-                    decoded_midi = self.decode_event_sequence(
-                        encoded_meta,
-                        note_seq
-                    )
+                    log = io.StringIO()
+                    with contextlib.redirect_stdout(log):
+                        decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
+                    log = log.getvalue()
+                    if log:
+                        print(f"<Warning> Batch {batch_index} Index {idx} (Original: {num_files_before_batch + idx})"
+                              f" - {' '.join(log.splitlines())}")
+
                     output_file_path = self.set_output_file_path(
                         original_index=num_files_before_batch + idx,
                         batch_index=batch_index,
@@ -97,12 +89,14 @@ class SequenceToMidi:
                         output_dir=output_dir
                     )
                     decoded_midi.dump(output_file_path)
+
                 else:
-                    print(f"Invalid sequence: Batch {batch_index} Index {idx} "
-                          f"(Original Index: {num_files_before_batch + idx}).")
+                    print(f"<Warning> Batch {batch_index} Index {idx} (Original: {num_files_before_batch + idx}) "
+                          f"- VALIDATION OF SEQUENCE FAILED")
                     invalid_idxes.add(idx)
+
             except Exception as exc:
-                print(f"Error: {exc.__class__.__qualname__}: {exc} occurred "
+                print(f"<Error> {exc.__class__.__qualname__}: {exc} occurred "
                       f"while generating midi of Batch {batch_index} Index {idx}\n"
                       f" (Original Index: {num_files_before_batch + idx}).")
                 raise
@@ -120,17 +114,21 @@ class SequenceToMidi:
     @staticmethod
     def print_summary(batch_index, batch_size, valid_count, invalid_idxes, output_dir):
         invalid_idxes = sorted(invalid_idxes)
-        print()
-        print(f"{f' Summary of Batch {batch_index} ':=^40}")
-        print(f"* Original index: from {batch_index * batch_size} to {(batch_index + 1) * batch_size - 1}")
-        print(f"* {valid_count} valid sequences are converted to midi into path:"
-              f"    {os.path.abspath(output_dir)}")
-        print(f"* {len(invalid_idxes)} sequences are invalid.")
+        log = (
+            "\n"
+            f"{f' Summary of Batch {batch_index} ':=^40\n}"
+            f" * Original index: from {batch_index * batch_size} to {(batch_index + 1) * batch_size - 1}\n"
+            f" * {valid_count} valid sequences are converted to midi into path:\n"
+            f"     {os.path.abspath(output_dir)}\n"
+            f" * {len(invalid_idxes)} sequences are invalid.\n"
+        )
         if invalid_idxes:
-            print(f"* Index (in batch {batch_index}) of invalid sequence:")
-            print(f"    {invalid_idxes}")
-        print("=" * 40)
-        print()
+            log += (
+                f" * Index (in batch {batch_index}) of invalid sequence:\n"
+                f"    {invalid_idxes}\n"
+            )
+        log += ("=" * 40) + "\n\n"
+        print(log)
 
     @classmethod
     def save_tokens(cls, input_tokens, output_tokens, output_dir, batch_index):
@@ -146,5 +144,5 @@ class SequenceToMidi:
             out_note_seq = cls.remove_padding(out_note_seq)
             # output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
             out_list.append(np.concatenate((encoded_meta, in_note_seq, [0], out_note_seq)))
-        path = os.path.join(output_dir, str(batch_index), '.npy')
+        path = os.path.join(output_dir, f'token_batch{batch_index}.npy')
         np.save(path, out_list)
