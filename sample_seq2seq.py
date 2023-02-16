@@ -224,7 +224,9 @@ def main(args):
 
         reshaped_x_t = x_t
         logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
-        sample_tokens = th.argmax(logits, dim=-1).unsqueeze(-1)
+        # cands = th.topk(logits, k=1, dim=-1)
+        # sample_tokens = cands.indices
+        sample_tokens = th.argmax(logits, dim=-1).unsqueeze(-1)  # topk(k=1, dim=-1) -> max & unsquueze(-1)
 
         SequenceToMidi.save_tokens(
             input_ids_x.cpu().numpy(),

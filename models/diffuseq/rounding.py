@@ -23,7 +23,7 @@ def get_efficient_knn(model_emb, text_emb):
     # print(emb_norm.shape, arr_norm.shape)
     dist = emb_norm + arr_norm.transpose(0, 1) - 2.0 * torch.mm(model_emb, text_emb_t) # (vocab, d) x (d, bsz*seqlen)
     dist = torch.clamp(dist, 0.0, np.inf)
-    topk_out = torch.max(-dist.cpu(), dim=0)  # topk(k=1, dim=0) -> max & unsquueze(0)
+    topk_out = torch.max(-dist, dim=0)  # topk(k=1, dim=0) -> max & unsquueze(0)
     return topk_out.values.unsqueeze(0), topk_out.indices.unsqueeze(0)
 
 def rounding_func(text_emb_lst, model, tokenizer, emb_scale_factor=1.0):
