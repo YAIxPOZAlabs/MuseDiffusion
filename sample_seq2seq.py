@@ -211,12 +211,10 @@ def main(args):
 
         decoder = SequenceToMidi()
 
-        sample = samples[-1]  # 하나 sample한다고 가정했을 때
-        print(sample.shape)
-        # reshaped_x_t = sample
+        sample = samples[-1]
 
-        gathered_samples = [th.zeros_like(samples) for _ in range(dist.get_world_size())]
-        dist.all_gather(gathered_samples, samples)
+        gathered_samples = [th.zeros_like(sample) for _ in range(dist.get_world_size())]
+        dist.all_gather(gathered_samples, sample)
         all_sentence = [sample.cpu().numpy() for sample in gathered_samples]
 
         # print('sampling takes {:.2f}s .....'.format(time.time() - start_t))
