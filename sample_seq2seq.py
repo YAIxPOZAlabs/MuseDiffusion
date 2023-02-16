@@ -221,7 +221,7 @@ def main(args):
         logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
         # cands = th.topk(logits, k=1, dim=-1)
         # sample_tokens = cands.indices
-        sample_tokens = th.argmax(logits, dim=-1).unsqueeze(-1)  # topk(k=1, dim=-1) -> max & unsquueze(-1)
+        sample_tokens = th.argmax(logits, dim=-1)  # topk(k=1, dim=-1) -> max & unsqueeze(-1) # PATCH: remove unsqueeze
 
         print(sample_tokens.shape)
         # SequenceToMidi.save_tokens(
