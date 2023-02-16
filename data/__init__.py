@@ -21,7 +21,7 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         split: str = 'train',
         num_preprocess_proc: int = 4,
         num_loader_proc: int = 0,
-        loop: bool = False,
+        loop: bool = True,
         log_function: "Callable" = print
 ):
     """
