@@ -8,7 +8,7 @@ from models.diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
 from models.diffuseq.transformer_model import TransformerNetModel
 
 
-def random_seed_all(seed):
+def random_seed_all(seed, deterministic=False):
     import random
     import numpy as np
     import transformers
@@ -19,6 +19,9 @@ def random_seed_all(seed):
             transformers.set_seed,
     ):
         seed_fn(seed)
+    if deterministic:
+        torch.backends.cudnn.deterministic = True  # NOQA
+        torch.backends.cudnn.benchmark = False  # NOQA
 
 
 def load_model_emb(args, weight: "torch.Tensor" = None, log_function=print):
