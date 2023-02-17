@@ -15,6 +15,7 @@
   "vocab_size": 729,
   "dataset": "ComMU",
   "data_dir": "datasets/ComMU-processed",
+  "data_loader_workers": 0,
   "seq_len": 2096,
   "hidden_t_dim": 128,
   "hidden_dim": 32,

@@ -17,11 +17,12 @@ DEFAULT_CONFIG = MappingProxyType({
     "vocab_size": 729,                      # Added
     "dataset": "ComMU",
     "data_dir": "datasets/ComMU-processed",
+    "data_loader_workers": 0,               # num_workers for DataLoader
     "seq_len": 2096,                        # Changed
-    "hidden_t_dim": 128,      # TODO
-    "hidden_dim": 32,        # TODO
-    "fnet_hidden_dim": 32,        # FNet
-    "fnet_intermediate_dim": 32,        # FNet
+    "hidden_t_dim": 128,                    # Transformer
+    "hidden_dim": 32,                       # Transformer and Embedding
+    "fnet_hidden_dim": 32,                  # FNet
+    "fnet_intermediate_dim": 32,            # FNet
     "dropout": 0.1,
     "use_fp16": False,
     "fp16_scale_growth": 0.001,

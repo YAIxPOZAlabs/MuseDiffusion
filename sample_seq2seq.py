@@ -3,55 +3,40 @@ Generate a large batch of image samples from a model and save them as a large
 numpy array. This can be used to produce samples for FID evaluation.
 """
 
-import argparse
 import os
-import json
-import time
-
-import torch as th
-
-from io import StringIO
-from contextlib import redirect_stdout
-
-from functools import partial
-
-from tqdm.auto import tqdm
-
-from models.diffuseq.rounding import denoised_fn_round
 
 from config import CHOICES, DEFAULT_CONFIG
-from data import load_data_music
-
-from utils import dist_util, logger
 
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
-from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
-
-from utils.decode_util import SequenceToMidi
 
 
 def parse_args(argv=None):
-    # defaults = dict(model_path='./', step=100, out_dir='', top_p=0)
-    # decode_defaults = dict(split='valid', clamp_step=0, sample_seed=105, clip_denoised=False)
-    # defaults.update(decode_defaults)
-    # TODO: 이거 다 바꾸기
+    import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='', help='folder where model checkpoint exist')
-    parser.add_argument('--step', type=int, default=100, help='ddim step, if not using ddim, should be same as diffusion step')
-    parser.add_argument('--out_dir', type=str, default='./generation_outputs/', help='output directory to store generated midi')
-    parser.add_argument('--midi_out_dir', type=str, default='./output/midi/', help='output directory to store generated midi')
-    parser.add_argument('--token_out_dir', type=str, default='./output/token/', help='output directory to store genearted token')
-    parser.add_argument('--use_ddim_reverse', type=bool, default=True, help='choose forward process as ddim or not')
-    parser.add_argument('--top_p', type=int, default=0, help='이거는 어떤 역할을 하는지 확인 필요')
-    parser.add_argument('--split', type=str, default='valid', help='dataset type used in sampling')
-    parser.add_argument('--clamp_step', type=int, default=0, help='in clamp_first mode, choose end clamp step, otherwise starting clamp step')
-    parser.add_argument('--sample_seed', type=int, default=105, help='random seed for sampling')
-    parser.add_argument('--clip_denoised', type=bool, default=False, help='아마도 denoising 시 clipping 진행여부')
+    parser.add_argument('--model_path', type=str, default='',
+                        help='folder where model checkpoint exist')
+    parser.add_argument('--step', type=int, default=100,
+                        help='ddim step, if not using ddim, should be same as diffusion step')
+    parser.add_argument('--out_dir', type=str, default='./generation_outputs/',
+                        help='output directory to store generated midi')
+    parser.add_argument('--batch_size', type=int, default=50,
+                        help='batch size to run decode')
+    parser.add_argument('--use_ddim_reverse', type=bool, default=True,
+                        help='choose forward process as ddim or not')
+    parser.add_argument('--top_p', type=int, default=0,
+                        help='이거는 어떤 역할을 하는지 확인 필요')
+    parser.add_argument('--split', type=str, default='valid',
+                        help='dataset type used in sampling')
+    parser.add_argument('--clamp_step', type=int, default=0,
+                        help='in clamp_first mode, choose end clamp step, otherwise starting clamp step')
+    parser.add_argument('--sample_seed', type=int, default=105,
+                        help='random seed for sampling')
+    parser.add_argument('--clip_denoised', type=bool, default=False,
+                        help='아마도 denoising 시 clipping 진행여부')
     add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)
     args = parser.parse_args(argv)
 
-    if not args.model_path:  # GET DEFAULT MODEL PATH
-
+    if not args.model_path:  # Try to get latest model_path
         def get_latest_model_path(base_path):
             candidates = filter(os.path.isdir, os.listdir(base_path))
             candidates_join = (os.path.join(base_path, x) for x in candidates)
@@ -83,43 +68,70 @@ def print_credit():  # Optional
             pass
 
 
-@th.no_grad()
 def main(args):
 
+    # Ensure no_grad()
+    import torch as th
+    if th.is_grad_enabled():
+        return th.no_grad()(main)(args)
+
+    # Import dependencies
+    import time
+    import json
+    from io import StringIO
+    from contextlib import redirect_stdout
+    from functools import partial
+    from tqdm.auto import tqdm
+
+    # Import everything
+    from data import load_data_music
+    from models.diffuseq.rounding import denoised_fn_round
+    from utils import dist_util, logger
+    from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
+    from utils.decode_util import SequenceToMidi
+
+    # Setup everything
     dist_util.setup_dist()
     world_size = dist_util.get_world_size()
     rank = dist_util.get_rank()
     dev = dist_util.dev()
+    dist_util.barrier()  # Sync
     logger.configure()
 
-    # load configurations.
+    # Reload train configurations from model folder
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
-    print("### Loading training config from", config_path)
-    # sys.setdefaultencoding('utf-8')
+    logger.log("### Loading training config from", config_path)
     with open(config_path, 'rb') as f:
         training_args = json.load(f)
     training_args['batch_size'] = args.batch_size
     args.__dict__.update(training_args)
-    args.checkpoint_path = config_path
+    dist_util.barrier()  # Sync
 
+    # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
-    model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
 
+    # Reload model weight from model folder
+    model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
+    dist_util.barrier()  # Sync
+
+    # Count and log total params
     pytorch_total_params = sum(p.numel() for p in model.parameters())
     logger.log(f'### The parameter count is {pytorch_total_params}')
 
+    # Load embedding from model, used for dataloader and reverse process
     model_emb_for_data = load_model_emb(args, weight=model.word_embedding.weight)
     model_emb_for_sample = load_model_emb(args, weight=model.word_embedding.weight)
 
+    # Freeze weight and set
     model.eval().requires_grad_(False).to(dev)
     model_emb_for_sample.eval().requires_grad_(False).to(dev)
+    dist_util.barrier()  # Sync
 
-    random_seed_all(args.sample_seed)
+    # Make cudnn deterministic
+    random_seed_all(args.sample_seed, deterministic=True)
 
-    print("### Sampling...on", args.split)
-
-    # load data
+    # Prepare dataloader
     data_loader = load_data_music(
         batch_size=args.batch_size,
         seq_len=args.seq_len,
@@ -129,9 +141,9 @@ def main(args):
         loop=False,
         num_preprocess_proc=1
     )
+    dist_util.barrier()  # Sync
 
-    start_t = time.time()
-
+    # Prepare output directory
     model_base_name = os.path.basename(os.path.split(args.model_path)[0])
     model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
     out_path = os.path.join(
@@ -139,8 +151,11 @@ def main(args):
         model_base_name,
         model_detailed_name + ".samples"
     )
-    os.makedirs(out_path, exist_ok=True)
+    if rank == 0:
+        os.makedirs(out_path, exist_ok=True)
 
+    # Set up forward and sample functions
+    # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
     if args.step == args.diffusion_steps:
         args.use_ddim = False
         step_gap = 1
@@ -150,16 +165,15 @@ def main(args):
         step_gap = args.diffusion_steps // args.step
         sample_fn = diffusion.ddim_sample_loop
 
-    # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
+    # Run sample loop
+    logger.log("### Sampling on", args.split)
+    start_t = time.time()
+    iterator = tqdm(enumerate(data_loader), total=len(data_loader)) if rank == 0 else enumerate(data_loader)
 
-    total_batch = len(data_loader)  # 25
-
-    for batch_index, (_, cond) in tqdm(enumerate(data_loader), total=len(data_loader)):
+    for batch_index, (_, cond) in iterator:
 
         if batch_index % world_size != rank:
             continue
-
-        print(f"### Batch {batch_index}")
 
         input_ids_x = cond.pop('input_ids').to(dev)
         x_start = model.get_embeds(input_ids_x)
@@ -229,16 +243,18 @@ def main(args):
                     batch_size=args.batch_size
                 )
         finally:
-            print(out.getvalue())
+            logger.log(out.getvalue())
         dist_util.barrier()
 
     # Sync each distributed node with dummy barrier() call
-    rem = total_batch % world_size
+    rem = len(data_loader) % world_size
     if rem and rank >= rem:
         dist_util.barrier()
- 
-    print('### Total takes {:.2f}s .....'.format(time.time() - start_t))
-    print(f'### Written the decoded output to {args.midi_out_dir}')
+
+    # Log final result
+    if rank == 0:
+        logger.log('### Total takes {:.2f}s .....'.format(time.time() - start_t))
+        logger.log(f'### Written the decoded output to {out_path}')
 
 
 if __name__ == "__main__":

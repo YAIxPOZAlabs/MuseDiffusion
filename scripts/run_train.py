@@ -1,24 +1,34 @@
 import sys
+import importlib
 import os
-import psutil
-import argparse
 import time
 import json
+import runpy
+import psutil
+import argparse
+
+EXECUTE_DISTRIBUTED_IN_SINGLE_PROCESS = True  # Switch for Debug
 
 
 def main():
 
     parser = argparse.ArgumentParser(description='training args.')
 
-    parser.add_argument('--nproc_per_node', type=int, default=4, help='number of gpu used in distributed')
-    parser.add_argument('--master_port', type=int, default=12233, help='master port used in distributed')
-    parser.add_argument('--config_file', type=str, default='', help='path to training config')
+    parser.add_argument('--nproc_per_node', type=int, default=0,
+                        help='number of gpu used in distributed. (0=auto)')
+    parser.add_argument('--master_port', type=int, default=12233,
+                        help='master port used in distributed')
+
+    parser.add_argument('--config_file', type=str, default='',
+                        help='path to training config')
     parser.add_argument('--resume_checkpoint', type=str, default='',
                         help='(optional) resume checkpoint to use. '
                              'in this case, config_file will automatically be found.')
 
-    parser.add_argument('--notes', type=str, default='-', help='as training notes or specifical args')
-    parser.add_argument('--app', type=str, default='', help='other input args')
+    parser.add_argument('--notes', type=str, default='-',
+                        help='as training notes or specifical args')
+    parser.add_argument('--app', type=str, default='',
+                        help='other input args')
 
     args = parser.parse_args()
 
@@ -29,7 +39,7 @@ def main():
     sys.path.append(dirname)  # Assure upper folder import
     os.chdir(dirname)
 
-    import config
+    import config  # lazy import
 
     if args.resume_checkpoint:   # TODO : RESUME 있을때 없을때 다 잘되는가 확인하기
         resume_checkpoint = args.resume_checkpoint
@@ -55,8 +65,7 @@ def main():
             train_py_configs.pop('checkpoint_path')
     args.__dict__.update(config.load_dict_config(train_py_configs))
 
-    from importlib.util import find_spec
-    if find_spec('torch.distributed.run') is not None:
+    if importlib.util.find_spec('torch.distributed.run') is not None:  # NOQA
         distributed_run = 'torch.distributed.run'
         use_env = ''
     else:
@@ -74,31 +83,49 @@ def main():
     if args.notes:
         args.notes += time.strftime("%Y%m%d-%H:%M:%S")
         model_file = model_file + f'_{args.notes}'
-    model_file = os.path.join(folder_name, model_file)
 
+    model_file = os.path.join(folder_name, model_file)
     if not os.path.isdir(model_file):
         os.mkdir(model_file)
 
+    if args.nproc_per_node == 0:
+        import torch  # lazy import
+        args.nproc_per_node = torch.cuda.device_count() or 1
     os.environ.setdefault("OMP_NUM_THREADS", str(psutil.cpu_count(logical=False) // int(args.nproc_per_node)))
+    os.environ["OPENAI_LOGDIR"] = model_file
 
-    commandline = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} OPENAI_LOGDIR={model_file} " \
-                  f"python -m {distributed_run} " \
-                  f"--nproc_per_node={args.nproc_per_node} --master_port={args.master_port} {use_env} " \
-                  f"train.py " \
-                  f"--checkpoint_path {model_file} "
+    # Pre-defined environs
+    environ = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} OPENAI_LOGDIR={os.environ['OPENAI_LOGDIR']} "
+
+    # Run name
+    modname = f"python -m {distributed_run} "
+
+    # Arguments for torch.distributed and train.py
+    args_ln = f"--nproc_per_node={args.nproc_per_node} --master_port={args.master_port} {use_env} " \
+              f"train.py " \
+              f"--checkpoint_path {model_file} "
     for k, v in train_py_configs.items():
         if isinstance(v, str) and not v:
             continue
         if isinstance(v, bool):
             v = 'y' if v else 'n'
-        commandline += f"--{k} {v} "
-    commandline += args.app
+        args_ln += f"--{k} {v} "
+    args_ln += args.app
+
+    # Total Commandline
+    commandline = environ + modname + args_ln
 
     with open(os.path.join(model_file, 'saved_bash.sh'), 'w') as f:
         print(commandline, file=f)
 
-    print(commandline)
-    os.system(commandline)
+    if EXECUTE_DISTRIBUTED_IN_SINGLE_PROCESS:
+        sys.argv[0] = distributed_run
+        sys.argv[1:] = args_ln.split()
+        print(' '.join(sys.argv))
+        runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
+    else:
+        print(commandline)
+        os.system(commandline)
 
 
 if __name__ == '__main__':
