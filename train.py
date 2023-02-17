@@ -2,32 +2,27 @@
 Train a diffusion model on images.
 """
 
-import argparse
 import os
 import json
 
 import wandb
 
 from config import CHOICES, DEFAULT_CONFIG
-
-from data import load_data_music
-
-from models.diffuseq.step_sample import create_named_schedule_sampler
-
-from utils import dist_util, logger
-
-from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
 from utils.argument_parsing import add_dict_to_argparser, args_to_dict
 
-from utils.train_util import TrainLoop
 
-
-### custom your wandb setting here ### TODO
-# os.environ["WANDB_API_KEY"] = ""
-os.environ["WANDB_MODE"] = "offline"
+def configure_wandb(args):
+    wandb.init(
+        mode=os.getenv("WANDB_MODE", "online"),  # you can change it to offline
+        entity=os.getenv("WANDB_ENTITY", "yai-diffusion"),
+        project=os.getenv("WANDB_PROJECT", "YAIxPOZAlabs"),
+        name=args.checkpoint_path
+    )
+    wandb.config.update(args.__dict__, allow_val_change=True)
 
 
 def parse_args(argv=None):
+    import argparse
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)  # update latest args according to argparse
     return parser.parse_args(argv)
@@ -43,62 +38,70 @@ def print_credit():  # Optional
 
 
 def main(args):
-    random_seed_all(args.seed)
+
+    # Import everything
+    from data import load_data_music
+    from models.diffuseq.step_sample import create_named_schedule_sampler
+    from utils import dist_util, logger
+    from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
+    from utils.train_util import TrainLoop
+
+    # Setup everything
     dist_util.setup_dist()
+    dist_util.barrier()  # Sync
     logger.configure()
+    random_seed_all(args.seed)
+
+    # Prepare dataloader
     logger.log("### Creating data loader...")
-
     model_emb = load_model_emb(args)
-
+    dist_util.barrier()  # Sync
     data = load_data_music(
         batch_size=args.batch_size,
         seq_len=args.seq_len,
         data_dir=args.data_dir,
         split='train',
         deterministic=False,
+        num_loader_proc=args.data_loader_workers,
         model_emb=model_emb  # use model's weights as init
     )
-
     data_valid = load_data_music(
         batch_size=args.batch_size,
         seq_len=args.seq_len,
         data_dir=args.data_dir,
         split='valid',
         deterministic=True,
-        model_emb=model_emb  # using the same embedding wight with tranining data
+        num_loader_proc=args.data_loader_workers,
+        model_emb=model_emb  # using the same embedding
     )
+    dist_util.barrier()  # Sync
 
-    # print('#'*30, 'size of vocab', args.vocab_size)
-
+    # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    # print('#'*30, 'CUDA_VISIBLE_DEVICES', os.environ['CUDA_VISIBLE_DEVICES'])
-    model, diffusion = create_model_and_diffusion(
-        **args_to_dict(args, DEFAULT_CONFIG.keys())
-    )
+    model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
     model.to(dist_util.dev())
-    # model.cuda() #  DEBUG **
+    dist_util.barrier()  # Sync
 
+    # Count and log total params
     pytorch_total_params = sum(p.numel() for p in model.parameters())
-
     logger.log(f'### The parameter count is {pytorch_total_params}')
     schedule_sampler = create_named_schedule_sampler(args.schedule_sampler, diffusion)
 
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        training_args_path = f'{args.checkpoint_path}/training_args.json'
-        if not args.resume_checkpoint and not os.path.exists(training_args_path):
-            logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
+    # Save training args
+    training_args_path = f'{args.checkpoint_path}/training_args.json'
+    if not os.path.exists(training_args_path):
+        logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
+        if dist_util.get_rank() == 0:
             with open(training_args_path, 'w') as f:
                 json.dump(args.__dict__, f, indent=2)
 
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        wandb.init(
-            project=os.getenv("WANDB_PROJECT", "YAIxPOZAlabs"),
-            name=args.checkpoint_path,
-        )
-        wandb.config.update(args.__dict__, allow_val_change=True)
+    # Init wandb
+    if dist_util.get_rank() == 0:
+        configure_wandb(args)
+    dist_util.barrier()  # Sync last
 
+    # Run train loop
     logger.log("### Training...")
-
     TrainLoop(
         model=model,
         diffusion=diffusion,
