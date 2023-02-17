@@ -99,6 +99,10 @@ def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning
     data_dir = get_data_dir(data_dir)
     guarantee_data(data_dir)  # Download data
 
+    assert split.lower() in ('train', 'valid', 'test')
+    if split.lower() == 'test':
+        split = 'valid'
+
     tokenized_data_path = 'tokenized-{split}-{seq_len}'.format(split=split.lower(), seq_len=seq_len)
     tokenized_data_lock_path = tokenized_data_path + '.lock'
     tokenized_data_path = os.path.join(data_dir, tokenized_data_path)

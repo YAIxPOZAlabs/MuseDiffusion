@@ -96,14 +96,14 @@ def main(args):
 
     # Reload train configurations from model folder
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
-    logger.log("### Loading training config from", config_path)
+    logger.log(f"### Loading training config from {config_path} ... ")
     training_args = load_json_config(config_path)
     training_args.pop('batch_size')
     args.__dict__.update(training_args)
     dist_util.barrier()  # Sync
 
     # Initialize model and diffusion
-    logger.log("### Creating model and diffusion...")
+    logger.log("### Creating model and diffusion... ")
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
 
     # Reload model weight from model folder
@@ -112,7 +112,7 @@ def main(args):
 
     # Count and log total params
     pytorch_total_params = sum(p.numel() for p in model.parameters())
-    logger.log(f'### The parameter count is {pytorch_total_params}')
+    logger.log(f"### The parameter count is {pytorch_total_params}. ")
 
     # Load embedding from model, used for dataloader and reverse process
     model_emb_for_data = load_model_emb(args, weight=model.word_embedding.weight)
@@ -161,7 +161,7 @@ def main(args):
         sample_fn = diffusion.ddim_sample_loop
 
     # Run sample loop
-    logger.log("### Sampling on", args.split)
+    logger.log(f"### Sampling on {args.split} ... ")
     start_t = time.time()
     iterator = tqdm(enumerate(data_loader), total=len(data_loader)) if rank == 0 else enumerate(data_loader)
 
@@ -248,7 +248,7 @@ def main(args):
 
     # Log final result
     if rank == 0:
-        logger.log('### Total takes {:.2f}s .....'.format(time.time() - start_t))
+        logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
         logger.log(f'### Written the decoded output to {out_path}')
 
 
