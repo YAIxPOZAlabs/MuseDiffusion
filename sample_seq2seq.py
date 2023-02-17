@@ -5,10 +5,6 @@ numpy array. This can be used to produce samples for FID evaluation.
 
 import os
 
-from config import CHOICES, DEFAULT_CONFIG
-
-from utils.argument_parsing import add_dict_to_argparser, args_to_dict
-
 
 def parse_args(argv=None):
     import argparse
@@ -33,7 +29,6 @@ def parse_args(argv=None):
                         help='random seed for sampling')
     parser.add_argument('--clip_denoised', type=bool, default=False,
                         help='아마도 denoising 시 clipping 진행여부')
-    add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)
     args = parser.parse_args(argv)
 
     if not args.model_path:  # Try to get latest model_path
@@ -77,16 +72,17 @@ def main(args):
 
     # Import dependencies
     import time
-    import json
     from io import StringIO
     from contextlib import redirect_stdout
     from functools import partial
     from tqdm.auto import tqdm
 
     # Import everything
+    from config import DEFAULT_CONFIG, load_json_config
     from data import load_data_music
     from models.diffuseq.rounding import denoised_fn_round
     from utils import dist_util, logger
+    from utils.argument_parsing import args_to_dict
     from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
     from utils.decode_util import SequenceToMidi
 
@@ -101,9 +97,8 @@ def main(args):
     # Reload train configurations from model folder
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
     logger.log("### Loading training config from", config_path)
-    with open(config_path, 'rb') as f:
-        training_args = json.load(f)
-    training_args['batch_size'] = args.batch_size
+    training_args = load_json_config(config_path)
+    training_args.pop('batch_size')
     args.__dict__.update(training_args)
     dist_util.barrier()  # Sync
 
