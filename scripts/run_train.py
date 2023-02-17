@@ -7,8 +7,6 @@ import runpy
 import psutil
 import argparse
 
-EXECUTE_DISTRIBUTED_IN_SINGLE_PROCESS = True  # Switch for Debug
-
 
 def main():
 
@@ -118,14 +116,9 @@ def main():
     with open(os.path.join(model_file, 'saved_bash.sh'), 'w') as f:
         print(commandline, file=f)
 
-    if EXECUTE_DISTRIBUTED_IN_SINGLE_PROCESS:
-        sys.argv[0] = distributed_run
-        sys.argv[1:] = args_ln.split()
-        print(' '.join(sys.argv))
-        runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
-    else:
-        print(commandline)
-        os.system(commandline)
+    print(commandline)  # below two line is same as: os.system(commandline)
+    sys.argv[:] = distributed_run, *args_ln.split()
+    runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
 
 
 if __name__ == '__main__':

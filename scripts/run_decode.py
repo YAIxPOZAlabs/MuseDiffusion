@@ -1,10 +1,9 @@
 import importlib
+import sys
 import os
 import glob
 import psutil
 import argparse
-
-EXECUTE_DISTRIBUTED_IN_SINGLE_PROCESS = True  # Switch for Debug
 
 
 def main():
@@ -56,36 +55,38 @@ def main():
         os.mkdir(out_dir)
 
     # Pre-defined environs and Run name
-    base = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} python -m {distributed_run} "
-
-    # Arguments for torch.distributed and train.py
-    args_ln = f"--nproc_per_node={args.nproc_per_node} " \
-              f"--master_port={args.master_port + int(args.sample_seed)} {use_env} " \
-              f"sample_seq2seq.py " \
-              f"--model_path {{model_path}} " \
-              f"--step {args.step} " \
-              f"--batch_size {args.batch_size} " \
-              f"--sample_seed {args.sample_seed} " \
-              f"--split {args.split} " \
-              f"--top_p {args.top_p} " \
-              f"--out_dir {out_dir} "
+    commandline_format = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} " \
+                         f"python -m {distributed_run} " \
+                         f"--nproc_per_node={args.nproc_per_node} " \
+                         f"--master_port={args.master_port + int(args.sample_seed)} " \
+                         f"{use_env} " \
+                         f"sample_seq2seq.py " \
+                         f"--model_path {{model_path}} " \
+                         f"--step {args.step} " \
+                         f"--batch_size {args.batch_size} " \
+                         f"--sample_seed {args.sample_seed} " \
+                         f"--split {args.split} " \
+                         f"--top_p {args.top_p} " \
+                         f"--out_dir {out_dir} "
 
     run_result = 0
 
     for lst in glob.glob(args.model_dir):
-        print(f"[{script_name}]", "Selecting model_dir:", lst)
+        print(f"[{script_name.upper()}]", "Selecting model_dir:", lst)
         checkpoints = sorted(glob.glob(f"{lst}/{args.pattern}*.pt"))[::-1]
 
         for checkpoint_one in checkpoints:
-            extra_args = args_ln.format(model_path=checkpoint_one)
-            commandline = base + extra_args
-            print(f"[{script_name}]", "Selecting checkpoint:", checkpoint_one)
+            commandline = commandline_format.format(model_path=checkpoint_one)
+            print(f"[{script_name.upper()}]", "Selecting checkpoint:", checkpoint_one)
 
             print(commandline)
             run_result = os.system(commandline) or run_result
 
-    if run_result == 0:
-        print(f"[{script_name}]", 'decoding finished...')
+            if run_result:
+                print(f"[{script_name.upper()}]", "Decoding failed at:", checkpoint_one)
+                sys.exit(run_result)
+
+    print(f"[{script_name.upper()}]", 'decoding finished...')
 
 
 if __name__ == '__main__':
