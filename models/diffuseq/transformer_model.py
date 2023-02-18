@@ -68,7 +68,6 @@ class TransformerNetModel(nn.Module):
         self.dropout = dropout
         self.logits_mode = logits_mode
         self.hidden_size = config.hidden_size
-        self.use_attention = use_attention
 
         self.word_embedding = nn.Embedding(vocab_size, self.input_dims, padding_idx=0)
         self.type_id_embedding = nn.Embedding(2, self.input_dims)
@@ -141,7 +140,7 @@ class TransformerNetModel(nn.Module):
         emb_inputs = self.position_embeddings(position_ids) + emb_x + emb_t.unsqueeze(1).expand(-1, seq_length, -1) + self.type_id_embedding(input_ids_mask)
         emb_inputs = self.dropout(self.LayerNorm(emb_inputs))
 
-        input_trans_hidden_states = self.input_transformers(emb_inputs,model_kwargs,self.use_attention)
+        input_trans_hidden_states = self.input_transformers(emb_inputs,model_kwargs)
 
         if self.output_dims != self.hidden_size:
             h = self.output_down_proj(input_trans_hidden_states)
