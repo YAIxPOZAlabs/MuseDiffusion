@@ -46,7 +46,7 @@ def helper_tokenize(sentence_lst, seq_len, num_proc=4):
 
     padded_datasets = merged_datasets.map(
         pad_function,
-        remove_columns=['src', 'tag'],
+        remove_columns=['src', 'trg'],
         batched=True,
         num_proc=num_proc,
         desc=f"padding",
