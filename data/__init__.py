@@ -101,7 +101,6 @@ def collate_fn(batch_samples, seq_len=None, dtype=None):
 
     for idx, batch in enumerate(batch_samples):
         lth = batch['length']
-        print(input_ids.shape, batch['input_ids'].shape)
         input_ids[idx][:lth] = batch['input_ids']
         input_mask[idx][:lth] = batch['input_mask']
         attention_mask[idx][:lth] = batch['attention_mask']
