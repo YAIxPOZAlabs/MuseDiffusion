@@ -54,11 +54,11 @@ class BertAttentionLayer(nn.Module):
             hidden_states, attention_mask, head_mask, output_attentions=output_attentions,
         )
         attention_output = self_attention_outputs[0]
-        outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
+        #outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
-        outputs = (layer_output,) + outputs
-        return outputs[0]
+        #outputs = (layer_output,) + outputs
+        return layer_output
 
 
