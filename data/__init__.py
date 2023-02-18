@@ -21,9 +21,9 @@ class MusicDataset(Dataset):
 
     def __getitem__(self, idx):
         out_kwargs = {}
-        out_kwargs['input_ids'] = np.array(self.music_datasets[idx]['input_ids'])
-        out_kwargs['input_mask'] = np.array(self.music_datasets[idx]['input_mask'])
-        out_kwargs['attention_mask'] = np.array(self.music_datasets[idx]['attention_mask'])
+        out_kwargs['input_ids'] = torch.IntTensor(self.music_datasets[idx]['input_ids'])
+        out_kwargs['input_mask'] = torch.IntTensor(self.music_datasets[idx]['input_mask'])
+        out_kwargs['attention_mask'] = torch.IntTensor(self.music_datasets[idx]['attention_mask'])
         out_kwargs['length'] = self.music_datasets[idx]['length']
 
         return out_kwargs
