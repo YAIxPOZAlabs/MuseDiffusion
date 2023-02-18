@@ -11,17 +11,18 @@ Backbone Of Denoising Model
 ## FNet Hybrid
 ###########################################
 class FNetHybrid(nn.Module):
-    def __init__(self,fnet_config,attention_config) -> None:
+    def __init__(self,fnet_config,attention_config,use_attention) -> None:
         super().__init__()
         self.fnet = FNet(fnet_config)
-        self.attention_layer_1 = BertAttentionLayer(attention_config)
-        self.attention_layer_2 = BertAttentionLayer(attention_config)
+        if use_attention:
+            self.attention_layer_1 = BertAttentionLayer(attention_config)
+            self.attention_layer_2 = BertAttentionLayer(attention_config)
 
-    def forward(self, x,model_kwargs,use_attention = False):
+    def forward(self, x, model_kwargs,use_attention = False):
         x = self.fnet(x).last_hidden_state
         if use_attention:
-            x = self.attention_layer_1(x,model_kwargs['attention_mask'].to(x.device))
-            x = self.attention_layer_2(x,model_kwargs['attention_mask'].to(x.device))
+            x = self.attention_layer_1(x,attention_mask=model_kwargs['attention_mask'].to(x.device))
+            x = self.attention_layer_2(x,attention_mask=model_kwargs['attention_mask'].to(x.device))
         return x
 
 
