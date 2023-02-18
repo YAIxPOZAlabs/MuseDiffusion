@@ -20,6 +20,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    from data import _tokenize_data  # pylint: disable=protected-access
+    from data.tokenize import tokenize_with_caching  # pylint: disable=protected-access
     for split in ('train', 'valid'):
-        _tokenize_data(split=split, seq_len=args.seq_len, data_dir=args.data_dir, num_proc=args.num_proc)
+        tokenize_with_caching(split=split, data_dir=args.data_dir, num_proc=args.num_proc)
