@@ -94,9 +94,9 @@ def collate_fn(batch_samples, seq_len=None, dtype=None):
     shape = (batch_len, seq_len)
     dtype = dtype or torch.int
 
-    input_ids = torch.zeros(shape, dtype=dtype),
-    input_mask = torch.ones(shape, dtype=dtype),
-    attention_mask = torch.zeros(shape, dtype=dtype),
+    input_ids = torch.zeros(shape, dtype=dtype)
+    input_mask = torch.ones(shape, dtype=dtype)
+    attention_mask = torch.zeros(shape, dtype=dtype)
     length = torch.zeros((batch_len, ), dtype=dtype)
 
     for idx, batch in enumerate(batch_samples):
