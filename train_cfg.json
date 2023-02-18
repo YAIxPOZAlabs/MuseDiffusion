@@ -1,12 +1,12 @@
 {
   "diffusion_steps": 1000,
-  "microbatch": 128,
+  "microbatch": 20,
   "learning_steps": 20000,
   "log_interval": 20,
   "save_interval": 300,
   "eval_interval": 300,
   "hidden_t_dim": 128,
   "hidden_dim": 256,
-  "num_fnet_layers": 8,
-  "use_attention": "False"
+  "num_fnet_layers": 6,
+  "use_attention": "True"
 }
