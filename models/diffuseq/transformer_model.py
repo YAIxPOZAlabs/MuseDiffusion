@@ -8,6 +8,7 @@ import numpy as np
 import torch as th
 import torch.nn as nn
 
+from ..model import FNetHybrid
 from .utils.nn import (
     SiLU,
     linear,
@@ -39,6 +40,7 @@ class TransformerNetModel(nn.Module):
             dropout=0,
             logits_mode=1,
             config=None,  # TODO
+            use_attention=False,
     ):
         super().__init__()
 
@@ -55,12 +57,18 @@ class TransformerNetModel(nn.Module):
             config.eos_token_id = 1
             config.type_vocab_size = 2
 
+            attention_config = BertConfig()
+            attention_config.num_attention_heads = 8
+            attention_config.hidden_size = fnet_hidden_dim
+            attention_config.intermediate_size = fnet_intermediate_dim
+
         self.input_dims = input_dims
         self.hidden_t_dim = hidden_t_dim
         self.output_dims = output_dims
         self.dropout = dropout
         self.logits_mode = logits_mode
         self.hidden_size = config.hidden_size
+        self.use_attention = use_attention
 
         self.word_embedding = nn.Embedding(vocab_size, self.input_dims, padding_idx=0)
         self.type_id_embedding = nn.Embedding(2, self.input_dims)
@@ -80,7 +88,7 @@ class TransformerNetModel(nn.Module):
             self.input_up_proj = nn.Sequential(nn.Linear(input_dims, config.hidden_size),
                                                nn.Tanh(), nn.Linear(config.hidden_size, config.hidden_size))
 
-        self.input_transformers = FNetEncoder(config)
+        self.input_transformers = FNetHybrid(config,attention_config)
 
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
@@ -133,10 +141,10 @@ class TransformerNetModel(nn.Module):
         emb_inputs = self.position_embeddings(position_ids) + emb_x + emb_t.unsqueeze(1).expand(-1, seq_length, -1) + self.type_id_embedding(input_ids_mask)
         emb_inputs = self.dropout(self.LayerNorm(emb_inputs))
 
-        input_trans_hidden_states = self.input_transformers(emb_inputs).last_hidden_state
+        input_trans_hidden_states = self.input_transformers(emb_inputs)
 
         if self.output_dims != self.hidden_size:
-            h = self.output_down_proj(input_trans_hidden_states)
+            h = self.output_down_proj(input_trans_hidden_states,model_kwargs,self.use_attention)
         else:
             h = input_trans_hidden_states
         h = h.type(x.dtype)

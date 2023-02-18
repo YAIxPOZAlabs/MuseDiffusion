@@ -1,7 +1,7 @@
 from types import MappingProxyType
 
 DEFAULT_CONFIG = MappingProxyType({
-    "lr": 0.0001,
+    "lr": 0.001,
     "batch_size": 2048,
     "microbatch": 64,
     "learning_steps": 320000,
@@ -37,5 +37,6 @@ DEFAULT_CONFIG = MappingProxyType({
     "sigma_small": False,
     "checkpoint_path": ".",
     "emb_scale_factor": 1.0,
-    "num_fnet_layers": 6                  # Added for FNet
+    "num_fnet_layers": 6,                  # Added for FNet
+    "use_attention" : False
 })
