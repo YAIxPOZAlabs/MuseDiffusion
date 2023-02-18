@@ -1,18 +1,38 @@
 from . import download  # import order: Top
-from . import io
 from . import tokenize
-
+from torch.utils.data import Dataset
+import torch
+import numpy as np
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from typing import *
     import os
     PathLike = Union[str, os.PathLike]
 
 
+class MusicDataset(Dataset):
+    def __init__(self, music_datasets):
+        super().__init__()
+        self.music_datasets = music_datasets
+
+    def __len__(self):
+        return self.music_datasets.__len__()
+
+    def __getitem__(self, idx):
+        out_kwargs = {}
+        out_kwargs['input_ids'] = np.array(self.music_datasets[idx]['input_ids'])
+        out_kwargs['input_mask'] = np.array(self.music_datasets[idx]['input_mask'])
+        out_kwargs['attention_mask'] = np.array(self.music_datasets[idx]['attention_mask'])
+        out_kwargs['length'] = self.music_datasets[idx]['length']
+
+        return out_kwargs
+
+
 # usage: from data import load_data_text
 def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         batch_size: int,
-        seq_len: int,
+        seq_len = None,
         data_dir: "PathLike" = None,
         deterministic: bool = False,
         split: str = 'train',
@@ -42,14 +62,23 @@ The kwargs dict can be used for some meta information.
 :param log_function: custom function for log. default is print.
 """
     from torch.utils.data import DataLoader
-    tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split,
-                                    num_proc=num_preprocess_proc, log_function=log_function)
+    from .tokenize import tokenize_with_caching
+    tokenized_data = tokenize_with_caching(data_dir=data_dir, split=split,
+                                           num_proc=num_preprocess_proc, log_function=log_function)
+
+    # tokenized_data = tokenized_data.sort("length")
+    # batch_sampler = []
+    # for i in range(0, len(tokenized_data), batch_size):
+    #     batch_sampler.append(list(range(i, i + batch_size)))
+    # random.shuffle(batch_sampler)
+
     data_loader = DataLoader(
-        tokenized_data,
+        MusicDataset(tokenized_data),
+        collate_fn=collate_fn,
+        num_workers=num_loader_proc,
         batch_size=batch_size,
         shuffle=not deterministic,
-        num_workers=num_loader_proc,
-        # drop_last=True,
+        # batch_sampler=batch_sampler,
     )
     if loop:
         return _infinite_loader(data_loader)
@@ -57,67 +86,32 @@ The kwargs dict can be used for some meta information.
         return data_loader
 
 
-def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning
-        *,
-        seq_len,
-        data_dir,
-        split,
-        num_proc,
-        log_function=print
-):
+def collate_fn(batch_samples, seq_len=None, dtype=None):
+    import torch
 
-    import os
-    import time
-    import shutil
-    from datasets import Dataset as ArrowDataset
+    seq_len = seq_len or max(sample['length'] for sample in batch_samples)
+    batch_len = len(batch_samples)
+    shape = (batch_len, seq_len)
+    dtype = dtype or torch.int
 
-    from .download import guarantee_data, get_data_dir
-    from .io import load_raw_data
-    from .tokenize import helper_tokenize
+    input_ids = torch.zeros(shape, dtype=dtype),
+    input_mask = torch.ones(shape, dtype=dtype),
+    attention_mask = torch.zeros(shape, dtype=dtype),
+    length = torch.zeros((batch_len, ), dtype=dtype)
 
-    data_dir = get_data_dir(data_dir)
-    guarantee_data(data_dir)  # Download data
+    for idx, batch in enumerate(batch_samples):
+        lth = batch['length']
+        input_ids[idx][:lth] = batch['input_ids']
+        input_mask[idx][:lth] = batch['input_mask']
+        attention_mask[idx][:lth] = batch['attention_mask']
+        length[idx] = lth
 
-    assert split.lower() in ('train', 'valid', 'test')
-    if split.lower() == 'test':
-        split = 'valid'
-
-    tokenized_data_path = 'tokenized-{split}-{seq_len}'.format(split=split.lower(), seq_len=seq_len)
-    tokenized_data_lock_path = tokenized_data_path + '.lock'
-    tokenized_data_path = os.path.join(data_dir, tokenized_data_path)
-    tokenized_data_lock_path = os.path.join(data_dir, tokenized_data_lock_path)
-
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        if os.path.exists(tokenized_data_path):
-            if log_function is not None:
-                log_function("Loading tokenized {split} data from disk".format(split=split.upper()))
-            tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
-        else:
-            sentence_lst = load_raw_data(data_dir, split=split)
-            tokenized_data = helper_tokenize(sentence_lst, seq_len, num_proc=num_proc)
-            with open(tokenized_data_lock_path, "w") as _:
-                pass
-            if log_function is not None:
-                log_function(
-                    "Saving tokenized {split} data to {path}".format(split=split.upper(), path=tokenized_data_path)
-                )
-            try:
-                tokenized_data.save_to_disk(tokenized_data_path)
-                os.sync()
-            except BaseException:
-                if os.path.isdir(tokenized_data_path):
-                    shutil.rmtree(tokenized_data_path)
-                raise
-            finally:
-                os.remove(tokenized_data_lock_path)
-    else:
-        while not os.path.exists(tokenized_data_path) or os.path.exists(tokenized_data_lock_path):
-            time.sleep(1)
-        if log_function is not None:
-            log_function("Loading tokenized {split} data from disk".format(split=split.upper()))
-        tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
-
-    return tokenized_data
+    return {
+        'input_ids': input_ids,
+        'input_mask': input_mask,
+        'attention_mask': attention_mask,
+        'length': length
+    }
 
 
 def _infinite_loader(iterable):
