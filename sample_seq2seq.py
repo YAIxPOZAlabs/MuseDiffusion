@@ -83,7 +83,7 @@ def main(args):
     from models.diffuseq.rounding import denoised_fn_round
     from utils import dist_util, logger
     from utils.argument_parsing import args_to_dict
-    from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
+    from utils.initialization import create_model_and_diffusion, random_seed_all
     from utils.decode_util import SequenceToMidi
 
     # Setup everything
@@ -114,13 +114,17 @@ def main(args):
     pytorch_total_params = sum(p.numel() for p in model.parameters())
     logger.log(f"### The parameter count is {pytorch_total_params}. ")
 
-    # Load embedding from model, used for dataloader and reverse process
-    model_emb_for_data = load_model_emb(args, weight=model.word_embedding.weight)
-    model_emb_for_sample = load_model_emb(args, weight=model.word_embedding.weight)
+    # Load embedding from model, used for reverse process
+    model_emb = th.nn.Embedding(
+        num_embeddings=args.vocab_size,
+        embedding_dim=args.hidden_dim,
+        padding_idx=0,
+        _weight=model.word_embedding.weight.clone().cpu()
+    )
 
     # Freeze weight and set
     model.eval().requires_grad_(False).to(dev)
-    model_emb_for_sample.eval().requires_grad_(False).to(dev)
+    model_emb.eval().requires_grad_(False).to(dev)
     dist_util.barrier()  # Sync
 
     # Make cudnn deterministic
@@ -132,7 +136,6 @@ def main(args):
         seq_len=args.seq_len,
         deterministic=True,
         split=args.split,
-        model_emb=model_emb_for_data,  # using the same embedding wight with training data
         loop=False,
         num_preprocess_proc=1
     )
@@ -165,7 +168,7 @@ def main(args):
     start_t = time.time()
     iterator = tqdm(enumerate(data_loader), total=len(data_loader)) if rank == 0 else enumerate(data_loader)
 
-    for batch_index, (_, cond) in iterator:
+    for batch_index, cond in iterator:
 
         if batch_index % world_size != rank:
             continue
@@ -197,7 +200,7 @@ def main(args):
             sample_shape,
             noise=x_noised,
             clip_denoised=args.clip_denoised,
-            denoised_fn=partial(denoised_fn_round, args, model_emb_for_sample),
+            denoised_fn=partial(denoised_fn_round, args, model_emb),
             model_kwargs=model_kwargs,
             top_p=args.top_p,
             clamp_step=args.clamp_step,

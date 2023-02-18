@@ -2,60 +2,35 @@ from datasets import Dataset as ArrowDataset
 import torch
 
 
-def _collate_batch_helper(examples, pad_token_id, max_length, return_mask=False):
+def _collate_batch_helper(examples, pad_token_id, max_length):
     result = torch.full([len(examples), max_length], pad_token_id, dtype=torch.int64).tolist()
-    # mask_ = torch.full([len(examples), max_length], pad_token_id, dtype=torch.int64).tolist()
-    mask_ = 0
     for i, example in enumerate(examples):
         curr_len = min(len(example), max_length)
         result[i][:curr_len] = example[:curr_len]
-        # mask_[i][:curr_len] = [1] * curr_len
-    if return_mask:
-        return result, mask_
     return result
 
 
 def helper_tokenize(sentence_lst, seq_len, num_proc=4):
     raw_datasets = ArrowDataset.from_dict(sentence_lst)
 
-    def tokenize_function(examples):
-        result_dict = {'input_id_x': examples['src'], 'input_id_y': examples['trg']}
-        return result_dict
-
-    tokenized_datasets = raw_datasets.map(
-        tokenize_function,
-        batched=True,
-        num_proc=num_proc,
-        remove_columns=['src', 'trg'],
-        load_from_cache_file=True,
-        desc="Running tokenizer on dataset",
-    )
-
     def merge_and_mask(group_lst):
         lst = []
         mask = []
-        for i in range(len(group_lst['input_id_x'])):
+        attn_mask = []
+        for i in range(len(group_lst['src'])):
             end_token = 1
-            src = group_lst['input_id_x'][i]
-            trg = group_lst['input_id_y'][i]
-            # while len(src) + len(trg) > seq_len - 2:
-            #     if len(src)>len(trg):
-            #         src.pop()
-            #     elif len(src)<len(trg):
-            #         trg.pop()
-            #     else:
-            #         src.pop()
-            #         trg.pop()
-            # src.append(end_token)
-            # # trg.append(end_token)
+            src = group_lst['src'][i]
+            trg = group_lst['trg'][i]
 
             lst.append(src + [end_token] + trg)
             mask.append([0] * (len(src) + 1))
+            attn_mask.append([1] * (len(src) + 1 + len(trg)))
         group_lst['input_ids'] = lst
         group_lst['input_mask'] = mask
+        group_lst['attention_mask'] = attn_mask
         return group_lst
 
-    merged_datasets = tokenized_datasets.map(
+    merged_datasets = raw_datasets.map(
         merge_and_mask,
         batched=True,
         num_proc=num_proc,
@@ -66,6 +41,7 @@ def helper_tokenize(sentence_lst, seq_len, num_proc=4):
         max_length = seq_len
         group_lst['input_ids'] = _collate_batch_helper(group_lst['input_ids'], 0, max_length)
         group_lst['input_mask'] = _collate_batch_helper(group_lst['input_mask'], 1, max_length)
+        group_lst['attention_mask'] = _collate_batch_helper(group_lst['attention_mask'], 0, max_length)
         return group_lst
 
     padded_datasets = merged_datasets.map(
