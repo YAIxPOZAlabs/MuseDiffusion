@@ -48,7 +48,6 @@ def load_model_emb(args, weight: "torch.Tensor" = None, log_function=print):
             else:
                 if log_function is not None:
                     log_function('initializing the random embeddings {}'.format(model))
-                torch.nn.init.normal_(model.weight)
                 torch.save(model.state_dict(), path_save)
                 os.sync()
                 with open(path_save_ind, "x") as _:
