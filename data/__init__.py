@@ -2,7 +2,7 @@ from . import download  # import order: Top
 from . import tokenize
 from torch.utils.data import Dataset
 import torch
-import numpy as np
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -101,6 +101,7 @@ def collate_fn(batch_samples, seq_len=None, dtype=None):
 
     for idx, batch in enumerate(batch_samples):
         lth = batch['length']
+        print(input_ids[idx][:lth].shape, batch['input_ids'].shape)
         input_ids[idx][:lth] = batch['input_ids']
         input_mask[idx][:lth] = batch['input_mask']
         attention_mask[idx][:lth] = batch['attention_mask']
