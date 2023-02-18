@@ -133,7 +133,7 @@ def main(args):
     # Prepare dataloader
     data_loader = load_data_music(
         batch_size=args.batch_size,
-        seq_len=args.seq_len,
+        seq_len=args.seq_len,  # TODO
         deterministic=True,
         split=args.split,
         loop=False,
