@@ -20,9 +20,9 @@ DEFAULT_CONFIG = MappingProxyType({
     "data_loader_workers": 0,               # num_workers for DataLoader
     "seq_len": 2096,                        # Changed
     "hidden_t_dim": 128,                    # Transformer
-    "hidden_dim": 32,                       # Transformer and Embedding
-    "fnet_hidden_dim": 32,                  # FNet
-    "fnet_intermediate_dim": 32,            # FNet
+    "hidden_dim": 256,                       # Transformer and Embedding
+    "fnet_hidden_dim": 256,                  # FNet
+    "fnet_intermediate_dim": 1024,            # FNet
     "dropout": 0.1,
     "use_fp16": False,
     "fp16_scale_growth": 0.001,
@@ -37,5 +37,5 @@ DEFAULT_CONFIG = MappingProxyType({
     "sigma_small": False,
     "checkpoint_path": ".",
     "emb_scale_factor": 1.0,
-    "num_hidden_layers": 6                  # Added for FNet
+    "num_fnet_layers": 6                  # Added for FNet
 })

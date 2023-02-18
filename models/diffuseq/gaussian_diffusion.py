@@ -591,8 +591,8 @@ class GaussianDiffusion:
                  Some mean or variance settings may also have other keys.
         """
         assert 'input_ids' in model_kwargs
-        input_ids_x = model_kwargs.pop('input_ids').to(t.device)
-        input_ids_mask = model_kwargs.pop('input_mask').to(t.device)
+        input_ids_x = model_kwargs['input_ids'].to(t.device)
+        input_ids_mask = model_kwargs['input_mask'].to(t.device)
         x_start_mean = model.model.module.get_embeds(input_ids_x)
         
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
@@ -612,7 +612,7 @@ class GaussianDiffusion:
         terms = {}
 
         target = x_start
-        model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
+        model_output = model(x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)
         assert model_output.shape == target.shape == x_start.shape
         terms["mse"] = mean_flat((target - model_output) ** 2)
 
