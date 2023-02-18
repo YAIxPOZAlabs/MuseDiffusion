@@ -1,7 +1,7 @@
 from datasets import Dataset as ArrowDataset
 import torch
 
-def helper_tokenize(sentence_lst, batch_size, num_proc=4):
+def helper_tokenize(sentence_lst, num_proc=4):
     raw_datasets = ArrowDataset.from_dict(sentence_lst)
 
     def merge_and_mask(group_lst):
@@ -33,5 +33,6 @@ def helper_tokenize(sentence_lst, batch_size, num_proc=4):
     )
 
     return merged_datasets
+
 
 __all__ = ('helper_tokenize',)

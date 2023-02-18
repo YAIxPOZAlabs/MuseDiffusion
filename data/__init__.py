@@ -64,8 +64,8 @@ The kwargs dict can be used for some meta information.
 """
     from torch.utils.data import DataLoader
     tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split,
-                                    num_proc=num_preprocess_proc, log_function=log_function,batch_size=batch_size)
-                                    
+                                    num_proc=num_preprocess_proc, log_function=log_function)
+    
     tokenized_data = tokenized_data.sort("length")
     batch_sampler = []
     for i in range(0, len(tokenized_data), batch_size):   
@@ -91,14 +91,11 @@ def collate_fn(batch_samples):
         result = torch.full([max_length], pad_token_id, dtype=torch.int64).tolist()
         result[:len(example)] = example[:len(example)]
         return result
-    print("before",batch_samples[0])
     max_length = len(batch_samples[-1]['input_ids'])
     for idx, batch in enumerate(batch_samples):    
         batch_samples[idx]['input_ids'] = _collate_batch_helper(batch['input_ids'], 0, max_length)
         batch_samples[idx]['input_mask'] = _collate_batch_helper(batch['input_mask'], 1, max_length)
         batch_samples[idx]['attention_mask'] = _collate_batch_helper(batch['attention_mask'], 0, max_length)
-    print("after",batch_samples[0])
-    print(max_length)
     return batch_samples
 
 
@@ -110,7 +107,6 @@ def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning
         split,
         num_proc,
         log_function=print,
-        batch_size
 ):
 
     import os
@@ -141,7 +137,7 @@ def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning
             tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
         else:
             sentence_lst = load_raw_data(data_dir, split=split)
-            tokenized_data = helper_tokenize(sentence_lst, batch_size, num_proc=num_proc)
+            tokenized_data = helper_tokenize(sentence_lst, num_proc=num_proc)
             with open(tokenized_data_lock_path, "w") as _:
                 pass
             if log_function is not None:
