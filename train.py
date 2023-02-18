@@ -43,7 +43,7 @@ def main(args):
     from data import load_data_music
     from models.diffuseq.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
-    from utils.initialization import create_model_and_diffusion, load_model_emb, random_seed_all
+    from utils.initialization import create_model_and_diffusion, random_seed_all
     from utils.train_util import TrainLoop
 
     # Setup everything
@@ -54,7 +54,6 @@ def main(args):
 
     # Prepare dataloader
     logger.log("### Creating data loader...")
-    model_emb = load_model_emb(args)
     dist_util.barrier()  # Sync
     data = load_data_music(
         batch_size=args.batch_size,
@@ -63,7 +62,6 @@ def main(args):
         split='train',
         deterministic=False,
         num_loader_proc=args.data_loader_workers,
-        model_emb=model_emb  # use model's weights as init
     )
     data_valid = load_data_music(
         batch_size=args.batch_size,
@@ -72,7 +70,6 @@ def main(args):
         split='valid',
         deterministic=True,
         num_loader_proc=args.data_loader_workers,
-        model_emb=model_emb  # using the same embedding
     )
     dist_util.barrier()  # Sync
 

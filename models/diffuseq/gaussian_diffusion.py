@@ -544,7 +544,6 @@ class GaussianDiffusion:
     def _token_discrete_loss(self, x_t, get_logits, input_ids, mask=None, truncate=False, t=None):
         '''
         the loss of -log p(w|z_0)
-        :param x_start_mean: word embedding
         :return: x_0
         '''
         reshaped_x_t = x_t
@@ -579,12 +578,11 @@ class GaussianDiffusion:
 
         return {'pred_xprev':pred_prev, 'pred_xstart':pred_xstart}
 
-    def training_losses_seq2seq(self, model, x_start, t, model_kwargs=None, noise=None):
+    def training_losses_seq2seq(self, model, t, model_kwargs=None, noise=None):
         """
         Compute training losses for a single timestep.
 
         :param model: the model to evaluate loss on.
-        :param x_start: the [N x C x ...] tensor of inputs. # not used unless fixing the input embeddings
         :param t: a batch of timestep indices.
         :param model_kwargs: if not None, a dict of extra keyword arguments to
             pass to the model. This can be used for conditioning.
@@ -592,7 +590,6 @@ class GaussianDiffusion:
         :return: a dict with the key "loss" containing a tensor of shape [N].
                  Some mean or variance settings may also have other keys.
         """
-        x_start_fix = x_start # save the orignal x_0
         assert 'input_ids' in model_kwargs
         input_ids_x = model_kwargs.pop('input_ids').to(t.device)
         input_ids_mask = model_kwargs.pop('input_mask').to(t.device)

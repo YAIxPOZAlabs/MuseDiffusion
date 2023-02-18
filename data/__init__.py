@@ -1,12 +1,10 @@
 from . import download  # import order: Top
-from . import dataset_wrapper
 from . import io
 from . import tokenize
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
-    from torch.nn import Embedding
     import os
     PathLike = Union[str, os.PathLike]
 
@@ -17,7 +15,6 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         seq_len: int,
         data_dir: "PathLike" = None,
         deterministic: bool = False,
-        model_emb: "Embedding" = None,
         split: str = 'train',
         num_preprocess_proc: int = 4,
         num_loader_proc: int = 0,
@@ -35,7 +32,6 @@ The kwargs dict can be used for some meta information.
 :param seq_len: the max sequence length (one-side).
 :param deterministic: if True, yield results in a deterministic order.
 :param data_dir: data directory.
-:param model_emb: loaded word embeddings.
 :param split: how to split data - train, or valid.
 :param num_preprocess_proc: num of worker while tokenizing.
 :param num_loader_proc: num of worker for data loader.
@@ -45,37 +41,20 @@ The kwargs dict can be used for some meta information.
     if loop is None - raw dataloader will be returned
 :param log_function: custom function for log. default is print.
 """
+    from torch.utils.data import DataLoader
     tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split,
                                     num_proc=num_preprocess_proc, log_function=log_function)
-    data_loader = _wrap_data_loader(tokenized_data,
-                                    batch_size=batch_size, deterministic=deterministic, model_emb=model_emb,
-                                    num_workers=num_loader_proc)
+    data_loader = DataLoader(
+        tokenized_data,
+        batch_size=batch_size,
+        shuffle=not deterministic,
+        num_workers=num_loader_proc,
+        # drop_last=True,
+    )
     if loop:
         return _infinite_loader(data_loader)
     else:
         return data_loader
-
-
-def _wrap_data_loader(
-        tokenized_data,
-        *,
-        batch_size,
-        deterministic,
-        model_emb,
-        num_workers,
-):
-
-    from torch.utils.data import DataLoader
-    from .dataset_wrapper import EmbeddingWrappedDataset
-
-    data_loader = DataLoader(
-        EmbeddingWrappedDataset(tokenized_data, model_emb=model_emb),
-        batch_size=batch_size,
-        shuffle=not deterministic,
-        num_workers=num_workers,
-        # drop_last=True,
-    )
-    return data_loader
 
 
 def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning

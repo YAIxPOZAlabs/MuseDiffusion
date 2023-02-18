@@ -5,7 +5,6 @@ import os
 import blobfile as bf
 import numpy as np
 import torch as th
-import torch.distributed as dist
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
@@ -185,13 +184,13 @@ class TrainLoop:
             not self.learning_steps
             or self.step + self.resume_step < self.learning_steps
         ):
-            batch, cond = next(self.data)
-            self.run_step(batch, cond)
+            cond = next(self.data)
+            self.run_step(cond)
             if self.step % self.log_interval == 0:
                 logger.dumpkvs()
             if self.eval_data is not None and self.step % self.eval_interval == 0:
-                batch_eval, cond_eval = next(self.eval_data)
-                self.forward_only(batch_eval, cond_eval)
+                cond_eval = next(self.eval_data)
+                self.forward_only(cond_eval)
                 print('eval on validation set')
                 logger.dumpkvs()
             if self.step > 0 and self.step % self.save_interval == 0:
@@ -204,8 +203,8 @@ class TrainLoop:
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
-    def run_step(self, batch, cond):
-        self.forward_backward(batch, cond)
+    def run_step(self, cond):
+        self.forward_backward(cond)
         if self.use_fp16:
             self.optimize_fp16()
         else:
@@ -219,21 +218,19 @@ class TrainLoop:
                 param.grad.detach_()
                 param.grad.zero_()
 
-    def _microbatch_common_forward(self, batch, cond, i):
+    def _microbatch_common_forward(self, cond, i):
 
-        micro = batch[i:i + self.microbatch].to(dist_util.dev())
         micro_cond = {
             k: v[i: i + self.microbatch].to(dist_util.dev())
             for k, v in cond.items()
         }
-        last_batch = (i + self.microbatch) >= batch.shape[0]
-        t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
+        last_batch = (i + self.microbatch) >= cond['input_ids'].shape[0]
+        t, weights = self.schedule_sampler.sample(micro_cond['input_ids'].shape[0], dist_util.dev())
         # print(micro_cond.keys())
 
         compute_losses = functools.partial(
             self.diffusion.training_losses,
             self.ddp_model,
-            micro,
             t,
             model_kwargs=micro_cond,
         )
@@ -247,19 +244,19 @@ class TrainLoop:
         return losses, t, weights
 
     @th.no_grad()
-    def forward_only(self, batch, cond):
+    def forward_only(self, cond):
         self._zero_grad()
-        for i in range(0, batch.shape[0], self.microbatch):
-            losses, t, weights = self._microbatch_common_forward(batch, cond, i)
+        for i in range(0, cond['input_ids'].shape[0], self.microbatch):
+            losses, t, weights = self._microbatch_common_forward(cond, i)
 
             log_loss_dict(
                 self.diffusion, t, {f"eval_{k}": v * weights for k, v in losses.items()}
             )
 
-    def forward_backward(self, batch, cond):
+    def forward_backward(self, cond):
         self._zero_grad()
-        for i in range(0, batch.shape[0], self.microbatch):
-            losses, t, weights = self._microbatch_common_forward(batch, cond, i)
+        for i in range(0, cond['input_ids'].shape[0], self.microbatch):
+            losses, t, weights = self._microbatch_common_forward(cond, i)
 
             if isinstance(self.schedule_sampler, LossAwareSampler):
                 self.schedule_sampler.update_with_local_losses(

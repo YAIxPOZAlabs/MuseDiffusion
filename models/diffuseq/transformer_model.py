@@ -61,7 +61,7 @@ class TransformerNetModel(nn.Module):
         self.logits_mode = logits_mode
         self.hidden_size = config.hidden_size
 
-        self.word_embedding = nn.Embedding(vocab_size, self.input_dims,padding_idx=0)
+        self.word_embedding = nn.Embedding(vocab_size, self.input_dims, padding_idx=0)
         self.lm_head = nn.Linear(self.input_dims, vocab_size)
         with th.no_grad():
             self.lm_head.weight = self.word_embedding.weight

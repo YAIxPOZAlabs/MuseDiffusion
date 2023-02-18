@@ -8,63 +8,6 @@ from models.diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
 from models.diffuseq.transformer_model import TransformerNetModel
 
 
-def random_seed_all(seed, deterministic=False):
-    import random
-    import numpy as np
-    import transformers
-    for seed_fn in (
-            random.seed,
-            np.random.seed,
-            torch.manual_seed,  # contains torch.cuda.manual_seed_all
-            transformers.set_seed,
-    ):
-        seed_fn(seed)
-    if deterministic:
-        torch.backends.cudnn.deterministic = True  # NOQA
-        torch.backends.cudnn.benchmark = False  # NOQA
-
-
-def load_model_emb(args, weight: "torch.Tensor" = None, log_function=print):
-
-    # random emb or pre-defined embedding like glove embedding. You can customize your own init here.
-    init_kwargs = dict(num_embeddings=args.vocab_size, embedding_dim=args.hidden_dim, padding_idx=0)
-
-    if weight is None:
-        model = torch.nn.Embedding(**init_kwargs)
-        # In training, you must synchronize weights of each process.
-        # So save it in gpu 0 and load it in other gpus.
-        path_save_format = '{}/random_emb.torch'
-        if args.resume_checkpoint:
-            path_save = path_save_format.format(os.path.dirname(args.resume_checkpoint))
-            assert os.path.exists(path_save)
-        else:
-            path_save = path_save_format.format(args.checkpoint_path)
-        path_save_ind = path_save + ".done"
-        if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-            if os.path.exists(path_save):
-                if log_function is not None:
-                    log_function('reload the random embeddings {}'.format(model))
-                model.load_state_dict(torch.load(path_save))
-            else:
-                if log_function is not None:
-                    log_function('initializing the random embeddings {}'.format(model))
-                torch.save(model.state_dict(), path_save)
-                os.sync()
-                with open(path_save_ind, "x") as _:
-                    pass
-        else:
-            while not os.path.exists(path_save_ind):
-                time.sleep(1)
-            if log_function is not None:
-                log_function('reload the random embeddings {}'.format(model))
-            model.load_state_dict(torch.load(path_save))
-
-    else:
-        model = torch.nn.Embedding(**init_kwargs, _weight=weight.clone().cpu())
-
-    return model
-
-
 def create_model_and_diffusion(
         *,
         hidden_t_dim,
