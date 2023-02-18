@@ -1,13 +1,34 @@
 from . import download  # import order: Top
 from . import io
 from . import tokenize
-
+from torch.utils.data import Dataset
+import torch
+import random
+import numpy as np
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
     import os
     PathLike = Union[str, os.PathLike]
 
+class MusicDataset(Dataset):
+    def __init__(self, music_datasets):
+        super().__init__()
+        self.music_datasets = music_datasets
+        self.length = len(self.music_datasets)
+        
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        
+        out_kwargs = {}
+        out_kwargs['input_ids'] = np.array(self.music_datasets[idx]['input_ids'])
+        out_kwargs['input_mask'] = np.array(self.music_datasets[idx]['input_mask'])
+        out_kwargs['attention_mask'] = np.array(self.music_datasets[idx]['attention_mask'])
+
+        return out_kwargs
 
 # usage: from data import load_data_text
 def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
@@ -43,11 +64,18 @@ The kwargs dict can be used for some meta information.
 """
     from torch.utils.data import DataLoader
     tokenized_data = _tokenize_data(seq_len=seq_len, data_dir=data_dir, split=split,
-                                    num_proc=num_preprocess_proc, log_function=log_function)
+                                    num_proc=num_preprocess_proc, log_function=log_function,batch_size=batch_size)
+                                    
+    tokenized_data = tokenized_data.sort("length")
+    batch_sampler = []
+    for i in range(0, len(tokenized_data), batch_size):   
+        batch_sampler.append(list(range(i,i+batch_size)))
+    random.shuffle(batch_sampler)
+
     data_loader = DataLoader(
-        tokenized_data,
-        batch_size=batch_size,
-        shuffle=not deterministic,
+        MusicDataset(tokenized_data),
+        collate_fn=collate_fn, 
+        batch_sampler=batch_sampler,
         num_workers=num_loader_proc,
         # drop_last=True,
     )
@@ -57,13 +85,32 @@ The kwargs dict can be used for some meta information.
         return data_loader
 
 
+
+def collate_fn(batch_samples):    
+    def _collate_batch_helper(example, pad_token_id, max_length):
+        result = torch.full([max_length], pad_token_id, dtype=torch.int64).tolist()
+        result[:len(example)] = example[:len(example)]
+        return result
+    print("before",batch_samples[0])
+    max_length = len(batch_samples[-1]['input_ids'])
+    for idx, batch in enumerate(batch_samples):    
+        batch_samples[idx]['input_ids'] = _collate_batch_helper(batch['input_ids'], 0, max_length)
+        batch_samples[idx]['input_mask'] = _collate_batch_helper(batch['input_mask'], 1, max_length)
+        batch_samples[idx]['attention_mask'] = _collate_batch_helper(batch['attention_mask'], 0, max_length)
+    print("after",batch_samples[0])
+    print(max_length)
+    return batch_samples
+
+
+
 def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning
         *,
         seq_len,
         data_dir,
         split,
         num_proc,
-        log_function=print
+        log_function=print,
+        batch_size
 ):
 
     import os
@@ -94,7 +141,7 @@ def _tokenize_data(  # Tokenized Data I/O Wrapper for Distributed Learning
             tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
         else:
             sentence_lst = load_raw_data(data_dir, split=split)
-            tokenized_data = helper_tokenize(sentence_lst, seq_len, num_proc=num_proc)
+            tokenized_data = helper_tokenize(sentence_lst, batch_size, num_proc=num_proc)
             with open(tokenized_data_lock_path, "w") as _:
                 pass
             if log_function is not None:

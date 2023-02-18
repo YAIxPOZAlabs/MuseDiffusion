@@ -14,8 +14,14 @@ def load_raw_data(data_dir=None, split='train'):
         trg = np.load('{}/target_val.npy'.format(get_data_dir(data_dir)), allow_pickle=True)
     else:
         assert False, "invalid split for dataset"
+        
+    length = get_length(src, trg) 
+    return {'src': src, 'trg': trg, 'length': length }
 
-    return {'src': src, 'trg': trg}
-
+def get_length(src, trg):
+    length = []
+    for i in range(len(trg)):
+        length.append(len(trg[i])+len(src[i]))
+    return length
 
 __all__ = ('load_raw_data', )
