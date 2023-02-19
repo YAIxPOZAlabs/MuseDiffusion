@@ -35,6 +35,7 @@ def wrap_dataset(
         num_workers=num_loader_proc,
         batch_size=batch_size,
         shuffle=not deterministic,
+        persistent_workers=num_loader_proc > 0,
         # batch_sampler=batch_sampler,
     )
     return data_loader
