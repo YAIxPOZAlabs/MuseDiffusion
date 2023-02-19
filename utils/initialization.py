@@ -16,22 +16,6 @@ def random_seed_all(seed, deterministic=False):
         torch.backends.cudnn.benchmark = False  # NOQA
 
 
-def random_seed_all(seed, deterministic=False):
-    import random
-    import numpy as np
-    import transformers
-    for seed_fn in (
-            random.seed,
-            np.random.seed,
-            torch.manual_seed,  # contains torch.cuda.manual_seed_all
-            transformers.set_seed,
-    ):
-        seed_fn(seed)
-    if deterministic:
-        torch.backends.cudnn.deterministic = True  # NOQA
-        torch.backends.cudnn.benchmark = False  # NOQA
-
-
 def create_model_and_diffusion(
         *,
         hidden_t_dim,
