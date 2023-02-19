@@ -46,12 +46,9 @@ The kwargs dict can be used for some meta information.
     from .preprocess import tokenize_with_caching
     from .wrapper import wrap_dataset
 
-    if corruption is None:  # 바꾸려면 corruption 넣는거 바꾸면 됨  # TODO : string 으로 바꾸기
-        # corruption 수행
-        # 랜덤하게 한 함수를 선택해서 수행하는 방식? 아니면 여러개 동시에 적용하는 방식?
-        from functools import partial
-        from .corruption import randomize_note
-        corruption = partial(randomize_note, p=0.5)
+    if corruption is None:  # TODO : string 으로 받기
+        from .corruption import get_corruption_from_configs
+        corruption = get_corruption_from_configs()
 
     tokenized_data = tokenize_with_caching(
         data_dir=data_dir,

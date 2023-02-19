@@ -74,16 +74,16 @@ def adding_token(seq: torch.Tensor, mask: torch.Tensor, p: float, inplace: bool 
     ...
 
 
-def random_rotating(seq: torch.Tensor, iter: int, inplace: bool = False):
+def random_rotating(seq: torch.Tensor, count: int, inplace: bool = False):
     """
     마디단위로 묶어서 마디의 순서를 랜덤하게 섞는다
     count: 몇번 마디 바꾸는것을 수행할것인가
     """
-    #corrupted = seq if inplace else torch.clone(seq)
-    bar_idx = (seq==2).nonzero(as_tuple=True)
-    eos_idx = (seq==1).nonzero(as_tuple=True)[-1]
+    rotated = seq if inplace else torch.clone(seq)
+    bar_idx = (seq == 2).nonzero(as_tuple=True)
+    eos_idx = (seq == 1).nonzero(as_tuple=True)[-1]
 
-    for _ in range(iter):
+    for _ in range(count):
         first_idx = random.randint(0, len(bar_idx))
         second_idx = random.randint(0, len(bar_idx))
         while second_idx == first_idx:
@@ -107,3 +107,11 @@ def random_rotating(seq: torch.Tensor, iter: int, inplace: bool = False):
         
         rotated = torch.cat([start_to_bar1, bar2_array, bar1_to_bar2, bar1_array, bar2_to_EOS])
     return rotated
+
+
+def get_corruption_from_configs():
+    # corruption 수행
+    # 랜덤하게 한 함수를 선택해서 수행하는 방식? 아니면 여러개 동시에 적용하는 방식?
+    from functools import partial
+    func = partial(randomize_note, p=0.5)
+    return func
