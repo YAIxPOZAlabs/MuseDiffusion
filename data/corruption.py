@@ -2,9 +2,10 @@ import random
 import torch
 
 
-def masking_note(seq: torch.Tensor, p: float, inplace: bool = False):
+def masking_token(seq: torch.Tensor, p: float, inplace: bool = False):
     """
     masking_token으로 변경하는 함수
+    token 단위로 진행
     이거 쓰려면 masking token값으로 730 지정해주고 embedding layer의 dim 1 추가해야됨
     """
     corrupted = seq if inplace else torch.clone(seq)
@@ -15,6 +16,23 @@ def masking_note(seq: torch.Tensor, p: float, inplace: bool = False):
         rnd = torch.rand(1)[0]
         if rnd < p:
             corrupted[i+12] = 730
+    return corrupted
+
+def masking_note(seq: torch.Tensor, p: float, inplace: bool = False):
+    """
+    masking_token으로 변경하는 함수
+    note (position - velocity - pitch - duration) 단위로 진행
+    이거 쓰려면 masking token값으로 730 지정해주고 embedding layer의 dim 1 추가해야됨
+    """
+    corrupted = seq if inplace else torch.clone(seq)
+
+    vel_idx = (131 >= seq).nonzero(as_tuple=True)
+    for idx in vel_idx:
+        if seq[idx] >194:
+            continue
+        rnd = torch.rand(1)[0]
+        if rnd < p:
+            corrupted[idx-1:idx+3] = [730]*4
     return corrupted
 
 
@@ -56,32 +74,36 @@ def adding_token(seq: torch.Tensor, mask: torch.Tensor, p: float, inplace: bool 
     ...
 
 
-def random_rotating(seq: torch.Tensor, count: int, inplace: bool = False):
+def random_rotating(seq: torch.Tensor, iter: int, inplace: bool = False):
     """
     마디단위로 묶어서 마디의 순서를 랜덤하게 섞는다
     count: 몇번 마디 바꾸는것을 수행할것인가
     """
-    corrupted = seq if inplace else torch.clone(seq)
+    #corrupted = seq if inplace else torch.clone(seq)
     bar_idx = (seq==2).nonzero(as_tuple=True)
     eos_idx = (seq==1).nonzero(as_tuple=True)[-1]
 
-    for i in range(count):
+    for _ in range(iter):
         first_idx = random.randint(0, len(bar_idx))
         second_idx = random.randint(0, len(bar_idx))
-        while second_idx != first_idx:
+        while second_idx == first_idx:
             second_idx = random.randint(0, len(bar_idx))
-        first_bar_idx = bar_idx[first_idx]
-        second_bar_idx = bar_idx[second_idx]
-        if first_idx != len(bar_idx) - 1:
-            first_bar_len = bar_idx[first_idx+1] - first_bar_idx
-        else:
-            first_bar_len = eos_idx - first_bar_idx
-        if second_idx != len(bar_idx) - 1:
-            second_bar_len = bar_idx[second_idx+1] - second_bar_idx
-        else:
-            second_bar_len = eos_idx - second_bar_idx
-        corrupted[first_bar_idx:first_bar_idx+second_bar_len] = seq[second_bar_idx:second_bar_idx+second_bar_len]
-        new_pos = first_bar_idx + second_bar_len + (second_bar_idx - first_bar_idx - first_bar_len)
-        corrupted[first_bar_idx+second_bar_len:new_pos] = seq[first_bar_idx+first_bar_len:second_bar_idx]
-        corrupted[new_pos: new_pos+first_bar_len] = seq[first_bar_idx:first_bar_idx+first_bar_len]
-    return corrupted
+
+        first_idx, second_idx = sorted([first_idx, second_idx])
+
+        # find start and end of bars
+        bar1_start = bar_idx[first_idx]
+        bar2_start = bar_idx[second_idx]
+
+        bar1_end = bar_idx[first_idx+1]
+        bar2_end = bar_idx[second_idx+1] if second_idx < len(bar_idx)-1 else eos_idx
+
+        # sequence에서 bar 2개를 잘라내고 순서를 바꿔서 concat
+        start_to_bar1 = rotated[:bar1_start]
+        bar1_array = rotated[bar1_start:bar1_end]
+        bar1_to_bar2 = rotated[bar1_end:bar2_start]
+        bar2_array = rotated[bar2_start:bar2_end]
+        bar2_to_EOS = rotated[bar2_end:]
+        
+        rotated = torch.cat([start_to_bar1, bar2_array, bar1_to_bar2, bar1_array, bar2_to_EOS])
+    return rotated
