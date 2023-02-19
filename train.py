@@ -76,6 +76,7 @@ def main(args):
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    model.word_embedding.load_state_dict(torch.load('model_emb.pt'))
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 
