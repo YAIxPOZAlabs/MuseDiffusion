@@ -58,8 +58,8 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
 
 def tokenize_with_caching(  # Tokenized Data I/O Wrapper for Distributed Learning
         *,
-        data_dir,
         split,
+        data_dir,
         num_proc,
         log_function=print
 ):

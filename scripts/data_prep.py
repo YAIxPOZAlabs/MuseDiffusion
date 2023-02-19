@@ -15,11 +15,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Data preparing args.')
     parser.add_argument('--data_dir', type=str, default=DEFAULT_CONFIG['data_dir'], help='path to training dataset')
-    parser.add_argument('--seq_len', type=int, default=DEFAULT_CONFIG['seq_len'], help='max len of input sequence')
     parser.add_argument('--num_proc', type=int, default=4, help='max len of input sequence')
 
     args = parser.parse_args()
 
-    from data import _tokenize_data  # pylint: disable=protected-access
+    from data.preprocess import tokenize_with_caching as main
     for split in ('train', 'valid'):
-        _tokenize_data(split=split, seq_len=args.seq_len, data_dir=args.data_dir, num_proc=args.num_proc)
+        main(split=split, data_dir=args.data_dir, num_proc=args.num_proc)

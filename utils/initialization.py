@@ -1,11 +1,19 @@
-import os
-import time
 
-import torch
-
-from models.diffuseq import gaussian_diffusion as gd
-from models.diffuseq.gaussian_diffusion import SpacedDiffusion, space_timesteps
-from models.diffuseq.transformer_model import TransformerNetModel
+def random_seed_all(seed, deterministic=False):
+    import random
+    import numpy as np
+    import transformers
+    import torch
+    for seed_fn in (
+            random.seed,
+            np.random.seed,
+            torch.manual_seed,  # contains torch.cuda.manual_seed_all
+            transformers.set_seed,
+    ):
+        seed_fn(seed)
+    if deterministic:
+        torch.backends.cudnn.deterministic = True  # NOQA
+        torch.backends.cudnn.benchmark = False  # NOQA
 
 
 def random_seed_all(seed, deterministic=False):
@@ -45,6 +53,10 @@ def create_model_and_diffusion(
         use_kl,
         **_,
 ):
+    from models.diffuseq.gaussian_diffusion \
+        import SpacedDiffusion, space_timesteps, get_named_beta_schedule
+    from models.diffuseq.transformer_model import TransformerNetModel
+
     model = TransformerNetModel(
         input_dims=hidden_dim,
         output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
@@ -57,7 +69,7 @@ def create_model_and_diffusion(
         num_fnet_layers=num_fnet_layers,  # FNet Kwarg
     )
 
-    betas = gd.get_named_beta_schedule(noise_schedule, diffusion_steps)
+    betas = get_named_beta_schedule(noise_schedule, diffusion_steps)
 
     if not timestep_respacing:
         timestep_respacing = [diffusion_steps]

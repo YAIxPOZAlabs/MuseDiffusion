@@ -57,7 +57,7 @@ def main(args):
     dist_util.barrier()  # Sync
     data = load_data_music(
         batch_size=args.batch_size,
-        seq_len=args.seq_len,
+        seq_len=None,  # args.seq_len
         data_dir=args.data_dir,
         split='train',
         deterministic=False,
@@ -65,7 +65,7 @@ def main(args):
     )
     data_valid = load_data_music(
         batch_size=args.batch_size,
-        seq_len=args.seq_len,
+        seq_len=None,  # args.seq_len
         data_dir=args.data_dir,
         split='valid',
         deterministic=True,
