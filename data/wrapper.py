@@ -43,6 +43,7 @@ def wrap_dataset(
 def _collate_fn(batch_samples, seq_len=None, dtype=None):
 
     import torch
+    from .corruption import randomize_note, random_rotating, masking_note, adding_token
 
     seq_len = seq_len or max(sample['length'] for sample in batch_samples)
     batch_len = len(batch_samples)
@@ -50,13 +51,17 @@ def _collate_fn(batch_samples, seq_len=None, dtype=None):
     dtype = dtype or torch.long
 
     input_ids = torch.zeros(shape, dtype=dtype)
+    correct_ids = torch.zeros(shape, dtype=dtype)
     input_mask = torch.ones(shape, dtype=dtype)
     attention_mask = torch.zeros(shape, dtype=dtype)
     length = torch.zeros((batch_len, ), dtype=dtype)
 
     for idx, batch in enumerate(batch_samples):
         lth = batch['length']
-        input_ids[idx][:lth] = batch['input_ids']
+        correct_ids[idx][:lth] = batch['input_ids']
+        # corruption 수행
+        # 랜덤하게 한 함수를 선택해서 수행하는 방식? 아니면 여러개 동시에 적용하는 방식?
+        input_ids[idx][:lth] = randomize_note(torch.tensor(batch['input_ids']), p=0.5)
         input_mask[idx][:lth] = batch['input_mask']
         attention_mask[idx][:lth] = batch['attention_mask']
         length[idx] = lth
@@ -65,7 +70,8 @@ def _collate_fn(batch_samples, seq_len=None, dtype=None):
         'input_ids': input_ids,
         'input_mask': input_mask,
         'attention_mask': attention_mask,
-        'length': length
+        'length': length,
+        'correct_ids': correct_ids
     }
 
 
