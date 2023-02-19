@@ -9,7 +9,7 @@ def masking_note(seq, p:float):
     corrupted = torch.clone(seq)
 
     for i in range(len(seq[12:])):
-        if seq[i+12] == 0:
+        if seq[i+12] == 1:
             break
         rnd = torch.rand(1)[0]
         if rnd < p:
