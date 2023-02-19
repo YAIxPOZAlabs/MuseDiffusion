@@ -19,6 +19,7 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         num_preprocess_proc: int = 4,
         num_loader_proc: int = 0,
         loop: bool = True,
+        corruption: "Optional[Callable]" = None,
         log_function: "Callable" = print
 ):
     """
@@ -39,10 +40,19 @@ The kwargs dict can be used for some meta information.
     if loop is True - infinite iterator will be returned
     if loop is False - default iterator will be returned
     if loop is None - raw dataloader will be returned
+:param corruption: function to corrupt midi sequence
 :param log_function: custom function for log. default is print.
 """
     from .preprocess import tokenize_with_caching
     from .wrapper import wrap_dataset
+
+    if corruption is None:  # 바꾸려면 corruption 넣는거 바꾸면 됨  # TODO : string 으로 바꾸기
+        # corruption 수행
+        # 랜덤하게 한 함수를 선택해서 수행하는 방식? 아니면 여러개 동시에 적용하는 방식?
+        from functools import partial
+        from .corruption import randomize_note
+        corruption = partial(randomize_note, p=0.5)
+
     tokenized_data = tokenize_with_caching(
         data_dir=data_dir,
         split=split,
@@ -54,6 +64,7 @@ The kwargs dict can be used for some meta information.
         batch_size=batch_size,
         seq_len=seq_len,
         deterministic=deterministic,
+        corruption=corruption,
         num_loader_proc=num_loader_proc
     )
     if loop:
