@@ -137,7 +137,8 @@ def main(args):
         deterministic=True,
         split=args.split,
         loop=False,
-        num_preprocess_proc=1
+        num_preprocess_proc=1,
+        corruption={'cor_func':args.cor_func, 'max_cor':args.max_cor}
     )
     dist_util.barrier()  # Sync
 

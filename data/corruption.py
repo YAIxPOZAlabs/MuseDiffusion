@@ -72,6 +72,7 @@ def adding_token(seq: torch.Tensor, mask: torch.Tensor, p: float, inplace: bool 
     """
     corrupted = seq if inplace else torch.clone(seq)
     ...
+    pass
 
 
 def random_rotating(seq: torch.Tensor, count: int, inplace: bool = False):
@@ -108,10 +109,28 @@ def random_rotating(seq: torch.Tensor, count: int, inplace: bool = False):
         rotated = torch.cat([start_to_bar1, bar2_array, bar1_to_bar2, bar1_array, bar2_to_EOS])
     return rotated
 
+CORRUPTION_FUNC = {'mt':masking_token, 'mn':masking_note, 'at':adding_token, 'rn':randomize_note, 'rr':random_rotating}
 
-def get_corruption_from_configs():
+class Get_corruption:
     # corruption 수행
     # 랜덤하게 한 함수를 선택해서 수행하는 방식? 아니면 여러개 동시에 적용하는 방식?
-    from functools import partial
-    func = partial(randomize_note, p=0.5)
-    return func
+    # config key: cor_func, max_cor
+    def __init__(self, config:dict):
+        self.available_corruption = config['cor_func'].split(',')
+        self.maximum_num = int(config['max_cor'])
+        self.p = 0.5
+        self.iter = 3
+
+    def __call__(self, seq:torch.Tensor, mask:torch.Tensor, inplace:bool = False):
+        corrupted = seq if inplace else torch.clone(seq)
+        for _ in range(self.maximum_num):
+            rnd = torch.rand(1)[0]
+            if rnd > 0.5: # 반반 확률로 corruption 진행
+                code = self.available_corruption[random.randint(0, len(self.available_corruption))]
+                corruption_func = CORRUPTION_FUNC[code]
+                if code == 'rr':
+                    corrupted = corruption_func(corrupted, self.iter, inplace)
+                else:
+                    corrupted = corruption_func(corrupted, self.p, inplace)
+        return corrupted
+

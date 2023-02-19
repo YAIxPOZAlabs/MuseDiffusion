@@ -62,6 +62,7 @@ def main(args):
         split='train',
         deterministic=False,
         num_loader_proc=args.data_loader_workers,
+        corruption={'cor_func':args.cor_func, 'max_cor':args.max_cor}
     )
     data_valid = load_data_music(
         batch_size=args.batch_size,
@@ -70,6 +71,7 @@ def main(args):
         split='valid',
         deterministic=True,
         num_loader_proc=args.data_loader_workers,
+        corruption={'cor_func':args.cor_func, 'max_cor':args.max_cor}
     )
     dist_util.barrier()  # Sync
 

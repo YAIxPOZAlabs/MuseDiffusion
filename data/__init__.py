@@ -19,7 +19,7 @@ def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
         num_preprocess_proc: int = 4,
         num_loader_proc: int = 0,
         loop: bool = True,
-        corruption: "Optional[Callable]" = None,
+        corruption: "Optional[dict]" = None,
         log_function: "Callable" = print
 ):
     """
@@ -40,15 +40,15 @@ The kwargs dict can be used for some meta information.
     if loop is True - infinite iterator will be returned
     if loop is False - default iterator will be returned
     if loop is None - raw dataloader will be returned
-:param corruption: function to corrupt midi sequence
+:param corruption: option for corruption (key: cor_func, max_cor, cor_func's value: mt, mn, rn, rr)
 :param log_function: custom function for log. default is print.
 """
     from .preprocess import tokenize_with_caching
     from .wrapper import wrap_dataset
 
-    if corruption is None:  # TODO : string 으로 받기
-        from .corruption import get_corruption_from_configs
-        corruption = get_corruption_from_configs()
+    if corruption is not None:
+        from .corruption import Get_corruption
+        corruption = Get_corruption(corruption)
 
     tokenized_data = tokenize_with_caching(
         data_dir=data_dir,
