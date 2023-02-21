@@ -43,7 +43,8 @@ def main(args):
     from data import load_data_music
     from models.diffuseq.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
-    from utils.initialization import create_model_and_diffusion, seed_all
+    from utils.initialization import create_model_and_diffusion, seed_all, \
+        load_and_fetch_pretrained_embedding, overload_embedding
     from utils.train_util import TrainLoop
 
     # Setup everything
@@ -55,33 +56,26 @@ def main(args):
     # Prepare dataloader
     logger.log("### Creating data loader...")
     dist_util.barrier()  # Sync
-    data = load_data_music(
+    data, data_valid = load_data_music(
+        split=['train', 'valid'],
         batch_size=args.batch_size,
-        seq_len=None,  # args.seq_len
         data_dir=args.data_dir,
-        split='train',
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p,
+        seq_len=None,  # args.seq_len
         deterministic=False,
+        loop=True,
         num_loader_proc=args.data_loader_workers,
-        corr_available=args.corr_available,
-        corr_max=args.corr_max,
-        corr_p=args.corr_p
-    )
-    data_valid = load_data_music(
-        batch_size=args.batch_size,
-        seq_len=None,  # args.seq_len
-        data_dir=args.data_dir,
-        split='valid',
-        deterministic=True,
-        num_loader_proc=args.data_loader_workers,
-        corr_available=args.corr_available,
-        corr_max=args.corr_max,
-        corr_p=args.corr_p
     )
     dist_util.barrier()  # Sync
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
+    pretrained_emb_weight = load_and_fetch_pretrained_embedding(args)
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    if pretrained_emb_weight is not None:
+        overload_embedding(model, pretrained_emb_weight)
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 

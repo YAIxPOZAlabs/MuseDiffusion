@@ -16,6 +16,37 @@ def seed_all(seed, deterministic=False):
         generator.seed(int(seed) + get_rank())  # Make corruption's seed differ by node rank
 
 
+def load_and_fetch_pretrained_embedding(args):
+    import os
+    from utils import dist_util, logger
+    if args.pretrained_embedding:
+        emb_weight = dist_util.load_state_dict(args.pretrained_embedding)['weight']
+        _, orig_hidden_dim = emb_weight.shape
+        if orig_hidden_dim != args.hidden_dim:
+            logger.warn(
+                f"Pretrained embedding {os.path.basename(args.pretrained_embedding)}'s "
+                f"hidden_dim {orig_hidden_dim} is differ from "
+                f"config's hidden dim {args.hidden_dim}.\n"
+                f"args.hidden_dim and args.fnet_hidden_dim will be overwritten into"
+                f"pretrained embedding's hidden dim {orig_hidden_dim}"
+            )
+            args.hidden_dim = args.fnet_hidden_dim = orig_hidden_dim
+        return emb_weight
+    else:
+        return
+
+
+def overload_embedding(model, emb_weight):
+    from utils import logger
+    import torch
+    orig_vocab_size, _ = emb_weight.shape
+    assert model.word_embedding.weight.shape[0] >= orig_vocab_size
+    with torch.no_grad():
+        model.word_embedding.weight.data[:orig_vocab_size] = emb_weight
+    logger.log("### Successfully overloaded pretrained embedding weight.")
+    return model
+
+
 def create_model_and_diffusion(
         *,
         hidden_t_dim,

@@ -17,15 +17,16 @@ DEFAULT_CONFIG = MappingProxyType({
     "vocab_size": 729,                          # Added
     "dataset": "ComMU",
     "data_dir": "datasets/ComMU-processed",
-    "data_loader_workers": 0,                   # num_workers for DataLoader
+    "data_loader_workers": 2,                   # num_workers for DataLoader
     "corr_available": "mt,mn,rn,rr",            # Available corruptions - TODO: add 'at'
     "corr_max": 0,                              # Max number of corruptions
     "corr_p": 0.5,                              # Probability to choice each corruption
     # "corr_kwargs": "dict(p=0.5, count=3)",    # Keyword arguments for each corruption
-    "seq_len": 2096,                            # Changed
+    "seq_len": 2096,                            # Changed = TODO: 0
+    "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
     "hidden_t_dim": 128,                        # Transformer
-    "hidden_dim": 32,                           # Transformer and Embedding
-    "fnet_hidden_dim": 32,                      # FNet
+    "hidden_dim": 128,                          # Transformer and Embedding
+    "fnet_hidden_dim": 128,                     # FNet
     "fnet_intermediate_dim": 32,                # FNet
     "dropout": 0.1,
     "use_fp16": False,

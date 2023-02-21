@@ -11,9 +11,9 @@ if TYPE_CHECKING:
 
 # usage: from data import load_data_text
 def load_data_music(  # # # DiffuSeq에서 사용하는 유일한 함수 # # #
-        batch_size: int,
+        split: "str|list|tuple" = 'train',
+        batch_size: "Optional[int]" = 1,
         data_dir: "Union[str, os.PathLike]" = None,
-        split: str = 'train',
         corr_available: "str|list|tuple" = None,
         corr_max: "str|int" = None,
         corr_p: "str|float" = None,
@@ -47,6 +47,11 @@ The kwargs dict can be used for some meta information.
 :param corr_p: probability to choice each corruption.
 :param log_function: custom function for log. default is print.
 """
+    if isinstance(split, (list, tuple)):
+        kw = locals().copy()
+        split = kw.pop('split')
+        return [load_data_music(split=sp, **kw) for sp in split]
+
     from .preprocess import tokenize_with_caching
     from .wrapper import wrap_dataset
     from .corruption import Corruptions

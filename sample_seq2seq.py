@@ -98,7 +98,7 @@ def main(args):
     out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
     logger.configure(
         dir=os.path.join(args.out_dir, model_base_name),
-        format_strs=["log"],
+        format_strs=["log", "stdout"],
         log_suffix=model_detailed_name
     )
     if rank == 0:
@@ -243,13 +243,17 @@ def main(args):
                     batch_size=args.batch_size
                 )
         finally:
-            logger.log(out.getvalue())
-        dist_util.barrier()
+            # Sequentially log each outputs
+            for i in range(world_size):
+                if i == rank:
+                    logger.log(out.getvalue())
+                dist_util.barrier()
 
     # Sync each distributed node with dummy barrier() call
     rem = len(data_loader) % world_size
     if rem and rank >= rem:
-        dist_util.barrier()
+        for _ in range(world_size):
+            dist_util.barrier()
 
     # Log final result
     if rank == 0:
