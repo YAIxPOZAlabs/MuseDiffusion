@@ -56,8 +56,8 @@ def main(args):
     # Prepare dataloader
     logger.log("### Creating data loader...")
     dist_util.barrier()  # Sync
-    data, data_valid = load_data_music(
-        split=['train', 'valid'],
+    data = load_data_music(
+        split='train',
         batch_size=args.batch_size,
         data_dir=args.data_dir,
         corr_available=args.corr_available,
@@ -65,6 +65,18 @@ def main(args):
         corr_p=args.corr_p,
         seq_len=None,  # args.seq_len
         deterministic=False,
+        loop=True,
+        num_loader_proc=args.data_loader_workers,
+    )
+    data_valid = load_data_music(
+        split='valid',
+        batch_size=args.batch_size,
+        data_dir=args.data_dir,
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p,
+        seq_len=None,  # args.seq_len
+        deterministic=True,
         loop=True,
         num_loader_proc=args.data_loader_workers,
     )
