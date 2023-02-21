@@ -96,11 +96,8 @@ def main(args):
     model_base_name = os.path.basename(os.path.split(args.model_path)[0])
     model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
     out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
-    logger.configure(
-        dir=os.path.join(args.out_dir, model_base_name),
-        format_strs=["log", "stdout"],
-        log_suffix=model_detailed_name
-    )
+    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".logs")
+    logger.configure(log_path, format_strs=["stdout"], log_suffix="-" + model_detailed_name)
     if rank == 0:
         os.makedirs(out_path, exist_ok=True)
     dist_util.barrier()  # Sync
@@ -243,22 +240,18 @@ def main(args):
                     batch_size=args.batch_size
                 )
         finally:
-            # Sequentially log each outputs
-            for i in range(world_size):
-                if i == rank:
-                    logger.log(out.getvalue())
-                dist_util.barrier()
+            with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
+                fp.write(out.getvalue())
+            dist_util.barrier()
 
     # Sync each distributed node with dummy barrier() call
     rem = len(data_loader) % world_size
     if rem and rank >= rem:
-        for _ in range(world_size):
-            dist_util.barrier()
+        dist_util.barrier()
 
     # Log final result
-    if rank == 0:
-        logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
-        logger.log(f'### Written the decoded output to {out_path}')
+    logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
+    logger.log(f'### Written the decoded output to {out_path}')
 
 
 if __name__ == "__main__":
