@@ -240,8 +240,10 @@ def main(args):
                     batch_size=args.batch_size
                 )
         finally:
+            logs_per_batch = out.getvalue()
             with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
-                fp.write(out.getvalue())
+                fp.write(logs_per_batch)
+            print(logs_per_batch)
             dist_util.barrier()
 
     # Sync each distributed node with dummy barrier() call
