@@ -100,6 +100,8 @@ def main(args):
     logger.configure(log_path, format_strs=["stdout"], log_suffix="-" + model_detailed_name)
     if rank == 0:
         os.makedirs(out_path, exist_ok=True)
+    else:
+        logger.set_level(logger.DISABLED)
     dist_util.barrier()  # Sync
 
     # Reload train configurations from model folder
@@ -243,13 +245,17 @@ def main(args):
             logs_per_batch = out.getvalue()
             with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
                 fp.write(logs_per_batch)
-            print(logs_per_batch)
-            dist_util.barrier()
+            # Print logs sequentially
+            for i in world_size:
+                if i == rank:
+                    print(logs_per_batch)
+                dist_util.barrier()
 
     # Sync each distributed node with dummy barrier() call
     rem = len(data_loader) % world_size
     if rem and rank >= rem:
-        dist_util.barrier()
+        for _ in world_size:
+            dist_util.barrier()
 
     # Log final result
     logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
