@@ -54,7 +54,7 @@ def create_model_and_diffusion(
         vocab_size,
         dropout,
         seq_len,  # FNet Kwarg
-        num_hidden_layers,  # FNet Kwarg
+        num_fnet_layers,  # FNet Kwarg
         fnet_hidden_dim,  # FNet Kwarg
         fnet_intermediate_dim,  # FNet Kwarg
         diffusion_steps,
@@ -81,7 +81,7 @@ def create_model_and_diffusion(
         vocab_size=vocab_size,
         dropout=dropout,
         seq_len=seq_len,  # FNet Kwarg
-        num_hidden_layers=num_hidden_layers,  # FNet Kwarg
+        num_fnet_layers=num_fnet_layers,  # FNet Kwarg
     )
 
     betas = get_named_beta_schedule(noise_schedule, diffusion_steps)

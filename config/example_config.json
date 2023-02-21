@@ -39,5 +39,6 @@
   "sigma_small": false,
   "checkpoint_path": ".",
   "emb_scale_factor": 1.0,
-  "num_hidden_layers": 6
+  "num_fnet_layers": 6,
+  "use_attention" : false
 }
