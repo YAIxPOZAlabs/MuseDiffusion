@@ -247,7 +247,7 @@ def main(args):
             with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
                 fp.write(logs_per_batch)
             # Print logs sequentially
-            for i in world_size:
+            for i in range(world_size):
                 if i == rank:
                     print(logs_per_batch)
                 dist_util.barrier()
@@ -255,7 +255,7 @@ def main(args):
     # Sync each distributed node with dummy barrier() call
     rem = len(data_loader) % world_size
     if rem and rank >= rem:
-        for _ in world_size:
+        for _ in range(world_size):
             dist_util.barrier()
 
     # Log final result
