@@ -1,5 +1,12 @@
+import os
+import time
+import shutil
+import numpy as np
+from datasets import Dataset as ArrowDataset
+
+
 def load_raw_data(data_dir=None, split='train'):
-    import numpy as np
+
     from .download import get_data_dir
 
     if split == 'train':
@@ -17,8 +24,6 @@ def load_raw_data(data_dir=None, split='train'):
 
 
 def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
-
-    from datasets import Dataset as ArrowDataset
 
     def merge_and_mask(group_lst):
 
@@ -63,10 +68,6 @@ def tokenize_with_caching(  # Tokenized Data I/O Wrapper for Distributed Learnin
         num_proc,
         log_function=print
 ):
-    import os
-    import time
-    import shutil
-    from datasets import Dataset as ArrowDataset
 
     from .download import guarantee_data, get_data_dir
 

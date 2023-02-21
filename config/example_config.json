@@ -15,11 +15,15 @@
   "vocab_size": 729,
   "dataset": "ComMU",
   "data_dir": "datasets/ComMU-processed",
-  "data_loader_workers": 0,
+  "data_loader_workers": 2,
+  "corr_available": "mt,mn,rn,rr",
+  "corr_max": 0,
+  "corr_p": 0.5,
   "seq_len": 2096,
+  "pretrained_embedding": "",
   "hidden_t_dim": 128,
-  "hidden_dim": 32,
-  "fnet_hidden_dim": 32,
+  "hidden_dim": 128,
+  "fnet_hidden_dim": 128,
   "fnet_intermediate_dim": 512,
   "dropout": 0.1,
   "use_fp16": false,
@@ -35,5 +39,6 @@
   "sigma_small": false,
   "checkpoint_path": ".",
   "emb_scale_factor": 1.0,
-  "num_hidden_layers": 6
+  "num_fnet_layers": 6,
+  "use_attention" : false
 }

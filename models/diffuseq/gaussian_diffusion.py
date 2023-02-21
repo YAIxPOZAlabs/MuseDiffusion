@@ -595,12 +595,16 @@ class GaussianDiffusion:
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
         x_start_mean = model.model.module.get_embeds(input_ids_x)
         
+        correct_ids_x = model_kwargs['correct_ids'].to(t.device)
+        correct_x_start_mean = model.model.module.get_embeds(correct_ids_x)
+        
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
                                    th.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
         # print(std.shape, )
         # x_start_log_var = 2 * th.log(std)
         x_start = self._get_x_start(x_start_mean, std)
+        correct_x_start = self._get_x_start(correct_x_start_mean, std)
         # print(x_start_mean.shape, x_start.shape)
         if noise is None:
             noise = th.randn_like(x_start)
@@ -611,14 +615,15 @@ class GaussianDiffusion:
 
         terms = {}
 
-        target = x_start
+        target = correct_x_start#x_start
         model_output = model(x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)
         assert model_output.shape == target.shape == x_start.shape
         terms["mse"] = mean_flat((target - model_output) ** 2)
 
         model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart'] # predicted_xstart = model_output
         t0_mask = (t == 0)
-        t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
+        #t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
+        t0_loss = mean_flat((correct_x_start_mean - model_out_x_start)**2)
         terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
 
         # tT_mask = (t == self.num_timesteps - 1)
@@ -626,10 +631,12 @@ class GaussianDiffusion:
         tT_loss =  mean_flat(out_mean ** 2)
 
         decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x) # embedding regularization
-        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
+        decoder_nll2 = self._token_discrete_loss(correct_x_start, get_logits, correct_ids_x) # 이거를 추가하는게 좋을까 안좋을까
+        #terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
+        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, correct_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
-        terms["loss"] = terms["mse"] + decoder_nll + tT_loss
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss # + decoder_nll2
 
         return terms
 

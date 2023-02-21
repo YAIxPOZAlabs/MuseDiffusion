@@ -43,40 +43,51 @@ def main(args):
     from data import load_data_music
     from models.diffuseq.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
-    from utils.initialization import create_model_and_diffusion, random_seed_all
+    from utils.initialization import create_model_and_diffusion, seed_all, \
+        load_and_fetch_pretrained_embedding, overload_embedding
     from utils.train_util import TrainLoop
 
     # Setup everything
     dist_util.setup_dist()
     dist_util.barrier()  # Sync
     logger.configure()
-    random_seed_all(args.seed)
+    seed_all(args.seed)
 
     # Prepare dataloader
     logger.log("### Creating data loader...")
     dist_util.barrier()  # Sync
     data = load_data_music(
-        batch_size=args.batch_size,
-        seq_len=None,  # args.seq_len
-        data_dir=args.data_dir,
         split='train',
+        batch_size=args.batch_size,
+        data_dir=args.data_dir,
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p,
+        seq_len=None,  # args.seq_len
         deterministic=False,
+        loop=True,
         num_loader_proc=args.data_loader_workers,
     )
     data_valid = load_data_music(
-        batch_size=args.batch_size,
-        seq_len=None,  # args.seq_len
-        data_dir=args.data_dir,
         split='valid',
+        batch_size=args.batch_size,
+        data_dir=args.data_dir,
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p,
+        seq_len=None,  # args.seq_len
         deterministic=True,
+        loop=True,
         num_loader_proc=args.data_loader_workers,
     )
     dist_util.barrier()  # Sync
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
+    pretrained_emb_weight = load_and_fetch_pretrained_embedding(args)
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
-    model.word_embedding.load_state_dict(torch.load('model_emb.pt'))
+    if pretrained_emb_weight is not None:
+        overload_embedding(model, pretrained_emb_weight)
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 

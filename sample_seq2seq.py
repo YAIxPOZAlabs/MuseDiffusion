@@ -83,7 +83,7 @@ def main(args):
     from models.diffuseq.rounding import denoised_fn_round
     from utils import dist_util, logger
     from utils.argument_parsing import args_to_dict
-    from utils.initialization import create_model_and_diffusion, random_seed_all
+    from utils.initialization import create_model_and_diffusion, seed_all
     from utils.decode_util import SequenceToMidi
 
     # Setup everything
@@ -91,8 +91,18 @@ def main(args):
     world_size = dist_util.get_world_size()
     rank = dist_util.get_rank()
     dev = dist_util.dev()
+
+    # Prepare output directory
+    model_base_name = os.path.basename(os.path.split(args.model_path)[0])
+    model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
+    out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
+    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".logs")
+    logger.configure(log_path, format_strs=["stdout", "log"], log_suffix="-" + model_detailed_name)
+    if rank == 0:
+        os.makedirs(out_path, exist_ok=True)
+    else:
+        logger.set_level(logger.DISABLED)
     dist_util.barrier()  # Sync
-    logger.configure()
 
     # Reload train configurations from model folder
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
@@ -128,29 +138,22 @@ def main(args):
     dist_util.barrier()  # Sync
 
     # Make cudnn deterministic
-    random_seed_all(args.sample_seed, deterministic=True)
+    seed_all(args.sample_seed, deterministic=True)
 
     # Prepare dataloader
     data_loader = load_data_music(
         batch_size=args.batch_size,
-        seq_len=args.seq_len,  # TODO
+        seq_len=args.seq_len,  # TODO: None
         deterministic=True,
         split=args.split,
         loop=False,
-        num_preprocess_proc=1
+        num_preprocess_proc=1,
+        corr_available=None,  # TODO: args.corr_available
+        corr_max=None,  # TODO: args.corr_max
+        corr_p=None,  # TODO: args.corr_p
+        log_function=logger.log
     )
     dist_util.barrier()  # Sync
-
-    # Prepare output directory
-    model_base_name = os.path.basename(os.path.split(args.model_path)[0])
-    model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
-    out_path = os.path.join(
-        args.out_dir,
-        model_base_name,
-        model_detailed_name + ".samples"
-    )
-    if rank == 0:
-        os.makedirs(out_path, exist_ok=True)
 
     # Set up forward and sample functions
     # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
@@ -173,14 +176,15 @@ def main(args):
         if batch_index % world_size != rank:
             continue
 
-        input_ids_x = cond.pop('input_ids').to(dev)
-        x_start = model.get_embeds(input_ids_x)
+        input_ids_x = cond.pop('input_ids')
         input_ids_mask_ori = cond.pop('input_mask')
+
+        x_start = model.get_embeds(input_ids_x.to(dev))
+        input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
+        model_kwargs = {}
 
         # noise = th.randn_like(x_start)
 
-        model_kwargs = {}
-        input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
         if args.use_ddim_reverse:
             noise = x_start
             timestep = th.zeros((args.batch_size, ), device=dev, dtype=th.long)
@@ -193,11 +197,9 @@ def main(args):
 
         x_noised = th.where(input_ids_mask == 0, x_start, noise.squeeze(-1))  # TODO: SQUEEZED ###########################
 
-        sample_shape = (x_start.shape[0], args.seq_len, args.hidden_dim)
-
         samples = sample_fn(
-            model,
-            sample_shape,
+            model=model,
+            shape=(x_start.shape[0], args.seq_len, args.hidden_dim),
             noise=x_noised,
             clip_denoised=args.clip_denoised,
             denoised_fn=partial(denoised_fn_round, args, model_emb),
@@ -241,18 +243,24 @@ def main(args):
                     batch_size=args.batch_size
                 )
         finally:
-            logger.log(out.getvalue())
-        dist_util.barrier()
+            logs_per_batch = out.getvalue()
+            with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
+                fp.write(logs_per_batch)
+            # Print logs sequentially
+            for i in range(world_size):
+                if i == rank:
+                    print(logs_per_batch)
+                dist_util.barrier()
 
     # Sync each distributed node with dummy barrier() call
     rem = len(data_loader) % world_size
     if rem and rank >= rem:
-        dist_util.barrier()
+        for _ in range(world_size):
+            dist_util.barrier()
 
     # Log final result
-    if rank == 0:
-        logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
-        logger.log(f'### Written the decoded output to {out_path}')
+    logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
+    logger.log(f'### Written the decoded output to {out_path}')
 
 
 if __name__ == "__main__":
