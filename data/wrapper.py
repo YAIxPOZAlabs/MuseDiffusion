@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 def wrap_dataset(
         processed_data: datasets.Dataset,
         *,
-        seq_len: int,
+        seq_len: "int|None",
         batch_size: int,
         deterministic: bool,
         num_loader_proc: int,
@@ -18,7 +18,7 @@ def wrap_dataset(
 
     assert isinstance(processed_data, datasets.Dataset)
 
-    dataset = DatasetWithCorruption(processed_data, corruption=corruption)
+    dataset = MidiSequenceDataset(processed_data, corruption=corruption)
 
     # processed_data = processed_data.sort("length")
     # batch_sampler = []
@@ -26,11 +26,11 @@ def wrap_dataset(
     #     batch_sampler.append(list(range(i, min(i + batch_size, len(processed_data))))
     # random.shuffle(batch_sampler)
 
-    if seq_len is not None:
+    if seq_len:
         from functools import partial
-        collate_fn = partial(dataloader_collate_function, seq_len=seq_len)
+        collate_fn = partial(collate_batches, seq_len=seq_len)
     else:
-        collate_fn = dataloader_collate_function
+        collate_fn = collate_batches
 
     data_loader = torch.utils.data.DataLoader(  # NOQA
         dataset,
@@ -44,16 +44,17 @@ def wrap_dataset(
     return data_loader
 
 
-class DatasetWithCorruption(torch.utils.data.Dataset, datasets.Dataset):  # NOQA
-
-    expected_column_names = {'input_ids', 'input_mask', 'attention_mask', 'length'}
+class MidiSequenceDataset(torch.utils.data.Dataset[datasets.Dataset], datasets.Dataset):  # NOQA
 
     def __init__(self, dataset: "datasets.Dataset", corruption: "Callable" = None):  # NOQA
+        expected_column_names = {'input_ids', 'input_mask', 'attention_mask', 'length'}
         if not isinstance(dataset, datasets.Dataset):
             raise TypeError("argument dataset must be instance of datasets.Dataset!")
+        elif set(dataset.column_names) != expected_column_names:
+            raise TypeError("argument dataset's columns must be {},\ngot {}"
+                            .format(", ".join(expected_column_names), ", ".join(dataset.column_names)))
         elif corruption is not None and not callable(corruption):
             raise TypeError("corruption must be callable!")
-        assert set(dataset.column_names) <= self.expected_column_names
         self.__dict__.update(dataset.__dict__)  # make data pointer same
         datasets.Dataset.set_format(
             self,
@@ -64,7 +65,7 @@ class DatasetWithCorruption(torch.utils.data.Dataset, datasets.Dataset):  # NOQA
         self.corruption = corruption
 
     def set_format(self, *args, **kwargs):
-        raise ValueError("Format is frozen!")
+        raise NotImplementedError
 
     @overload
     def __getitem__(self, key: "Union[int, slice, Iterable[int]]") -> "Dict":
@@ -75,7 +76,7 @@ class DatasetWithCorruption(torch.utils.data.Dataset, datasets.Dataset):  # NOQA
         ...
 
     def __getitem__(self, key):
-        result = datasets.Dataset._getitem(self, key)
+        result = self._getitem(key)
         if self.corruption is not None:
             if isinstance(key, str):
                 import warnings
@@ -91,7 +92,7 @@ class DatasetWithCorruption(torch.utils.data.Dataset, datasets.Dataset):  # NOQA
         return result
 
 
-def dataloader_collate_function(batch_samples, seq_len=None, dtype=None):
+def collate_batches(batch_samples, seq_len=None, dtype=None):
     # type: (List[Union[int, torch.Tensor]], int, torch.dtype) -> ...
 
     seq_len = seq_len or max(sample['length'] for sample in batch_samples)

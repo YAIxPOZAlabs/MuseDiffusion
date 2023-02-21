@@ -1,19 +1,19 @@
 
-def random_seed_all(seed, deterministic=False):
+def seed_all(seed, deterministic=False):
     import random
     import numpy as np
-    import transformers
     import torch
-    for seed_fn in (
-            random.seed,
-            np.random.seed,
-            torch.manual_seed,  # contains torch.cuda.manual_seed_all
-            transformers.set_seed,
-    ):
-        seed_fn(seed)
+    from data.corruption import generator
+    from utils.dist_util import get_rank
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)  # contains torch.cuda.manual_seed_all
     if deterministic:
+        generator.seed(seed)
         torch.backends.cudnn.deterministic = True  # NOQA
         torch.backends.cudnn.benchmark = False  # NOQA
+    else:
+        generator.seed(int(seed) + get_rank())  # Make corruption's seed differ by node rank
 
 
 def create_model_and_diffusion(

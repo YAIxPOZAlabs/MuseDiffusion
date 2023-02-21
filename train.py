@@ -43,14 +43,14 @@ def main(args):
     from data import load_data_music
     from models.diffuseq.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
-    from utils.initialization import create_model_and_diffusion, random_seed_all
+    from utils.initialization import create_model_and_diffusion, seed_all
     from utils.train_util import TrainLoop
 
     # Setup everything
     dist_util.setup_dist()
     dist_util.barrier()  # Sync
     logger.configure()
-    random_seed_all(args.seed)
+    seed_all(args.seed)
 
     # Prepare dataloader
     logger.log("### Creating data loader...")
@@ -62,7 +62,9 @@ def main(args):
         split='train',
         deterministic=False,
         num_loader_proc=args.data_loader_workers,
-        corruption={'cor_func':args.cor_func, 'max_cor':args.max_cor}
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p
     )
     data_valid = load_data_music(
         batch_size=args.batch_size,
@@ -71,7 +73,9 @@ def main(args):
         split='valid',
         deterministic=True,
         num_loader_proc=args.data_loader_workers,
-        corruption={'cor_func':args.cor_func, 'max_cor':args.max_cor}
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p
     )
     dist_util.barrier()  # Sync
 
