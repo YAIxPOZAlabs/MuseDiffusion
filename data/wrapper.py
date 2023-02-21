@@ -110,7 +110,7 @@ def collate_batches(batch_samples, seq_len=None, dtype=None):
     for idx, batch in enumerate(batch_samples):
         lth = batch['length']
         if has_corruption:
-            correct_ids[idx][:lth] = batch['correct_ids'
+            correct_ids[idx][:lth] = batch['correct_ids']
         input_ids[idx][:lth] = batch['input_ids']
         input_mask[idx][:lth] = batch['input_mask']
         attention_mask[idx][:lth] = batch['attention_mask']
