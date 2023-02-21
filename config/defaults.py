@@ -27,7 +27,7 @@ DEFAULT_CONFIG = MappingProxyType({
     "hidden_t_dim": 128,                        # Transformer
     "hidden_dim": 128,                          # Transformer and Embedding
     "fnet_hidden_dim": 128,                     # FNet
-    "fnet_intermediate_dim": 32,                # FNet
+    "fnet_intermediate_dim": 512,               # FNet
     "dropout": 0.1,
     "use_fp16": False,
     "fp16_scale_growth": 0.001,
