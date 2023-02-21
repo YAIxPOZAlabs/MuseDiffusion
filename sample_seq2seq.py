@@ -97,7 +97,7 @@ def main(args):
     model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
     out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
     log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".logs")
-    logger.configure(log_path, format_strs=["stdout"], log_suffix="-" + model_detailed_name)
+    logger.configure(log_path, format_strs=["stdout", "log"], log_suffix="-" + model_detailed_name)
     if rank == 0:
         os.makedirs(out_path, exist_ok=True)
     else:
@@ -150,7 +150,8 @@ def main(args):
         num_preprocess_proc=1,
         corr_available=None,  # TODO: args.corr_available
         corr_max=None,  # TODO: args.corr_max
-        corr_p=None  # TODO: args.corr_p
+        corr_p=None,  # TODO: args.corr_p
+        log_function=logger.log
     )
     dist_util.barrier()  # Sync
 
