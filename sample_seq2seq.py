@@ -80,9 +80,9 @@ def main(args):
     # Import everything
     from config import DEFAULT_CONFIG, load_json_config
     from data import load_data_music
-    from models.diffuseq.rounding import denoised_fn_round
+    from models.diffusion.rounding import denoised_fn_round
     from utils import dist_util, logger
-    from utils.argument_parsing import args_to_dict
+    from utils.argument_util import args_to_dict
     from utils.initialization import create_model_and_diffusion, seed_all
     from utils.decode_util import SequenceToMidi
 
@@ -142,15 +142,18 @@ def main(args):
 
     # Prepare dataloader
     data_loader = load_data_music(
-        batch_size=args.batch_size,
-        seq_len=args.seq_len,  # TODO: None
-        deterministic=True,
         split=args.split,
+        batch_size=args.batch_size,
+        data_dir=args.data_dir,
+        use_corruption=args.use_corruption,
+        corr_available=args.corr_available,
+        corr_max=args.corr_max,
+        corr_p=args.corr_p,
+        use_bucketing=args.use_bucketing,
+        seq_len=args.seq_len,
+        deterministic=True,
         loop=False,
         num_preprocess_proc=1,
-        corr_available=None,  # TODO: args.corr_available
-        corr_max=None,  # TODO: args.corr_max
-        corr_p=None,  # TODO: args.corr_p
         log_function=logger.log
     )
     dist_util.barrier()  # Sync

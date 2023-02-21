@@ -9,20 +9,22 @@ DEFAULT_CONFIG = MappingProxyType({
     "log_interval": 20,
     "save_interval": 2000,
     "eval_interval": 1000,
-    "ema_rate": "0.9999",
+    "ema_rate": "0.5,0.9,0.99,0.9999",
     "resume_checkpoint": "",
     # # # Scheduler and diffusion # # #
     "schedule_sampler": "lossaware",
     "diffusion_steps": 1000,                    # Changed
     "noise_schedule": "sqrt",
     "timestep_respacing": "",
-    # # # Arguments for dataset # # #
-    "seq_len": 0,                               # set this 0 for bucketing, originally was 2096.
+    # # # Arguments for dataset and model # # #
+    "seq_len": 2096,                            # fix: 2096
     "vocab_size": 729,                          # set this 730 for corruption, originally was 729.
+    "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
+    "use_bucketing": True,
+    # # # Arguments for dataset # # #
     "dataset": "ComMU",
     "data_dir": "datasets/ComMU-processed",
     "data_loader_workers": 2,                   # num_workers for DataLoader
-    "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
     # # # Arguments for corruption # # #
     "use_corruption": False,                    # switch to use corruption
     "corr_available": "mt,mn,rn,rr",            # Available corruptions - TODO: add 'at'

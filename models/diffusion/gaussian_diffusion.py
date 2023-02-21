@@ -5,7 +5,6 @@ https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0
 Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules.
 """
 
-import enum
 import math
 
 import numpy as np
@@ -13,10 +12,8 @@ import torch as th
 import sys
 sys.path.append('.')
 
-import torch.nn.functional as F
+from .nn import mean_flat
 
-from .utils.nn import mean_flat
-from .utils.losses import normal_kl, discretized_gaussian_log_likelihood
 
 def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     """
@@ -75,6 +72,7 @@ def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     else:
         raise NotImplementedError(f"unknown beta schedule: {schedule_name}")
 
+
 def betas_for_alpha_bar_left(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     """
     Create a beta schedule that discretizes the given alpha_t_bar function, but shifts towards left interval starting from 0
@@ -95,6 +93,7 @@ def betas_for_alpha_bar_left(num_diffusion_timesteps, alpha_bar, max_beta=0.999)
         betas.append(min(1 - alpha_bar(t2) / alpha_bar(t1), max_beta))
     return np.array(betas)
 
+
 def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     """
     Create a beta schedule that discretizes the given alpha_t_bar function,
@@ -113,6 +112,7 @@ def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
         t2 = (i + 1) / num_diffusion_timesteps
         betas.append(min(1 - alpha_bar(t2) / alpha_bar(t1), max_beta))
     return np.array(betas)
+
 
 class GaussianDiffusion:
     """
@@ -188,8 +188,8 @@ class GaussianDiffusion:
             / (1.0 - self.alphas_cumprod)
         )
 
-        self.mapping_func = None # implement in train main()
-        self.add_mask_noise = False # TODO
+        self.mapping_func = None  # implement in train main()
+        self.add_mask_noise = False  # TODO
 
     def training_losses(self, model, t, model_kwargs, noise=None):
         if 'correct_ids' in model_kwargs:
@@ -881,6 +881,7 @@ class GaussianDiffusion:
                 )
                 yield out
                 sample_x = out["sample"]
+
 
 def _extract_into_tensor(arr, timesteps, broadcast_shape):
     """

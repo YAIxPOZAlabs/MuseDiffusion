@@ -8,7 +8,7 @@ import json
 import wandb
 
 from config import CHOICES, DEFAULT_CONFIG
-from utils.argument_parsing import add_dict_to_argparser, args_to_dict
+from utils.argument_util import add_dict_to_argparser, args_to_dict
 
 
 def configure_wandb(args):
@@ -41,16 +41,18 @@ def main(args):
 
     # Import everything
     from data import load_data_music
-    from models.diffuseq.step_sample import create_named_schedule_sampler
+    from models.diffusion.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
     from utils.initialization import create_model_and_diffusion, seed_all, \
         load_and_fetch_pretrained_embedding, overload_embedding
     from utils.train_util import TrainLoop
+    from utils.plotting import embedding_tsne_trainer_wandb_callback
 
     # Setup everything
     dist_util.setup_dist()
+    rank = dist_util.get_rank()
     dist_util.barrier()  # Sync
-    logger.configure()
+    logger.configure(format_strs=["log", "csv"] + (["stdout"] if rank == 0 else []))
     seed_all(args.seed)
 
     # Prepare dataloader
@@ -60,13 +62,16 @@ def main(args):
         split='train',
         batch_size=args.batch_size,
         data_dir=args.data_dir,
+        use_corruption=args.use_corruption,
         corr_available=args.corr_available,
         corr_max=args.corr_max,
         corr_p=args.corr_p,
-        seq_len=None,  # args.seq_len
+        use_bucketing=args.use_bucketing,
+        seq_len=args.seq_len,
         deterministic=False,
         loop=True,
         num_loader_proc=args.data_loader_workers,
+        log_function=(print if rank == 0 else None),
     )
     data_valid = load_data_music(
         split='valid',
@@ -75,10 +80,12 @@ def main(args):
         corr_available=args.corr_available,
         corr_max=args.corr_max,
         corr_p=args.corr_p,
-        seq_len=None,  # args.seq_len
+        use_bucketing=args.use_bucketing,
+        seq_len=args.seq_len,
         deterministic=True,
         loop=True,
         num_loader_proc=args.data_loader_workers,
+        log_function=(print if rank == 0 else None),
     )
     dist_util.barrier()  # Sync
 
@@ -130,7 +137,8 @@ def main(args):
         checkpoint_path=args.checkpoint_path,
         gradient_clipping=args.gradient_clipping,
         eval_data=data_valid,
-        eval_interval=args.eval_interval
+        eval_interval=args.eval_interval,
+        eval_callbacks=[embedding_tsne_trainer_wandb_callback]
     ).run_loop()
 
 

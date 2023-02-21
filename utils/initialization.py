@@ -68,9 +68,9 @@ def create_model_and_diffusion(
         use_kl,
         **_,
 ):
-    from models.diffuseq.gaussian_diffusion \
+    from models.diffusion.gaussian_diffusion \
         import SpacedDiffusion, space_timesteps, get_named_beta_schedule
-    from models.diffuseq.transformer_model import TransformerNetModel
+    from models.diffusion.transformer_model import TransformerNetModel
 
     model = TransformerNetModel(
         input_dims=hidden_dim,

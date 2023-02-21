@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 def wrap_dataset(
         processed_data: datasets.Dataset,
         *,
-        seq_len: "int|None",
+        use_bucketing: bool,
+        seq_len: int,
         batch_size: int,
         deterministic: bool,
         num_loader_proc: int,
@@ -26,11 +27,11 @@ def wrap_dataset(
     #     batch_sampler.append(list(range(i, min(i + batch_size, len(processed_data))))
     # random.shuffle(batch_sampler)
 
-    if seq_len:
+    if use_bucketing:
+        collate_fn = collate_batches
+    else:
         from functools import partial
         collate_fn = partial(collate_batches, seq_len=seq_len)
-    else:
-        collate_fn = collate_batches
 
     data_loader = torch.utils.data.DataLoader(  # NOQA
         dataset,

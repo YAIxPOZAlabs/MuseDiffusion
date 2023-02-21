@@ -7,6 +7,7 @@ import math
 import torch as th
 import torch.nn as nn
 
+
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
 class SiLU(nn.Module):
     def forward(self, x):
@@ -16,25 +17,6 @@ class SiLU(nn.Module):
 class GroupNorm32(nn.GroupNorm):
     def forward(self, x):
         return super().forward(x.float()).type(x.dtype)
-
-def linear(*args, **kwargs):
-    """
-    Create a linear module.
-    """
-    return nn.Linear(*args, **kwargs)
-
-
-def avg_pool_nd(dims, *args, **kwargs):
-    """
-    Create a 1D, 2D, or 3D average pooling module.
-    """
-    if dims == 1:
-        return nn.AvgPool1d(*args, **kwargs)
-    elif dims == 2:
-        return nn.AvgPool2d(*args, **kwargs)
-    elif dims == 3:
-        return nn.AvgPool3d(*args, **kwargs)
-    raise ValueError(f"unsupported dimensions: {dims}")
 
 
 def update_ema(target_params, source_params, rate=0.99):

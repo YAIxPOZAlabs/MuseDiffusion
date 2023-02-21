@@ -8,17 +8,16 @@ import torch as th
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
-from models.diffuseq.utils.fp16_util import (
+from models.diffusion.nn import update_ema
+from models.diffusion.step_sample import LossAwareSampler, UniformSampler
+from utils import dist_util, logger
+from utils.fp16_util import (
     make_master_params,
     master_params_to_model_params,
     model_grads_to_master_grads,
     unflatten_master_params,
     convert_module_to_f16
 )
-from models.diffuseq.utils.nn import update_ema
-from models.diffuseq.step_sample import LossAwareSampler, UniformSampler
-
-from utils import dist_util, logger
 
 # For ImageNet experiments, this was a good default value.
 # We found that the lg_loss_scale quickly climbed to
@@ -49,6 +48,7 @@ class TrainLoop:
         gradient_clipping=-1.,
         eval_data=None,
         eval_interval=-1,
+        eval_callbacks=(),
     ):
         self.model = model
         self.diffusion = diffusion
@@ -80,7 +80,7 @@ class TrainLoop:
         self.model_params = list(self.model.parameters())
         self.master_params = self.model_params
         self.lg_loss_scale = INITIAL_LOG_LOSS_SCALE
-        self.sync_cuda = th.cuda.is_available()
+        self.eval_callbacks = list(eval_callbacks)
 
         self.checkpoint_path = checkpoint_path  # DEBUG **
 
@@ -193,6 +193,9 @@ class TrainLoop:
                 self.forward_only(cond_eval)
                 print('eval on validation set')
                 logger.dumpkvs()
+                if dist_util.get_rank() == 0:
+                    for callback in self.eval_callbacks:
+                        callback(self)
             if self.step > 0 and self.step % self.save_interval == 0:
                 self.save()
                 # Run for a finite amount of time in integration tests.
@@ -373,7 +376,7 @@ class TrainLoop:
                 th.save(self.opt.state_dict(), f)  # save locally
                 # pass # save empty
 
-    def _master_params_to_state_dict(self, master_params):
+    def _master_params_to_state_dict(self, master_params, key=None):
         if self.use_fp16:
             master_params = unflatten_master_params(
                 list(self.model.parameters()), master_params  # DEBUG **
@@ -381,7 +384,11 @@ class TrainLoop:
         state_dict = self.model.state_dict()
         for i, (name, _value) in enumerate(self.model.named_parameters()):
             assert name in state_dict
+            if key is not None and key == name:
+                return master_params[i]
             state_dict[name] = master_params[i]
+        if key is not None:
+            raise KeyError(key)
         return state_dict
 
     def _state_dict_to_master_params(self, state_dict):

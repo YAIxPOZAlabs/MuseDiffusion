@@ -1,11 +1,8 @@
-from transformers import FNetConfig
+"""backbone for denoising"""
 from transformers.models.fnet.modeling_fnet import FNetEncoder
 from transformers.models.bert.modeling_bert import BertAttention, BertIntermediate, BertOutput
 import torch.nn as nn
 
-'''
-Backbone Of Denoising Model 
-'''
 
 ###########################################
 ## FNet Hybrid
@@ -13,7 +10,7 @@ Backbone Of Denoising Model
 class FNetHybrid(nn.Module):
     def __init__(self,fnet_config,attention_config,use_attention=False) -> None:
         super().__init__()
-        self.fnet = FNet(fnet_config)
+        self.fnet = FNetEncoder(fnet_config)
         self.use_attention = use_attention
         if use_attention:
             self.attention_layer_1 = BertAttentionLayer(attention_config)
@@ -31,12 +28,11 @@ class FNetHybrid(nn.Module):
 ## FNet
 ###########################################
 class FNet(FNetEncoder):
-    def __init__(self,fent_config) -> None:
-        super().__init__(fent_config)
+    pass
 
 
 ###########################################
-## Bert Attention Layer 
+## Bert Attention Layer
 ###########################################
 class BertAttentionLayer(nn.Module):
     def __init__(self, bert_config):
@@ -56,11 +52,9 @@ class BertAttentionLayer(nn.Module):
             hidden_states, attention_mask, head_mask, output_attentions=output_attentions,
         )
         attention_output = self_attention_outputs[0]
-        #outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
+        # outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
-        #outputs = (layer_output,) + outputs
+        # outputs = (layer_output,) + outputs
         return layer_output
-
-

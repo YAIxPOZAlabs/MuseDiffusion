@@ -1,17 +1,11 @@
-from transformers import FNetConfig, BertConfig
-from transformers.models.fnet.modeling_fnet import FNetEncoder
-# from transformers import BertEncoder
-# from transformers.models.bert.modeling_bert import FNetModel
-import torch
-
 import numpy as np
 import torch as th
 import torch.nn as nn
+from transformers import FNetConfig, BertConfig
 
-from ..model import FNetHybrid
-from .utils.nn import (
+from .denoising_model import FNetHybrid
+from .nn import (
     SiLU,
-    linear,
     timestep_embedding,
 )
 
@@ -39,35 +33,32 @@ class TransformerNetModel(nn.Module):
             num_fnet_layers,  # for FNet
             dropout=0,
             logits_mode=1,
-            config=None,  # TODO
             use_attention=False,
     ):
         super().__init__()
 
-        if config is None:
-            ## FNet Config
-            config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
-            config.hidden_dropout_prob = dropout
-            config.hidden_size = fnet_hidden_dim
-            config.intermediate_size = fnet_intermediate_dim
-            config.max_position_embeddings = seq_len
-            config.vocab_size = vocab_size
-            config.num_hidden_layers = num_fnet_layers
-            config.pad_token_id = 0
-            config.eos_token_id = 1
-            config.type_vocab_size = 2
+        fnet_config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
+        fnet_config.hidden_dropout_prob = dropout
+        fnet_config.hidden_size = fnet_hidden_dim
+        fnet_config.intermediate_size = fnet_intermediate_dim
+        fnet_config.max_position_embeddings = seq_len
+        fnet_config.vocab_size = vocab_size
+        fnet_config.num_hidden_layers = num_fnet_layers
+        fnet_config.pad_token_id = 0
+        fnet_config.eos_token_id = 1
+        fnet_config.type_vocab_size = 2
 
-            attention_config = BertConfig()
-            attention_config.num_attention_heads = 8
-            attention_config.hidden_size = fnet_hidden_dim
-            attention_config.intermediate_size = fnet_intermediate_dim
+        attention_config = BertConfig()
+        attention_config.num_attention_heads = 8
+        attention_config.hidden_size = fnet_hidden_dim
+        attention_config.intermediate_size = fnet_intermediate_dim
 
         self.input_dims = input_dims
         self.hidden_t_dim = hidden_t_dim
         self.output_dims = output_dims
         self.dropout = dropout
         self.logits_mode = logits_mode
-        self.hidden_size = config.hidden_size
+        self.hidden_size = fnet_hidden_dim
 
         self.word_embedding = nn.Embedding(vocab_size, self.input_dims, padding_idx=0)
         self.type_id_embedding = nn.Embedding(2, self.input_dims)
@@ -78,25 +69,25 @@ class TransformerNetModel(nn.Module):
 
         time_embed_dim = hidden_t_dim * 4
         self.time_embed = nn.Sequential(
-            linear(hidden_t_dim, time_embed_dim),
+            nn.Linear(hidden_t_dim, time_embed_dim),
             SiLU(),
-            linear(time_embed_dim, config.hidden_size),
+            nn.Linear(time_embed_dim, fnet_config.hidden_size),
         )
 
-        if self.input_dims != config.hidden_size:
-            self.input_up_proj = nn.Sequential(nn.Linear(input_dims, config.hidden_size),
-                                               nn.Tanh(), nn.Linear(config.hidden_size, config.hidden_size))
+        if self.input_dims != fnet_config.hidden_size:
+            self.input_up_proj = nn.Sequential(nn.Linear(input_dims, fnet_config.hidden_size),
+                                               nn.Tanh(), nn.Linear(fnet_config.hidden_size, fnet_config.hidden_size))
 
-        self.input_transformers = FNetHybrid(config,attention_config,use_attention)
+        self.input_transformers = FNetHybrid(fnet_config, attention_config, use_attention)
 
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
-        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(fnet_config.hidden_dropout_prob)
+        self.register_buffer("position_ids", th.arange(fnet_config.max_position_embeddings).expand((1, -1)))
+        self.position_embeddings = nn.Embedding(fnet_config.max_position_embeddings, fnet_config.hidden_size)
+        self.LayerNorm = nn.LayerNorm(fnet_config.hidden_size, eps=fnet_config.layer_norm_eps)
 
-        if self.output_dims != config.hidden_size:
-            self.output_down_proj = nn.Sequential(nn.Linear(config.hidden_size, config.hidden_size),
-                                                  nn.Tanh(), nn.Linear(config.hidden_size, self.output_dims))
+        if self.output_dims != fnet_config.hidden_size:
+            self.output_down_proj = nn.Sequential(nn.Linear(fnet_config.hidden_size, fnet_config.hidden_size),
+                                                  nn.Tanh(), nn.Linear(fnet_config.hidden_size, self.output_dims))
 
     def get_embeds(self, input_ids):
         return self.word_embedding(input_ids)

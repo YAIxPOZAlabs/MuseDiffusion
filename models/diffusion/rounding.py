@@ -1,10 +1,6 @@
 import torch
-# bert results
-from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer, default_data_collator, GPT2TokenizerFast
-import sys, yaml, os
-import json
-
 import numpy as np
+
 
 def get_knn(model_emb, text_emb, dist='cos'):
     if dist == 'cos':
@@ -16,6 +12,7 @@ def get_knn(model_emb, text_emb, dist='cos'):
     topk_out = torch.topk(adjacency, k=6, dim=0)
     return topk_out.values, topk_out.indices
 
+
 def get_efficient_knn(model_emb, text_emb):
     emb_norm = (model_emb**2).sum(-1).view(-1, 1) # vocab
     text_emb_t = torch.transpose(text_emb.view(-1, text_emb.size(-1)), 0, 1) # d, bsz*seqlen
@@ -25,6 +22,7 @@ def get_efficient_knn(model_emb, text_emb):
     dist = torch.clamp(dist, 0.0, np.inf)
     topk_out = torch.max(-dist, dim=0)  # topk(k=1, dim=0) -> max & unsquueze(0)
     return topk_out.values.unsqueeze(0), topk_out.indices.unsqueeze(0)
+
 
 def rounding_func(text_emb_lst, model, tokenizer, emb_scale_factor=1.0):
     decoded_out_lst = []
@@ -49,6 +47,7 @@ def rounding_func(text_emb_lst, model, tokenizer, emb_scale_factor=1.0):
 
     return decoded_out_lst
 
+
 def compute_logp(args, model, x, input_ids):
     word_emb = model.weight
     sigma = 0.1
@@ -69,6 +68,7 @@ def compute_logp(args, model, x, input_ids):
 
     return loss
 
+
 def get_weights(model, args):
     if hasattr(model, 'transformer'):
         input_embs = model.transformer.wte  # input_embs
@@ -86,6 +86,7 @@ def get_weights(model, args):
         
     model.weight.requires_grad = False
     return model
+
 
 def denoised_fn_round(args, model, text_emb, t):
     # print(text_emb.shape) # bsz, seqlen, dim
