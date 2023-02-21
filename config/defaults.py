@@ -1,6 +1,7 @@
 from types import MappingProxyType
 
 DEFAULT_CONFIG = MappingProxyType({
+    # # # General Settings # # #
     "lr": 0.001,
     "batch_size": 2048,
     "microbatch": 64,
@@ -10,25 +11,33 @@ DEFAULT_CONFIG = MappingProxyType({
     "eval_interval": 1000,
     "ema_rate": "0.9999",
     "resume_checkpoint": "",
+    # # # Scheduler and diffusion # # #
     "schedule_sampler": "lossaware",
     "diffusion_steps": 1000,                    # Changed
     "noise_schedule": "sqrt",
     "timestep_respacing": "",
-    "vocab_size": 729,                          # Added
+    # # # Arguments for dataset # # #
+    "seq_len": 0,                               # set this 0 for bucketing, originally was 2096.
+    "vocab_size": 729,                          # set this 730 for corruption, originally was 729.
     "dataset": "ComMU",
     "data_dir": "datasets/ComMU-processed",
     "data_loader_workers": 2,                   # num_workers for DataLoader
+    "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
+    # # # Arguments for corruption # # #
+    "use_corruption": False,                    # switch to use corruption
     "corr_available": "mt,mn,rn,rr",            # Available corruptions - TODO: add 'at'
     "corr_max": 0,                              # Max number of corruptions
     "corr_p": 0.5,                              # Probability to choice each corruption
     # "corr_kwargs": "dict(p=0.5, count=3)",    # Keyword arguments for each corruption
-    "seq_len": 2096,                            # Changed = TODO: 0
-    "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
+    # # # Arguments for model # # #
     "hidden_t_dim": 128,                        # Transformer
     "hidden_dim": 128,                          # Transformer and Embedding
     "fnet_hidden_dim": 128,                     # FNet
     "fnet_intermediate_dim": 512,               # FNet
+    "num_fnet_layers": 6,                       # Added for FNet
+    "use_attention": False,
     "dropout": 0.1,
+    # # # Arguments for other settings # # #
     "use_fp16": False,
     "fp16_scale_growth": 0.001,
     "seed": 102,
@@ -42,6 +51,4 @@ DEFAULT_CONFIG = MappingProxyType({
     "sigma_small": False,
     "checkpoint_path": ".",
     "emb_scale_factor": 1.0,
-    "num_fnet_layers": 6,                       # Added for FNet
-    "use_attention" : False
 })

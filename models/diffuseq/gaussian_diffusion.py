@@ -191,8 +191,12 @@ class GaussianDiffusion:
         self.mapping_func = None # implement in train main()
         self.add_mask_noise = False # TODO
 
-    def training_losses(self, model, *args, **kwargs):
-        return self.training_losses_seq2seq(model, *args, **kwargs)
+    def training_losses(self, model, t, model_kwargs, noise=None):
+        if 'correct_ids' in model_kwargs:
+            loss_fn = self.training_losses_seq2seq_with_corruption
+        else:
+            loss_fn = self.training_losses_seq2seq
+        return loss_fn(model, t, model_kwargs, noise)
 
     def _predict_xstart_from_eps(self, x_t, t, eps):
         assert x_t.shape == eps.shape
@@ -309,7 +313,7 @@ class GaussianDiffusion:
         B, C = x.size(0), x.size(-1)
         assert t.shape == (B,)
         # print(x.shape)
-        model_output = model(x, self._scale_timesteps(t), **model_kwargs)
+        model_output = model(x, self._scale_timesteps(t), model_kwargs=model_kwargs)
         
         # for fixedlarge, we set the initial (log-)variance like so
         # to get a better decoder log likelihood.
@@ -404,7 +408,6 @@ class GaussianDiffusion:
             "greedy_mean": out["mean"], 
             "out": out
         }
-
     
     def p_sample_loop(
         self,
@@ -578,10 +581,9 @@ class GaussianDiffusion:
 
         return {'pred_xprev':pred_prev, 'pred_xstart':pred_xstart}
 
-    def training_losses_seq2seq(self, model, t, model_kwargs=None, noise=None):
+    def training_losses_seq2seq(self, model, t, model_kwargs, noise=None):
         """
         Compute training losses for a single timestep.
-
         :param model: the model to evaluate loss on.
         :param t: a batch of timestep indices.
         :param model_kwargs: if not None, a dict of extra keyword arguments to
@@ -594,10 +596,59 @@ class GaussianDiffusion:
         input_ids_x = model_kwargs['input_ids'].to(t.device)
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
         x_start_mean = model.model.module.get_embeds(input_ids_x)
-        
+
+        std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
+                                   th.tensor([0], device=x_start_mean.device),
+                                   x_start_mean.shape)
+        # print(std.shape, )
+        # x_start_log_var = 2 * th.log(std)
+        x_start = self._get_x_start(x_start_mean, std)
+        # print(x_start_mean.shape, x_start.shape)
+        if noise is None:
+            noise = th.randn_like(x_start)
+
+        x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask)  # reparametrization trick.
+
+        get_logits = model.model.module.get_logits
+
+        terms = {}
+
+        target = x_start
+        model_output = model(x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)
+        assert model_output.shape == target.shape == x_start.shape
+        terms["mse"] = mean_flat((target - model_output) ** 2)
+
+        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
+        t0_mask = (t == 0)
+        t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
+        terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
+
+        # tT_mask = (t == self.num_timesteps - 1)
+        out_mean, _, _ = self.q_mean_variance(x_start,
+                                              th.tensor([self.num_timesteps - 1], dtype=th.long, device=x_start.device))
+        tT_loss = mean_flat(out_mean ** 2)
+
+        decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x)  # embedding regularization
+        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask,
+                                                 truncate=True, t=t)  # x_0->model_out_x_start
+        # assert (model.lm_head.weight == model.word_embedding.weight).all()
+
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss
+
+        return terms
+
+    def training_losses_seq2seq_with_corruption(self, model, t, model_kwargs, noise=None):
+        """
+        training_losses_seq2seq function, with corruption
+        """
+        assert 'input_ids' in model_kwargs
+        input_ids_x = model_kwargs['input_ids'].to(t.device)
+        input_ids_mask = model_kwargs['input_mask'].to(t.device)
+        x_start_mean = model.model.module.get_embeds(input_ids_x)
+
         correct_ids_x = model_kwargs['correct_ids'].to(t.device)
         correct_x_start_mean = model.model.module.get_embeds(correct_ids_x)
-        
+
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
                                    th.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
@@ -609,34 +660,36 @@ class GaussianDiffusion:
         if noise is None:
             noise = th.randn_like(x_start)
 
-        x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask) # reparametrization trick.
+        x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask)  # reparametrization trick.
 
         get_logits = model.model.module.get_logits
 
         terms = {}
 
-        target = correct_x_start#x_start
+        target = correct_x_start  # x_start
         model_output = model(x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)
         assert model_output.shape == target.shape == x_start.shape
         terms["mse"] = mean_flat((target - model_output) ** 2)
 
-        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart'] # predicted_xstart = model_output
+        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
         t0_mask = (t == 0)
-        #t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
-        t0_loss = mean_flat((correct_x_start_mean - model_out_x_start)**2)
+        # t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
+        t0_loss = mean_flat((correct_x_start_mean - model_out_x_start) ** 2)
         terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
 
         # tT_mask = (t == self.num_timesteps - 1)
-        out_mean, _, _ = self.q_mean_variance(x_start, th.tensor([self.num_timesteps - 1], dtype=th.long, device=x_start.device))
-        tT_loss =  mean_flat(out_mean ** 2)
+        out_mean, _, _ = self.q_mean_variance(x_start,
+                                              th.tensor([self.num_timesteps - 1], dtype=th.long, device=x_start.device))
+        tT_loss = mean_flat(out_mean ** 2)
 
-        decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x) # embedding regularization
-        decoder_nll2 = self._token_discrete_loss(correct_x_start, get_logits, correct_ids_x) # 이거를 추가하는게 좋을까 안좋을까
-        #terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
-        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, correct_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
+        decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x)  # embedding regularization
+        decoder_nll2 = self._token_discrete_loss(correct_x_start, get_logits, correct_ids_x)  # 이거를 추가하는게 좋을까 안좋을까
+        # terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
+        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, correct_ids_x, mask=input_ids_mask,
+                                                 truncate=True, t=t)  # x_0->model_out_x_start
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
-        terms["loss"] = terms["mse"] + decoder_nll + tT_loss # + decoder_nll2
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss  # + decoder_nll2
 
         return terms
 
@@ -934,10 +987,10 @@ class SpacedDiffusion(GaussianDiffusion):
         return super().p_mean_variance(self._wrap_model(model), *args, **kwargs)
 
     def training_losses(
-        self, model, *args, **kwargs
+        self, model, t, model_kwargs, noise=None
     ):  # pylint: disable=signature-differs
         # print('called training_losses')
-        return super().training_losses(self._wrap_model(model), *args, **kwargs)
+        return super().training_losses(self._wrap_model(model), t, model_kwargs, noise)
 
     def _wrap_model(self, model):
         if isinstance(model, _WrappedModel):

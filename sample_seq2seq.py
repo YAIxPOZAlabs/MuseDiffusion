@@ -176,12 +176,12 @@ def main(args):
         if batch_index % world_size != rank:
             continue
 
-        input_ids_x = cond.pop('input_ids')
-        input_ids_mask_ori = cond.pop('input_mask')
+        input_ids_x = cond['input_ids']
+        input_ids_mask_ori = cond['input_mask']
 
         x_start = model.get_embeds(input_ids_x.to(dev))
         input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
-        model_kwargs = {}
+        model_kwargs = cond
 
         # noise = th.randn_like(x_start)
 

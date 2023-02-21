@@ -7,15 +7,21 @@ def load_defaults_config():
 
 
 def load_dict_config(config_dict):
+    from utils.argument_parsing import str2bool
     cfg = load_defaults_config()
-    for key in config_dict:
+    for key in list(config_dict):
         expected_value = DEFAULT_CONFIG[key]
         if isinstance(expected_value, bool):
             expected_type = (str, bool)
+            constructor = str2bool
         else:
             expected_type = type(expected_value)
-        if not isinstance(config_dict[key], expected_type):
+            constructor = None
+        real_value = config_dict[key]
+        if not isinstance(real_value, expected_type):
             raise TypeError("Invalid config type: {}".format(key))
+        if constructor is not None:
+            config_dict[key] = constructor(real_value)
     cfg.update(**config_dict)
     return cfg
 

@@ -18,7 +18,7 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
             corr_p: "float|str",
             corr_kwargs: "str|None" = None
     ):
-        if not all([corr_available, corr_max, corr_p, corr_kwargs]):
+        if not all([corr_available, corr_max, corr_p]):
             return None
         return cls(
             corr_available=tuple(corr_available.split(',')),
