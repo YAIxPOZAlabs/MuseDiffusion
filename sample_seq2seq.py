@@ -154,7 +154,6 @@ def main(args):
         deterministic=True,
         loop=False,
         num_preprocess_proc=1,
-        log_function=logger.log
     )
     dist_util.barrier()  # Sync
 

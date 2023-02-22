@@ -20,7 +20,6 @@ def load_data_music(
         loop: bool = True,
         num_preprocess_proc: int = 4,
         num_loader_proc: int = 0,
-        log_function: "Callable" = print
 ):
     """
 For a dataset, create a generator over (seqs, kwargs) pairs.
@@ -45,7 +44,6 @@ The kwargs dict can be used for some meta information.
     if loop is None - raw dataloader will be returned
 :param num_preprocess_proc: num of worker while tokenizing.
 :param num_loader_proc: num of worker for data loader.
-:param log_function: custom function for log. default is print.
 """
     if isinstance(split, (list, tuple)):
         kw = locals().copy()
@@ -57,18 +55,17 @@ The kwargs dict can be used for some meta information.
     from .corruption import Corruptions
 
     if use_corruption:
-        corruption = Corruptions.from_config(
+        corruption_fn = Corruptions.from_config(
             corr_available=corr_available,
             corr_max=corr_max,
             corr_p=corr_p
         )
     else:
-        corruption = None
+        corruption_fn = None
     tokenized_data = tokenize_with_caching(
         data_dir=data_dir,
         split=split,
         num_proc=num_preprocess_proc,
-        log_function=log_function
     )
     data_loader = wrap_dataset(
         tokenized_data,
@@ -76,7 +73,8 @@ The kwargs dict can be used for some meta information.
         use_bucketing=use_bucketing,
         seq_len=seq_len,
         deterministic=deterministic,
-        corruption=corruption,
+        corruption=corruption_fn,
+        num_preprocess_proc=num_preprocess_proc,
         num_loader_proc=num_loader_proc
     )
     if loop:
