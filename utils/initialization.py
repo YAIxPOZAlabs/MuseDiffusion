@@ -16,7 +16,7 @@ def seed_all(seed, deterministic=False):
         generator.seed(int(seed) + get_rank())  # Make corruption's seed differ by node rank
 
 
-def load_and_fetch_pretrained_embedding(args):
+def fetch_pretrained_embedding(args):
     import os
     from utils import dist_util, logger
     if args.pretrained_embedding:
@@ -33,16 +33,23 @@ def load_and_fetch_pretrained_embedding(args):
             args.hidden_dim = args.fnet_hidden_dim = orig_hidden_dim
         return emb_weight
     else:
+        if args.freeze_embedding:
+            import argparse
+            raise argparse.ArgumentTypeError(
+                "Cannot turn --freeze_embedding on without --pretrained_embedding!"
+            )
         return
 
 
-def overload_embedding(model, emb_weight):
+def overload_embedding(model, emb_weight, freeze_embedding):
     from utils import logger
     import torch
     orig_vocab_size, _ = emb_weight.shape
-    assert model.word_embedding.weight.shape[0] >= orig_vocab_size
+    assert model.word_embedding.weight.shape[0] == orig_vocab_size
     with torch.no_grad():
         model.word_embedding.weight.data[:orig_vocab_size] = emb_weight
+    if freeze_embedding:
+        model.word_embedding.requires_grad_(False)
     logger.log("### Successfully overloaded pretrained embedding weight.")
     return model
 

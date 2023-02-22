@@ -44,7 +44,7 @@ def main(args):
     from models.diffusion.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
     from utils.initialization import create_model_and_diffusion, seed_all, \
-        load_and_fetch_pretrained_embedding, overload_embedding
+        fetch_pretrained_embedding, overload_embedding
     from utils.train_util import TrainLoop
     from utils.plotting import embedding_tsne_trainer_wandb_callback
 
@@ -89,10 +89,10 @@ def main(args):
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    pretrained_emb_weight = load_and_fetch_pretrained_embedding(args)
+    pretrained_emb_weight = fetch_pretrained_embedding(args)
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
     if pretrained_emb_weight is not None:
-        overload_embedding(model, pretrained_emb_weight)
+        overload_embedding(model, pretrained_emb_weight, args.freeze_embedding)
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 
