@@ -17,8 +17,8 @@ DEFAULT_CONFIG = MappingProxyType({
     "noise_schedule": "sqrt",
     "timestep_respacing": "",
     # # # Arguments for dataset and model # # #
-    "seq_len": 2096,                            # fix: 2096
-    "vocab_size": 729,                          # set this 730 for corruption, originally was 729.
+    "seq_len": 2096,                            # filter data by data['length'] <= seq_len. max is 2096.
+    "vocab_size": 729,                          # TODO (alter corruption-730)
     "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
     "use_bucketing": True,
     # # # Arguments for dataset # # #

@@ -5,7 +5,25 @@ if TYPE_CHECKING:
     import os
 
 
+def __guarantee_clean_log_in_distributed(func):  # since datasets.Dataset logs progress with tqdm
+    def decorator(*args, **kwargs):
+        import os
+        if int(os.getenv("LOCAL_RANK", "0")) == 0:
+            return func(*args, **kwargs)
+        from datasets.utils import logging
+        prev = logging.is_progress_bar_enabled()
+        try:
+            logging.disable_progress_bar()
+            return func(*args, **kwargs)
+        finally:
+            if prev:
+                logging.enable_progress_bar()
+    import functools
+    return functools.update_wrapper(decorator, func)
+
+
 # usage: from data import load_data_text
+@__guarantee_clean_log_in_distributed
 def load_data_music(
         split: "str|list|tuple" = 'train',
         batch_size: "Optional[int]" = 1,
