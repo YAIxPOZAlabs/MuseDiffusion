@@ -30,7 +30,7 @@ DEFAULT_CONFIG = MappingProxyType({
     "corr_available": "mt,mn,rn,rr",            # Available corruptions - TODO: add 'at'
     "corr_max": 0,                              # Max number of corruptions
     "corr_p": 0.5,                              # Probability to choice each corruption
-    # "corr_kwargs": "dict(p=0.5, count=3)",    # Keyword arguments for each corruption
+    # "corr_kwargs": "dict(p=0.5,count=3)",    # Keyword arguments for each corruption
     # # # Arguments for model # # #
     "hidden_t_dim": 128,                        # Transformer
     "hidden_dim": 128,                          # Transformer and Embedding
