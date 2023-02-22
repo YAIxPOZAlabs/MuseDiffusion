@@ -98,27 +98,43 @@ def main():
     # Run name
     modname = f"python -m {distributed_run} "
 
-    # Arguments for torch.distributed and train.py
-    args_ln = f"--nproc_per_node={args.nproc_per_node} --master_port={args.master_port} {use_env} " \
-              f"train.py " \
+    # Arguments for torch.distributed
+    mod_arg = f"--nproc_per_node={args.nproc_per_node} --master_port={args.master_port} {use_env} "
+
+    # Arguments for train.py
+    trainer = f"train.py " \
               f"--checkpoint_path {model_file} "
     for k, v in train_py_configs.items():
         if isinstance(v, str) and not v:
             continue
         if isinstance(v, bool):
             v = 'y' if v else 'n'
-        args_ln += f"--{k} {v} "
-    args_ln += args.app
+        trainer += f"--{k} {v} "
+    trainer += args.app
 
     # Total Commandline
-    commandline = environ + modname + args_ln
-
+    commandline = environ + modname + mod_arg + trainer
     with open(os.path.join(model_file, 'saved_bash.sh'), 'w') as f:
         print(commandline, file=f)
-
     print(commandline)  # below two line is same as: os.system(commandline)
-    sys.argv[:] = distributed_run, *args_ln.split()
-    runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
+
+    if int(os.getenv("SIMPLIFY_COMMANDLINE", "0")) == 1:
+        worker = '__worker__.py'
+        with open(worker, 'w') as f:
+            f.write(
+                f"if __name__ == '__main__':\n"
+                f"    import sys, runpy\n"
+                f"    sys.argv[:] = {trainer!r}.split()\n"
+                f"    runpy.run_module('train', run_name=__name__, alter_sys=True)\n"
+            )
+        import subprocess
+        with subprocess.Popen([sys.executable, '-c', f'import os, time; time.sleep(10); os.remove({worker!r})']) as p:
+            p.poll()
+            runpy.run_module(worker.strip('.py'), run_name='__main__', alter_sys=True)
+
+    else:
+        sys.argv[:] = distributed_run, *(mod_arg + trainer).split()
+        runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
 
 
 if __name__ == '__main__':
