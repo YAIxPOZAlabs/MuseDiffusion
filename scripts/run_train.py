@@ -2,6 +2,7 @@ import sys
 import importlib
 import os
 import time
+import shlex
 import json
 import runpy
 import psutil
@@ -105,9 +106,12 @@ def main():
     trainer = f"train.py " \
               f"--checkpoint_path {model_file} "
     for k, v in train_py_configs.items():
-        if isinstance(v, str) and not v:
-            continue
-        if isinstance(v, bool):
+        if isinstance(v, str):
+            if not v:
+                continue
+            elif ' ' in v:
+                v = repr(v)
+        elif isinstance(v, bool):
             v = 'y' if v else 'n'
         trainer += f"--{k} {v} "
     trainer += args.app
@@ -116,24 +120,26 @@ def main():
     commandline = environ + modname + mod_arg + trainer
     with open(os.path.join(model_file, 'saved_bash.sh'), 'w') as f:
         print(commandline, file=f)
-    print(commandline)  # below two line is same as: os.system(commandline)
+    print(commandline)
 
     if int(os.getenv("SIMPLIFY_COMMANDLINE", "0")) == 1:
+        # this makes subprocess commandline "{sys.executable} -u {worker}"
         worker = '__worker__.py'
         with open(worker, 'w') as f:
             f.write(
                 f"if __name__ == '__main__':\n"
-                f"    import sys, runpy\n"
-                f"    sys.argv[:] = {trainer!r}.split()\n"
+                f"    import sys, shlex, runpy\n"
+                f"    sys.argv[:] = shlex.split({trainer!r})\n"
                 f"    runpy.run_module('train', run_name=__name__, alter_sys=True)\n"
             )
         import subprocess
         with subprocess.Popen([sys.executable, '-c', f'import os, time; time.sleep(10); os.remove({worker!r})']) as p:
             p.poll()
-            runpy.run_module(worker.strip('.py'), run_name='__main__', alter_sys=True)
+            sys.argv[:] = distributed_run, *shlex.split(mod_arg), worker
+            runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
 
-    else:
-        sys.argv[:] = distributed_run, *(mod_arg + trainer).split()
+    else:  # below two line is same as: os.system(commandline)
+        sys.argv[:] = distributed_run, *shlex.split(mod_arg + trainer)
         runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
 
 

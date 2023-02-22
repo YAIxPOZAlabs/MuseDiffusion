@@ -562,7 +562,7 @@ class GaussianDiffusion:
         else:
             decoder_nll = decoder_nll.mean(dim=-1)
 
-        return decoder_nll
+        return decoder_nll * 0.2
 
     def _x0_helper(self, model_output, x, t):
 
