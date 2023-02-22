@@ -13,11 +13,20 @@ def wrap_dataset(
         seq_len: int,
         batch_size: int,
         deterministic: bool,
+        num_preprocess_proc: int,
         num_loader_proc: int,
         corruption: "Optional[Callable]",
 ):
 
     assert isinstance(processed_data, datasets.Dataset)
+
+    if seq_len < 2096:
+        processed_data = processed_data.filter(
+            lambda group_lst: [length <= seq_len for length in group_lst['length']],
+            batched=True,
+            num_proc=num_preprocess_proc,
+            desc="filter datas by [length <= {}]".format(seq_len),
+        )
 
     dataset = MidiSequenceDataset(processed_data, corruption=corruption)
 

@@ -66,7 +66,6 @@ def tokenize_with_caching(  # Tokenized Data I/O Wrapper for Distributed Learnin
         split,
         data_dir,
         num_proc,
-        log_function=print
 ):
 
     from .download import guarantee_data, get_data_dir
@@ -85,18 +84,16 @@ def tokenize_with_caching(  # Tokenized Data I/O Wrapper for Distributed Learnin
 
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         if os.path.exists(tokenized_data_path):
-            if log_function is not None:
-                log_function("Loading processed {split} data from disk".format(split=split.upper()))
             tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
         else:
+            print("### Merging {split} data".format(split=split.upper()))
             sentence_lst = load_raw_data(data_dir, split=split)
             tokenized_data = helper_tokenize(sentence_lst, num_proc=num_proc)
             with open(tokenized_data_lock_path, "w") as _:
                 pass
-            if log_function is not None:
-                log_function(
-                    "Saving processed {split} data to {path}".format(split=split.upper(), path=tokenized_data_path)
-                )
+            print(
+                "### Saving processed {split} data to {path}".format(split=split.upper(), path=tokenized_data_path)
+            )
             try:
                 tokenized_data.save_to_disk(tokenized_data_path)
                 os.sync()
@@ -109,8 +106,6 @@ def tokenize_with_caching(  # Tokenized Data I/O Wrapper for Distributed Learnin
     else:
         while not os.path.exists(tokenized_data_path) or os.path.exists(tokenized_data_lock_path):
             time.sleep(1)
-        if log_function is not None:
-            log_function("Loading tokenized {split} data from disk".format(split=split.upper()))
         tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
 
     return tokenized_data

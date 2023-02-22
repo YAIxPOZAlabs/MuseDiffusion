@@ -71,7 +71,6 @@ def main(args):
         deterministic=False,
         loop=True,
         num_loader_proc=args.data_loader_workers,
-        log_function=(print if rank == 0 else None),
     )
     data_valid = load_data_music(
         split='valid',
@@ -85,7 +84,6 @@ def main(args):
         deterministic=True,
         loop=True,
         num_loader_proc=args.data_loader_workers,
-        log_function=(print if rank == 0 else None),
     )
     dist_util.barrier()  # Sync
 
