@@ -11,6 +11,6 @@
   "hidden_t_dim": 128,
   "hidden_dim": 500,
   "num_layers": 6,
-  "intermediate_dim": 1024,
+  "intermediate_dim": 1000,
   "gradient_clipping": 1.0
 }
