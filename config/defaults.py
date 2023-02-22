@@ -33,12 +33,13 @@ DEFAULT_CONFIG = MappingProxyType({
     # "corr_kwargs": "dict(p=0.5,count=3)",    # Keyword arguments for each corruption
     # # # Arguments for model # # #
     "hidden_t_dim": 128,                        # Transformer
-    "hidden_dim": 128,                          # Transformer and Embedding
-    "fnet_hidden_dim": 128,                     # FNet
-    "fnet_intermediate_dim": 512,               # FNet
-    "num_fnet_layers": 6,                       # Added for FNet
+    "hidden_dim": 500,                          # Transformer and Embedding
+    #"fnet_hidden_dim": 128,                     # FNet
+    "intermediate_dim": 1024,               # FNet
+    "num_layers": 6,                       # Added for FNet
     "use_attention": False,
     "dropout": 0.1,
+    "num_attention_heads" : 10,
     # # # Arguments for other settings # # #
     "use_fp16": False,
     "fp16_scale_growth": 0.001,
