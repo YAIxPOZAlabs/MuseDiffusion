@@ -20,6 +20,7 @@ DEFAULT_CONFIG = MappingProxyType({
     "seq_len": 2096,                            # filter data by data['length'] <= seq_len. max is 2096.
     "vocab_size": 729,                          # TODO (alter corruption-730)
     "pretrained_embedding": "",                 # To use POZALabs' embedding, provide .pt name
+    "freeze_embedding": False,                  # you MUST turn this on with pretrained_embedding
     "use_bucketing": True,
     # # # Arguments for dataset # # #
     "dataset": "ComMU",
