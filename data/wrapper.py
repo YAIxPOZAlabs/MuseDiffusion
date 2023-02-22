@@ -110,8 +110,6 @@ def collate_batches(batch_samples, seq_len=None, dtype=None):
 
     for idx, batch in enumerate(batch_samples):
         lth = batch['length']
-        if lth > 256:
-                continue
         if has_corruption:
             correct_ids[idx][:lth] = batch['correct_ids']
         input_ids[idx][:lth] = batch['input_ids']
