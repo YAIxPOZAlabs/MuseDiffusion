@@ -7,7 +7,6 @@
   "save_interval": 200,
   "eval_interval": 300,
   "pretrained_embedding": "pozalabs_embedding.pt",
-  "use_attention": true,
   "hidden_t_dim": 128,
   "gradient_clipping": 1.0
 }
