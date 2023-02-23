@@ -93,6 +93,12 @@ def main():
     os.environ.setdefault("OMP_NUM_THREADS", str(psutil.cpu_count(logical=False) // int(args.nproc_per_node)))
     os.environ["OPENAI_LOGDIR"] = model_file
 
+    try:
+        import setproctitle  # NOQA
+        setproctitle.setproctitle("[MASTER NODE]")
+    except ImportError:
+        pass
+
     # Pre-defined environs
     environ = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} OPENAI_LOGDIR={os.environ['OPENAI_LOGDIR']} "
 
