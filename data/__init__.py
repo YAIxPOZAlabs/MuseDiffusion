@@ -83,6 +83,7 @@ The kwargs dict can be used for some meta information.
     tokenized_data = tokenize_with_caching(
         data_dir=data_dir,
         split=split,
+        seq_len=seq_len,
         num_proc=num_preprocess_proc,
     )
     data_loader = wrap_dataset(
@@ -92,7 +93,6 @@ The kwargs dict can be used for some meta information.
         seq_len=seq_len,
         deterministic=deterministic,
         corruption=corruption_fn,
-        num_preprocess_proc=num_preprocess_proc,
         num_loader_proc=num_loader_proc
     )
     if loop:
