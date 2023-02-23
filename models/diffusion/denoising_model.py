@@ -4,7 +4,7 @@ from transformers.models.bert.modeling_bert import BertAttention, BertIntermedia
 import torch.nn as nn
 
 '''
-temporal not used
+Not used
 '''
 
 
