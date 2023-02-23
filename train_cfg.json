@@ -1,16 +1,13 @@
 {
-  "lr": 0.001,
+  "lr": 0.0001,
   "diffusion_steps": 2000,
   "microbatch": 32,
   "learning_steps": 20000,
   "log_interval": 20,
-  "save_interval": 300,
+  "save_interval": 200,
   "eval_interval": 300,
   "pretrained_embedding": "pozalabs_embedding.pt",
   "use_attention": true,
   "hidden_t_dim": 128,
-  "hidden_dim": 500,
-  "num_layers": 6,
-  "intermediate_dim": 1000,
   "gradient_clipping": 1.0
 }
