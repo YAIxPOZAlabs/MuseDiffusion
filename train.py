@@ -37,6 +37,19 @@ def print_credit():  # Optional
             pass
 
 
+def patch_proc_name_by_rank():
+    from utils import dist_util
+    if dist_util.is_available():
+        title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
+    else:
+        title = f"[MAIN NODE]"
+    try:
+        import setproctitle  # NOQA
+        setproctitle.setproctitle(title)
+    except ImportError:
+        pass
+
+
 def main(args):
 
     # Import everything
@@ -155,4 +168,5 @@ def main(args):
 if __name__ == "__main__":
     arg = parse_args()
     print_credit()
+    patch_proc_name_by_rank()
     main(arg)

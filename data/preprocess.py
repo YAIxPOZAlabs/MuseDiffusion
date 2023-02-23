@@ -61,54 +61,79 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
     )
 
 
+def helper_filter(merged_data, seq_len, num_proc=4):
+    return merged_data.filter(
+        lambda group_lst: [length <= seq_len for length in group_lst['length']],
+        batched=True,
+        num_proc=num_proc,
+        desc="filter datas by [length <= {}]".format(seq_len),
+    )
+
+
 def tokenize_with_caching(  # Tokenized Data I/O Wrapper for Distributed Learning
         *,
         split,
         data_dir,
+        seq_len,
         num_proc,
 ):
 
     from .download import guarantee_data, get_data_dir
 
     data_dir = get_data_dir(data_dir)
-    guarantee_data(data_dir)  # Download data
 
     assert split.lower() in ('train', 'valid', 'test')
     if split.lower() == 'test':
         split = 'valid'
 
-    tokenized_data_path = 'merged-{split}'.format(split=split.lower())
-    tokenized_data_lock_path = tokenized_data_path + '.lock'
-    tokenized_data_path = os.path.join(data_dir, tokenized_data_path)
-    tokenized_data_lock_path = os.path.join(data_dir, tokenized_data_lock_path)
+    def _getter_merge():
+        guarantee_data(data_dir)  # Download data
+        print("### Merging {split} data".format(split=split.upper()))
+        sentence_lst = load_raw_data(data_dir, split=split)
+        return helper_tokenize(sentence_lst, num_proc=num_proc)
 
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        if os.path.exists(tokenized_data_path):
-            tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
+    merged_data_path = 'merged-{split}'.format(split=split.lower())
+    merged_data_path = os.path.join(data_dir, merged_data_path)
+
+    def _getter_filter():
+        merged_data = _load_arrow(getter=_getter_merge, path=merged_data_path)
+        return helper_filter(merged_data, seq_len=seq_len)
+
+    filtered_data_path = 'filtered-{split}-{seq_len}'.format(split=split.lower(), seq_len=seq_len)
+    filtered_data_path = os.path.join(data_dir, filtered_data_path)
+
+    if seq_len < 2096:
+        return _load_arrow(getter=_getter_filter, path=filtered_data_path)
+    else:
+        return _load_arrow(getter=_getter_merge, path=merged_data_path)
+
+
+def _load_arrow(*, getter=None, path=None):
+    """Data I/O Wrapper for Distributed Learning"""
+    base, name = os.path.split(path)
+    lock_path = os.path.join(base, name + ".lock")
+    if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+        if os.path.exists(path):
+            data = ArrowDataset.load_from_disk(path)
         else:
-            print("### Merging {split} data".format(split=split.upper()))
-            sentence_lst = load_raw_data(data_dir, split=split)
-            tokenized_data = helper_tokenize(sentence_lst, num_proc=num_proc)
-            with open(tokenized_data_lock_path, "w") as _:
+            data = getter()
+            with open(lock_path, "w") as _:
                 pass
-            print(
-                "### Saving processed {split} data to {path}".format(split=split.upper(), path=tokenized_data_path)
-            )
+            print("### Saving into {}".format(path))
             try:
-                tokenized_data.save_to_disk(tokenized_data_path)
+                data.save_to_disk(path)
                 os.sync()
             except BaseException:
-                if os.path.isdir(tokenized_data_path):
-                    shutil.rmtree(tokenized_data_path)
+                if os.path.isdir(path):
+                    shutil.rmtree(path)
                 raise
             finally:
-                os.remove(tokenized_data_lock_path)
+                os.remove(lock_path)
     else:
-        while not os.path.exists(tokenized_data_path) or os.path.exists(tokenized_data_lock_path):
+        while not os.path.exists(path) or os.path.exists(lock_path):
             time.sleep(1)
-        tokenized_data = ArrowDataset.load_from_disk(tokenized_data_path)
-
-    return tokenized_data
+        data = ArrowDataset.load_from_disk(path)
+    return data
 
 
 __all__ = ('load_raw_data', 'helper_tokenize', 'tokenize_with_caching')
