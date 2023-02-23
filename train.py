@@ -42,7 +42,7 @@ def patch_proc_name_by_rank():
     if dist_util.is_available():
         title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
     else:
-        title = f"[MAIN NODE]"
+        return
     try:
         import setproctitle  # NOQA
         setproctitle.setproctitle(title)
