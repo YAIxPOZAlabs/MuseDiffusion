@@ -68,6 +68,8 @@ The kwargs dict can be used for some meta information.
         split = kw.pop('split')
         return [load_data_music(split=sp, **kw) for sp in split]
 
+    import itertools
+
     from .preprocess import tokenize_with_caching
     from .wrapper import wrap_dataset
     from .corruption import Corruptions
@@ -96,7 +98,8 @@ The kwargs dict can be used for some meta information.
         num_loader_proc=num_loader_proc
     )
     if loop:
-        return _infinite_loader(data_loader)
+        data_loader = _infinite_loader(data_loader)
+        return itertools.chain([next(data_loader)], data_loader)  # initialize iteration
     else:
         return data_loader
 
