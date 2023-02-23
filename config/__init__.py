@@ -37,7 +37,14 @@ def reduce_dict_config(cfg):
     return {k: cfg[k] for k, v in DEFAULT_CONFIG.items() if cfg[k] != v}
 
 
-def dump_json_config(cfg, filename, *, reduce=True):
+def dump_json_config(cfg, filename, *, indent=2, reduce=True):
     import json
-    with open(filename, "w") as fp:
-        json.dump((reduce_dict_config if reduce else dict)(cfg), fp)
+    if hasattr(filename, 'write'):
+        context = None
+    else:
+        context = filename = open(filename, "w")
+    try:
+        json.dump((reduce_dict_config if reduce else dict)(cfg), filename, indent=indent)
+    finally:
+        if context is not None:
+            context.close()

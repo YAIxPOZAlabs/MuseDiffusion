@@ -14,22 +14,27 @@ def main():
                         help='number of gpu used in distributed. (0=auto)')
     parser.add_argument('--master_port', type=int, default=12233,
                         help='master port used in distributed')
-
-    parser.add_argument('--model_dir', type=str, default='',
-                        help='path (or GLOB PATTERN) to the folder of diffusion model')
-    parser.add_argument('--sample_seed', type=int, default=123,
-                        help='random seed for sampling')
-    parser.add_argument('--step', type=int, default=100,
-                        help='if less than diffusion training steps, like 1000, use ddim sampling')
-    parser.add_argument('--batch_size', type=int, default=50,
-                        help='batch size')
-    parser.add_argument('--split', type=str, default='test', choices=['train', 'valid', 'test'],
-                        help='dataset split used to decode')
-    parser.add_argument('--top_p', type=int, default=-1,
-                        help='top p used in sampling, default is off')
     parser.add_argument('--pattern', type=str, default='ema',
                         help='training pattern (e.g. "ema" - "ema*.pt" will be selected')
 
+    parser.add_argument('--model_dir', type=str, default='',
+                        help='path (or GLOB PATTERN) to the folder of diffusion model')
+    parser.add_argument('--step', type=int, default=100,
+                        help='if less than diffusion training steps (which is 2000 in default), use ddim sampling')
+    parser.add_argument('--batch_size', type=int, default=50,
+                        help='batch size')
+    parser.add_argument('--use_ddim_reverse', type=bool, default=False,
+                        help='choose forward process as ddim or not')
+    parser.add_argument('--top_p', type=int, default=0,
+                        help='range of the noise added to input, should be set between 0 and 1 (0=no restriction)')
+    parser.add_argument('--split', type=str, default='valid', choices=['train', 'valid'],
+                        help='dataset split used to decode')
+    parser.add_argument('--clamp_step', type=int, default=0,
+                        help='in clamp_first mode, choose end clamp step, otherwise starting clamp step')
+    parser.add_argument('--sample_seed', type=int, default=123,
+                        help='random seed for sampling')
+    parser.add_argument('--clip_denoised', type=bool, default=True,
+                        help='denoising 시 clipping 진행여부')
     args = parser.parse_args()
 
     # set working dir to the upper folder
@@ -67,7 +72,10 @@ def main():
                          f"--sample_seed {args.sample_seed} " \
                          f"--split {args.split} " \
                          f"--top_p {args.top_p} " \
-                         f"--out_dir {out_dir} "
+                         f"--out_dir {out_dir} " \
+                         f"--use_ddim_reverse {args.use_ddim_reverse}" \
+                         f"--clamp_step {args.clamp_step}" \
+                         f"--clip_denoised {args.clip_denoised}"
 
     run_result = 0
 

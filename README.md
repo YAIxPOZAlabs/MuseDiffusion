@@ -59,7 +59,7 @@ $ TBD
 
 ```bash
 # Copy config file to root directory
-cp config/example_config.json train_cfg.json
+python3 -m config --save_into train_cfg.json
 
 # Optional: customize config on your own
 vi train_cfg.json
