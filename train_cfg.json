@@ -1,7 +1,8 @@
 {
   "lr": 0.0001,
   "diffusion_steps": 2000,
-  "microbatch": 16,
+  "microbatch": 64,
+  "seq_len": 256,
   "learning_steps": 20000,
   "log_interval": 20,
   "save_interval": 200,
