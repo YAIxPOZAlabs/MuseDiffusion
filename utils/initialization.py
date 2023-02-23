@@ -61,8 +61,6 @@ def create_model_and_diffusion(
         vocab_size,
         dropout,
         seq_len,  # FNet Kwarg
-        num_layers,  # FNet Kwarg
-        intermediate_dim,  # FNet Kwarg
         diffusion_steps,
         noise_schedule,
         learn_sigma,
@@ -71,7 +69,6 @@ def create_model_and_diffusion(
         rescale_timesteps,
         sigma_small,
         rescale_learned_sigmas,
-        num_attention_heads,
         use_kl,
         **_,
 ):
@@ -81,16 +78,12 @@ def create_model_and_diffusion(
 
     model = TransformerNetModel(
         input_dims=hidden_dim,
-        hidden_dim = hidden_dim,
         output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
         hidden_t_dim=hidden_t_dim,
         vocab_size=vocab_size,
-        intermediate_dim= intermediate_dim, 
-        seq_len=seq_len,
-        num_layers=num_layers, 
+        seq_len=seq_len, 
         dropout=dropout,
-        num_attention_heads = num_attention_heads         
-    )
+        )
 
     betas = get_named_beta_schedule(noise_schedule, diffusion_steps)
 

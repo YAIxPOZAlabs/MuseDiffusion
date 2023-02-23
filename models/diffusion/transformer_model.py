@@ -1,8 +1,6 @@
 import numpy as np
 import torch as th
 import torch.nn as nn
-#from transformers import FNetConfig, BertConfig
-#from .denoising_model import FNetHybrid
 from transformers import AutoConfig
 from transformers.models.bert.modeling_bert import BertEncoder
 
@@ -26,51 +24,29 @@ class TransformerNetModel(nn.Module):
     def __init__(
             self,
             input_dims,
-            hidden_dim,
             output_dims,
             hidden_t_dim,
             vocab_size,
-            intermediate_dim,  
-            seq_len,  
-            num_layers, 
+            seq_len,   
             dropout=0.1,
             logits_mode=1,
-            num_attention_heads=10,
     ):
         super().__init__()
+        
+        ## BertEncoder Config for denoising
         config = AutoConfig.from_pretrained('bert-base-uncased')
-        config.hidden_size = hidden_dim
-        config.intermediate_size = intermediate_dim
         config.max_position_embeddings = seq_len
-        config.num_attention_heads = num_attention_heads
-        config.num_hidden_layers = num_layers
         config.vocab_size = vocab_size
-        # fnet_config = FNetConfig()  # AutoConfig.from_pretrained(config_name)
-        # fnet_config.hidden_dropout_prob = dropout
-        # fnet_config.hidden_size = fnet_hidden_dim
-        # fnet_config.intermediate_size = fnet_intermediate_dim
-        # fnet_config.max_position_embeddings = seq_len
-        # fnet_config.vocab_size = vocab_size
-        # fnet_config.num_hidden_layers = num_fnet_layers
-        # fnet_config.pad_token_id = 0
-        # fnet_config.eos_token_id = 1
-        # fnet_config.type_vocab_size = 2
-
-        # attention_config = BertConfig()
-        # attention_config.num_attention_heads = 8
-        # attention_config.hidden_size = fnet_hidden_dim
-        # attention_config.intermediate_size = fnet_intermediate_dim
 
         self.input_dims = input_dims
         self.hidden_t_dim = hidden_t_dim
         self.output_dims = output_dims
         self.dropout = dropout
         self.logits_mode = logits_mode
-        self.hidden_size = hidden_dim
+        self.hidden_size = config.hidden_size
 
-        self.word_embedding = nn.Embedding(vocab_size, self.input_dims, padding_idx=0)
-        #self.type_id_embedding = nn.Embedding(2, self.input_dims)
-
+        self.word_embedding = nn.Embedding(vocab_size, self.input_dims)
+        
         self.lm_head = nn.Linear(self.input_dims, vocab_size)
         with th.no_grad():
             self.lm_head.weight = self.word_embedding.weight

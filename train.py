@@ -6,7 +6,7 @@ import os
 import json
 
 import wandb
-
+import torch
 from config import CHOICES, DEFAULT_CONFIG
 from utils.argument_util import add_dict_to_argparser, args_to_dict
 
@@ -91,8 +91,20 @@ def main(args):
     logger.log("### Creating model and diffusion...")
     pretrained_emb_weight = fetch_pretrained_embedding(args)
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    
+    
+    ### Loading Pretrained ###
     if pretrained_emb_weight is not None:
         overload_embedding(model, pretrained_emb_weight, args.freeze_embedding)
+    
+    pretrained_dict = torch.load("diffusion.pt")
+    model_dict = model.state_dict()
+
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    model_dict.update(pretrained_dict) 
+    model.load_state_dict(model_dict)
+    ### Loaded Pretrained ###
+    
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 

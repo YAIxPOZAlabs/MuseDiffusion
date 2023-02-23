@@ -35,12 +35,11 @@ DEFAULT_CONFIG = MappingProxyType({
     # # # Arguments for model # # #
     "hidden_t_dim": 128,                        # Transformer
     "hidden_dim": 500,                          # Transformer and Embedding
-    #"fnet_hidden_dim": 128,                     # FNet
-    "intermediate_dim": 1024,               # FNet
-    "num_layers": 6,                       # Added for FNet
-    "use_attention": False,
     "dropout": 0.1,
-    "num_attention_heads" : 10,
+    # # # Not Used
+    #"intermediate_dim": 1024,               # FNet
+    #"num_layers": 6,                       
+    #"num_attention_heads" : 10,
     # # # Arguments for other settings # # #
     "use_fp16": False,
     "fp16_scale_growth": 0.001,
