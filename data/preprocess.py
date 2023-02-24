@@ -29,8 +29,8 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
 
         lst = []
         mask = []
-        attn_mask = []
         length = []
+        label = []
 
         for i in range(len(group_lst['src'])):
 
@@ -42,14 +42,72 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
 
             lst.append([*src, end_token, *trg])
             mask.append([*(0 for _ in range(src_eos_len)), *(1 for _ in range(trg_len))])
-            attn_mask.append([1 for _ in range(src_eos_trg_len)])
             length.append(src_eos_trg_len)
-
+            lab = []
+            for j in range(len(src)):
+                #EOS
+                if src[j] == 1:
+                    lab.append(1)
+                #BPM
+                elif src[j] in range(560,601):
+                    lab.append(8)
+                #KEY
+                elif src[j] in range(601,626):
+                    lab.append(9)
+                #TIME SIGNATURE
+                elif src[j] in range(626,630):
+                    lab.append(10)
+                #PITCH RANGE
+                elif src[j] in range(630,638):
+                    lab.append(11)
+                #NUMBER OF MEASURE
+                elif src[j] in range(638,641):
+                    lab.append(12)
+                #INSTRUMENT
+                elif src[j] in range(641,650):
+                    lab.append(13)
+                #GENRE
+                elif src[j] in range(650,653):
+                    lab.append(14)
+                #META VELOCITY
+                elif src[j] in range(653,719):
+                    lab.append(15)
+                #TRACK ROLE
+                elif src[j] in range(719,726):
+                    lab.append(16)
+                #RHYTHM
+                elif src[j] in range(726,729):
+                    lab.append(17)
+                #else:
+                    #raise 
+            for j in range(len(trg)):
+                #EOS    
+                if trg[j] == 1:
+                    lab.append(1)
+                #BAR    
+                elif trg[j] == 2:
+                    lab.append(2)
+                #PITCH
+                elif trg[j] in range(3,131):
+                    lab.append(3)
+                #VELOCITY
+                elif trg[j] in range(131,195):
+                    lab.append(4)
+                #CHORD
+                elif trg[j] in range(195,304):
+                    lab.append(5)
+                #DURATION
+                elif trg[j] in range(304,432):
+                    lab.append(6)
+                #POSITION
+                elif trg[j] in range(432,560):
+                    lab.append(7)
+            label.append(lab)
+        assert len(lst) == len(label)
         group_lst['input_ids'] = lst
         group_lst['input_mask'] = mask
-        group_lst['attention_mask'] = attn_mask
         group_lst['length'] = length
-
+        group_lst['label'] = label
         return group_lst
 
     return ArrowDataset.from_dict(sentence_lst).map(
