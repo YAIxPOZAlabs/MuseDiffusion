@@ -425,6 +425,7 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
+        eta = 0.0
     ):
         """
         Generate samples from the model.
@@ -460,9 +461,11 @@ class GaussianDiffusion:
             clamp_step=clamp_step,
             clamp_first=clamp_first,
             mask=mask,
-            x_start=x_start
+            x_start=x_start,
+            eta = eta
         ):
-            final.append(sample['sample'])
+            continue
+        final.append(sample['sample'])
         return final
 
     def p_sample_loop_progressive(
@@ -562,7 +565,7 @@ class GaussianDiffusion:
         else:
             decoder_nll = decoder_nll.mean(dim=-1)
 
-        return decoder_nll * 0.2
+        return decoder_nll
 
     def _x0_helper(self, model_output, x, t):
 
@@ -589,12 +592,14 @@ class GaussianDiffusion:
         :param model_kwargs: if not None, a dict of extra keyword arguments to
             pass to the model. This can be used for conditioning.
         :param noise: if specified, the specific Gaussian noise to try to remove.
-        :return: a dict with the key "loss" containing a tensor of shape [N].
+        :return: a dict with the key "loss" containing a tensor cof shape [N].
                  Some mean or variance settings may also have other keys.
         """
         assert 'input_ids' in model_kwargs
         input_ids_x = model_kwargs['input_ids'].to(t.device)
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
+        input_label = model_kwargs['label'].to(t.device)
+
         x_start_mean = model.model.module.get_embeds(input_ids_x)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
@@ -622,6 +627,12 @@ class GaussianDiffusion:
         t0_mask = (t == 0)
         t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
         terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
+        
+        ### Classifier ###
+        cls_pred = model.model.module.get_cls(model_out_x_start)
+        cls_loss = th.nn.CrossEntropyLoss()
+        cls_nll = cls_loss(cls_pred.view(-1, cls_pred.size(-1)), input_label.view(-1))
+        terms['cls'] = cls_nll
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
@@ -633,7 +644,7 @@ class GaussianDiffusion:
                                                  truncate=True, t=t)  # x_0->model_out_x_start
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
-        terms["loss"] = terms["mse"] + decoder_nll + tT_loss
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss + 0.2*terms['cls']
 
         return terms
 
@@ -805,6 +816,7 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
+        eta = 0.0
     ):
         """
         Generate samples from the model using DDIM.
@@ -824,7 +836,8 @@ class GaussianDiffusion:
             progress=progress,
             mask=mask,
             x_start=x_start,
-            gap = gap
+            gap = gap,
+            eta = eta
         ):
             final.append(sample['sample'])
         return final

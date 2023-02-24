@@ -8,6 +8,7 @@ from .nn import (
     SiLU,
     timestep_embedding,
 )
+from .classifier import Classifier
 
 
 class TransformerNetModel(nn.Module):
@@ -46,7 +47,7 @@ class TransformerNetModel(nn.Module):
         self.hidden_size = config.hidden_size
 
         self.word_embedding = nn.Embedding(vocab_size, self.input_dims)
-        
+        self.classifier = Classifier(output_dims)
         self.lm_head = nn.Linear(self.input_dims, vocab_size)
         with th.no_grad():
             self.lm_head.weight = self.word_embedding.weight
@@ -73,7 +74,8 @@ class TransformerNetModel(nn.Module):
             self.output_down_proj = nn.Sequential(nn.Linear(config.hidden_size, config.hidden_size),
                                                 nn.Tanh(), nn.Linear(config.hidden_size, self.output_dims))
 
-
+    def get_cls(self,x_0):
+        return self.classifier(x_0)
     def get_embeds(self, input_ids):
         return self.word_embedding(input_ids)
 
