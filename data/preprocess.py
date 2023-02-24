@@ -80,6 +80,8 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
                     lab.append(17)
                 #else:
                     #raise 
+            #EOS
+            lab.append(1)
             for j in range(len(trg)):
                 #EOS    
                 if trg[j] == 1:
