@@ -73,9 +73,9 @@ def main():
                          f"--split {args.split} " \
                          f"--top_p {args.top_p} " \
                          f"--out_dir {out_dir} " \
-                         f"--use_ddim_reverse {args.use_ddim_reverse}" \
-                         f"--clamp_step {args.clamp_step}" \
-                         f"--clip_denoised {args.clip_denoised}"
+                         f"--use_ddim_reverse {args.use_ddim_reverse} " \
+                         f"--clamp_step {args.clamp_step} " \
+                         f"--clip_denoised {args.clip_denoised} "
 
     run_result = 0
 
