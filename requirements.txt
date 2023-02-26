@@ -14,6 +14,8 @@ transformers==4.22.2
 wandb
 datasets
 scipy
+scikit-learn
+seaborn
 
 miditoolkit==0.1.16
 pretty-midi==0.2.9
