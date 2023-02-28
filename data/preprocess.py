@@ -36,6 +36,10 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
 
             src = group_lst['src'][i]
             trg = group_lst['trg'][i]
+            
+            src = np.concatenate(src,trg[np.logical_and(195<=trg,trg<=303)])
+            trg = trg[np.logical_or(trg<195,trg>303)]
+            
             src_eos_len = len(src) + 1
             trg_len = len(trg)
             src_eos_trg_len = src_eos_len + trg_len
@@ -48,6 +52,9 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
                 #BPM
                 if src[j] in range(560,601):
                     lab.append(8)
+                #CHORD
+                elif src[j] in range(195,304):
+                    lab.append(5)
                 #KEY
                 elif src[j] in range(601,626):
                     lab.append(9)
@@ -75,8 +82,9 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
                 #RHYTHM
                 elif src[j] in range(726,729):
                     lab.append(17)
-                #else:
-                    #raise 
+                else:
+                    raise ValueError("Check your Meta Data")
+                    
             #EOS
             lab.append(1)
             for j in range(len(trg)):
@@ -101,6 +109,9 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
                 #POSITION
                 elif trg[j] in range(432,560):
                     lab.append(7)
+                else:
+                    raise ValueError("Check your Midi Data")
+                    
             label.append(lab)
         assert len(lst) == len(label)
         group_lst['input_ids'] = lst
