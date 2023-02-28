@@ -16,7 +16,7 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
             corr_available: "str",
             corr_max: "int|str",
             corr_p: "float|str",
-            corr_kwargs: "str|None" = None
+            corr_kwargs: "str|None" = "dict(p=0.4)"
     ):
         return cls(
             corr_available=tuple(corr_available.split(',')),
@@ -78,7 +78,7 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
         default_kwargs = default_kwargs.copy()
         if update_kwargs is not None:
             default_kwargs.update(update_kwargs)
-        kwargs = {k: update_kwargs[k] for k in required_kwargs}
+        kwargs = {k: default_kwargs[k] for k in required_kwargs}
         if inplace is not None:
             kwargs.update(inplace=inplace)
         if kwargs:

@@ -45,11 +45,8 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
             length.append(src_eos_trg_len)
             lab = []
             for j in range(len(src)):
-                #EOS
-                if src[j] == 1:
-                    lab.append(1)
                 #BPM
-                elif src[j] in range(560,601):
+                if src[j] in range(560,601):
                     lab.append(8)
                 #KEY
                 elif src[j] in range(601,626):
