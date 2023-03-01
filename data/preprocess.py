@@ -43,7 +43,7 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
             to_trg_idx_bool = np.ones_like(trg, dtype='?')
             to_trg_idx_bool[chord_position_idx_int] = False
 
-            src = np.concatenate(src, trg[chord_position_idx_int.astype(int)])
+            src = np.concatenate([src, trg[chord_position_idx_int]])
             trg = trg[to_trg_idx_bool]
 
             src_eos_len = len(src) + 1
