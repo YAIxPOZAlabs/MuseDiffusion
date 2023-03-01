@@ -5,7 +5,6 @@ numpy array. This can be used to produce samples for FID evaluation.
 
 import os
 
-
 def parse_args(argv=None):
     import argparse
     parser = argparse.ArgumentParser()
@@ -17,10 +16,10 @@ def parse_args(argv=None):
                         help='output directory to store generated midi')
     parser.add_argument('--batch_size', type=int, default=50,
                         help='batch size to run decode')
-    parser.add_argument('--use_ddim_reverse', type=bool, default=True,
+    parser.add_argument('--use_ddim_reverse', type=bool, default=False,
                         help='choose forward process as ddim or not')
     parser.add_argument('--top_p', type=int, default=0,
-                        help='이거는 어떤 역할을 하는지 확인 필요')
+                        help='range of the noise added to input, should be set between 0 and 1 (0=no restriction)')
     parser.add_argument('--split', type=str, default='valid',
                         help='dataset type used in sampling')
     parser.add_argument('--clamp_step', type=int, default=0,
@@ -28,7 +27,7 @@ def parse_args(argv=None):
     parser.add_argument('--sample_seed', type=int, default=105,
                         help='random seed for sampling')
     parser.add_argument('--clip_denoised', type=bool, default=False,
-                        help='아마도 denoising 시 clipping 진행여부')
+                        help='denoising 시 clipping 진행여부')
     args = parser.parse_args(argv)
 
     if not args.model_path:  # Try to get latest model_path
@@ -64,7 +63,7 @@ def print_credit():  # Optional
 
 
 def main(args):
-
+    ######################################### Setup #####################################
     # Ensure no_grad()
     import torch as th
     if th.is_grad_enabled():
@@ -111,8 +110,9 @@ def main(args):
     training_args.pop('batch_size')
     args.__dict__.update(training_args)
     dist_util.barrier()  # Sync
+    #########################################################################################
 
-    # Initialize model and diffusion
+    ##################################### Initialization ####################################
     logger.log("### Creating model and diffusion... ")
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
 
@@ -154,12 +154,11 @@ def main(args):
         deterministic=True,
         loop=False,
         num_preprocess_proc=1,
-        log_function=logger.log
     )
     dist_util.barrier()  # Sync
 
     # Set up forward and sample functions
-    # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
+    # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample
     if args.step == args.diffusion_steps:
         args.use_ddim = False
         step_gap = 1
@@ -174,8 +173,9 @@ def main(args):
     start_t = time.time()
     iterator = tqdm(enumerate(data_loader), total=len(data_loader)) if rank == 0 else enumerate(data_loader)
 
+    ##########################################################################################
+    # Inference Loop
     for batch_index, cond in iterator:
-
         if batch_index % world_size != rank:
             continue
 
@@ -188,17 +188,20 @@ def main(args):
 
         # noise = th.randn_like(x_start)
 
-        if args.use_ddim_reverse:
-            noise = x_start
-            timestep = th.zeros((args.batch_size, ), device=dev, dtype=th.long)
-            for i in range(args.diffusion_steps):
-                timestep.fill_(i)
-                noise = diffusion.ddim_reverse_sample(model, noise, t=timestep, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )["sample"]
-        else:  # TODO: CHECK DDPM FORWARD ################################################################################
-            timestep = th.full((args.batch_size, 1), args.diffusion_steps - 1, device=dev)
-            noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask)
+        # if args.use_ddim_reverse:
+        #     noise = x_start
+        #     timestep = th.zeros((args.batch_size, ), device=dev, dtype=th.long)
+        #     for i in range(args.diffusion_steps):
+        #         timestep.fill_(i)
+        #         noise = diffusion.ddim_reverse_sample(model, noise, t=timestep, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )["sample"]
+        # else:  
+        # 일단 ddim reverse는 안쓰는게 나아 보임. 
+        # 추가로 noising을 얼마나 줄지를 결정해야됨.
+        noising_t = args.diffusion_steps
+        timestep = th.full((args.batch_size, 1), noising_t - 1, device=dev)
+        noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask)
 
-        x_noised = th.where(input_ids_mask == 0, x_start, noise.squeeze(-1))  # TODO: SQUEEZED ###########################
+        x_noised = th.where(input_ids_mask == 0, x_start, noise.squeeze(-1))
 
         samples = sample_fn(
             model=model,

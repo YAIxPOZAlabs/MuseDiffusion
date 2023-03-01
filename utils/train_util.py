@@ -407,7 +407,7 @@ def parse_resume_step_from_filename(filename):
     checkpoint's number of steps.
     """
     filename: str = os.path.basename(filename)
-    assert filename.startswith('model') and filename[-3] == '.pt', "Invalid model name"
+    assert filename.startswith('model') and filename[-3:] == '.pt', "Invalid model name"
     return int(filename[-9:-3])
 
 

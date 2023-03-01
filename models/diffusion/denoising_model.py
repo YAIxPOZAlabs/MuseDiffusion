@@ -3,6 +3,10 @@ from transformers.models.fnet.modeling_fnet import FNetEncoder
 from transformers.models.bert.modeling_bert import BertAttention, BertIntermediate, BertOutput
 import torch.nn as nn
 
+'''
+Not used
+'''
+
 
 ###########################################
 ## FNet Hybrid

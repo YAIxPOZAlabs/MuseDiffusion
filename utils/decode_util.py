@@ -49,8 +49,8 @@ class SequenceToMidi:
         )
         return decoded_midi
 
-    def _decode_single(self, seq, input_mask, seq_len):  # Output: Midi, Errcode
-        len_meta = seq_len - int((input_mask.sum()))
+    def _decode_single(self, seq, input_mask):  # Output: Midi, Errcode
+        len_meta = len(seq) - int((input_mask.sum()))
         assert len_meta == 12
 
         encoded_meta = seq[:len_meta - 1]  # meta의 eos 토큰 제외 11개만 가져오기
@@ -71,14 +71,14 @@ class SequenceToMidi:
         2: "VALIDATION OF SEQUENCE FAILED"
     }
 
-    def decode_single(self, seq, input_mask, seq_len, output_file_path):
-        decoded_midi, errcode = self._decode_single(seq, input_mask, seq_len)
+    def decode_single(self, seq, input_mask, output_file_path):
+        decoded_midi, errcode = self._decode_single(seq, input_mask)
         if errcode == 0:
             decoded_midi.dump(output_file_path)
         return errcode
 
     def decode_multi_verbose(
-            self, sequences, output_dir, input_ids_mask_ori, seq_len, batch_index, batch_size
+            self, sequences, output_dir, input_ids_mask_ori, batch_index, batch_size
     ) -> "None":
 
         invalid_idxes = set()
@@ -89,7 +89,7 @@ class SequenceToMidi:
             logger = io.StringIO()
             try:
                 with contextlib.redirect_stdout(logger):
-                    decoded_midi, errcode = self._decode_single(seq, input_mask, seq_len)
+                    decoded_midi, errcode = self._decode_single(seq, input_mask)
             except Exception as exc:
                 print(logger.getvalue())
                 print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
@@ -155,8 +155,8 @@ class SequenceToMidi:
     @classmethod
     def save_tokens(cls, input_tokens, output_tokens, output_dir, batch_index):
         out_list = []
-        for idx, (in_seq, out_seq) in enumerate(zip(input_tokens, output_tokens)):
-            len_meta = 12  # seq_len - int((input_mask.sum()))
+        for (in_seq, out_seq) in zip(input_tokens, output_tokens):
+            len_meta = 12
             # assert len_meta == 12  # meta와 midi사이에 들어가는 meta eos까지 12(11+1)
 
             encoded_meta = in_seq[:len_meta-1]  # meta의 eos 토큰 제외 11개만 가져오기

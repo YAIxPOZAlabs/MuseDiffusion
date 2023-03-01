@@ -48,7 +48,7 @@ def wrap_dataset(
 class MidiSequenceDataset(torch.utils.data.Dataset[datasets.Dataset], datasets.Dataset):  # NOQA
 
     def __init__(self, dataset: "datasets.Dataset", corruption: "Callable" = None):  # NOQA
-        expected_column_names = {'input_ids', 'input_mask', 'attention_mask', 'length'}
+        expected_column_names = {'input_ids', 'input_mask', 'label', 'length'}
         if not isinstance(dataset, datasets.Dataset):
             raise TypeError("argument dataset must be instance of datasets.Dataset!")
         elif set(dataset.column_names) != expected_column_names:
@@ -60,7 +60,7 @@ class MidiSequenceDataset(torch.utils.data.Dataset[datasets.Dataset], datasets.D
         datasets.Dataset.set_format(
             self,
             type='torch',
-            columns=['input_ids', 'input_mask', 'attention_mask'],
+            columns=['input_ids', 'input_mask', 'label'],
             output_all_columns=True
         )
         self.corruption = corruption
@@ -105,7 +105,7 @@ def collate_batches(batch_samples, seq_len=None, dtype=None):
     correct_ids = torch.zeros(shape, dtype=dtype) if has_corruption else None
     input_ids = torch.zeros(shape, dtype=dtype)
     input_mask = torch.ones(shape, dtype=dtype)
-    attention_mask = torch.zeros(shape, dtype=dtype)
+    label = torch.zeros(shape, dtype=dtype)
     length = torch.zeros((batch_len, ), dtype=dtype)
 
     for idx, batch in enumerate(batch_samples):
@@ -114,14 +114,14 @@ def collate_batches(batch_samples, seq_len=None, dtype=None):
             correct_ids[idx][:lth] = batch['correct_ids']
         input_ids[idx][:lth] = batch['input_ids']
         input_mask[idx][:lth] = batch['input_mask']
-        attention_mask[idx][:lth] = batch['attention_mask']
+        label[idx][:lth] = batch['label']
         length[idx] = lth
 
     result = {
         'correct_ids': correct_ids,
         'input_ids': input_ids,
         'input_mask': input_mask,
-        'attention_mask': attention_mask,
+        'label': label,
         'length': length
     }
     if not has_corruption:

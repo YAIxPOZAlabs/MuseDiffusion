@@ -21,4 +21,4 @@ if __name__ == '__main__':
 
     from data.preprocess import tokenize_with_caching as main
     for split in ('train', 'valid'):
-        main(split=split, data_dir=args.data_dir, num_proc=args.num_proc)
+        main(split=split, data_dir=args.data_dir, num_proc=args.num_proc, seq_len=float('inf'))

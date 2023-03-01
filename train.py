@@ -6,7 +6,7 @@ import os
 import json
 
 import wandb
-
+import torch
 from config import CHOICES, DEFAULT_CONFIG
 from utils.argument_util import add_dict_to_argparser, args_to_dict
 
@@ -37,6 +37,19 @@ def print_credit():  # Optional
             pass
 
 
+def patch_proc_name_by_rank():
+    from utils import dist_util
+    if dist_util.is_available():
+        title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
+    else:
+        return
+    try:
+        import setproctitle  # NOQA
+        setproctitle.setproctitle(title)
+    except ImportError:
+        pass
+
+
 def main(args):
 
     # Import everything
@@ -44,7 +57,7 @@ def main(args):
     from models.diffusion.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
     from utils.initialization import create_model_and_diffusion, seed_all, \
-        load_and_fetch_pretrained_embedding, overload_embedding
+        fetch_pretrained_embedding, overload_embedding
     from utils.train_util import TrainLoop
     from utils.plotting import embedding_tsne_trainer_wandb_callback
 
@@ -71,7 +84,6 @@ def main(args):
         deterministic=False,
         loop=True,
         num_loader_proc=args.data_loader_workers,
-        log_function=(print if rank == 0 else None),
     )
     data_valid = load_data_music(
         split='valid',
@@ -85,16 +97,27 @@ def main(args):
         deterministic=True,
         loop=True,
         num_loader_proc=args.data_loader_workers,
-        log_function=(print if rank == 0 else None),
     )
     dist_util.barrier()  # Sync
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    pretrained_emb_weight = load_and_fetch_pretrained_embedding(args)
+    pretrained_emb_weight = fetch_pretrained_embedding(args)
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    
+    
+    ### Loading Pretrained ###
     if pretrained_emb_weight is not None:
-        overload_embedding(model, pretrained_emb_weight)
+        overload_embedding(model, pretrained_emb_weight, args.freeze_embedding)
+    
+    pretrained_dict = torch.load("diffusion.pt")
+    model_dict = model.state_dict()
+
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+    model_dict.update(pretrained_dict) 
+    model.load_state_dict(model_dict)
+    ### Loaded Pretrained ###
+    
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 
@@ -145,4 +168,5 @@ def main(args):
 if __name__ == "__main__":
     arg = parse_args()
     print_credit()
+    patch_proc_name_by_rank()
     main(arg)

@@ -93,6 +93,12 @@ def main():
     os.environ.setdefault("OMP_NUM_THREADS", str(psutil.cpu_count(logical=False) // int(args.nproc_per_node)))
     os.environ["OPENAI_LOGDIR"] = model_file
 
+    try:
+        import setproctitle  # NOQA
+        setproctitle.setproctitle("[MASTER NODE]")
+    except ImportError:
+        pass
+
     # Pre-defined environs
     environ = f"OMP_NUM_THREADS={os.environ['OMP_NUM_THREADS']} OPENAI_LOGDIR={os.environ['OPENAI_LOGDIR']} "
 
@@ -122,25 +128,9 @@ def main():
         print(commandline, file=f)
     print(commandline)
 
-    if int(os.getenv("SIMPLIFY_COMMANDLINE", "0")) == 1:
-        # this makes subprocess commandline "{sys.executable} -u {worker}"
-        worker = '__worker__.py'
-        with open(worker, 'w') as f:
-            f.write(
-                f"if __name__ == '__main__':\n"
-                f"    import sys, shlex, runpy\n"
-                f"    sys.argv[:] = shlex.split({trainer!r})\n"
-                f"    runpy.run_module('train', run_name=__name__, alter_sys=True)\n"
-            )
-        import subprocess
-        with subprocess.Popen([sys.executable, '-c', f'import os, time; time.sleep(10); os.remove({worker!r})']) as p:
-            p.poll()
-            sys.argv[:] = distributed_run, *shlex.split(mod_arg), worker
-            runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
-
-    else:  # below two line is same as: os.system(commandline)
-        sys.argv[:] = distributed_run, *shlex.split(mod_arg + trainer)
-        runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
+    # below two line is same as: os.system(commandline)
+    sys.argv[:] = distributed_run, *shlex.split(mod_arg + trainer)
+    runpy.run_module(distributed_run, run_name='__main__', alter_sys=True)
 
 
 if __name__ == '__main__':

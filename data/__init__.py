@@ -5,7 +5,25 @@ if TYPE_CHECKING:
     import os
 
 
+def __guarantee_clean_log_in_distributed(func):  # since datasets.Dataset logs progress with tqdm
+    def decorator(*args, **kwargs):
+        import os
+        if int(os.getenv("LOCAL_RANK", "0")) == 0:
+            return func(*args, **kwargs)
+        from datasets.utils import logging
+        prev = logging.is_progress_bar_enabled()
+        try:
+            logging.disable_progress_bar()
+            return func(*args, **kwargs)
+        finally:
+            if prev:
+                logging.enable_progress_bar()
+    import functools
+    return functools.update_wrapper(decorator, func)
+
+
 # usage: from data import load_data_text
+@__guarantee_clean_log_in_distributed
 def load_data_music(
         split: "str|list|tuple" = 'train',
         batch_size: "Optional[int]" = 1,
@@ -20,7 +38,6 @@ def load_data_music(
         loop: bool = True,
         num_preprocess_proc: int = 4,
         num_loader_proc: int = 0,
-        log_function: "Callable" = print
 ):
     """
 For a dataset, create a generator over (seqs, kwargs) pairs.
@@ -45,30 +62,31 @@ The kwargs dict can be used for some meta information.
     if loop is None - raw dataloader will be returned
 :param num_preprocess_proc: num of worker while tokenizing.
 :param num_loader_proc: num of worker for data loader.
-:param log_function: custom function for log. default is print.
 """
     if isinstance(split, (list, tuple)):
         kw = locals().copy()
         split = kw.pop('split')
         return [load_data_music(split=sp, **kw) for sp in split]
 
+    import itertools
+
     from .preprocess import tokenize_with_caching
     from .wrapper import wrap_dataset
     from .corruption import Corruptions
 
     if use_corruption:
-        corruption = Corruptions.from_config(
+        corruption_fn = Corruptions.from_config(
             corr_available=corr_available,
             corr_max=corr_max,
             corr_p=corr_p
         )
     else:
-        corruption = None
+        corruption_fn = None
     tokenized_data = tokenize_with_caching(
         data_dir=data_dir,
         split=split,
+        seq_len=seq_len,
         num_proc=num_preprocess_proc,
-        log_function=log_function
     )
     data_loader = wrap_dataset(
         tokenized_data,
@@ -76,11 +94,12 @@ The kwargs dict can be used for some meta information.
         use_bucketing=use_bucketing,
         seq_len=seq_len,
         deterministic=deterministic,
-        corruption=corruption,
+        corruption=corruption_fn,
         num_loader_proc=num_loader_proc
     )
     if loop:
-        return _infinite_loader(data_loader)
+        data_loader = _infinite_loader(data_loader)
+        return itertools.chain([next(data_loader)], data_loader)  # initialize iteration
     else:
         return data_loader
 

@@ -20,12 +20,9 @@ USE_DIST_IN_WINDOWS = False
 
 
 def is_available():
-    if is_available.cache is None:
+    if getattr(is_available, 'cache', None) is None:
         is_available.cache = setup_dist()
     return is_available.cache
-
-
-is_available.cache = None
 
 
 @functools.lru_cache(maxsize=None)
@@ -33,6 +30,11 @@ def setup_dist():
     """
     Setup a distributed process group.
     """
+    if os.name == 'nt':
+        _fetch_windows()
+        kwd = dict(hostname="localhost")
+    else:
+        kwd = dict()
     if os.name == 'nt' and not USE_DIST_IN_WINDOWS:
         if os.environ.get("LOCAL_RANK", str(0)) == str(0):
             import warnings
@@ -40,31 +42,32 @@ def setup_dist():
                 "In Windows, Distributed is unavailable by default settings. "
                 "To enable Distributed, edit utils.dist_util.USE_DIST_IN_WINDOWS to True."
             )
-        os.sync = lambda: None
     elif dist.is_available():  # All condition passed
         try:
-            _setup_dist()
+            _setup_dist(**kwd)
             if os.environ["LOCAL_RANK"] == str(0):
                 print("<INFO> torch.distributed setup success, using distributed setting..")
             return True
         except Exception as exc:
             print(f"<INFO> {exc.__class__.__qualname__}: {exc}")
-    os.environ.setdefault("LOCAL_RANK", str(0))
+    os.environ.setdefault("LOCAL_RANK", str(0))  # make legacy-rank-getter compatible
     if int(os.environ["LOCAL_RANK"]) == 0:
         print("<INFO> torch.distributed setup failed, skipping distributed setting..")
     return False
 
 
-def _setup_dist():
+def _setup_dist(backend=None, hostname=None):
     if dist.is_initialized():
         return
 
-    backend = "gloo" if not _cuda_available() else "nccl"
+    if backend is None:
+        backend = "gloo" if not _cuda_available() else "nccl"
 
-    if backend == "gloo":
-        hostname = "localhost"
-    else:
-        hostname = socket.gethostbyname(socket.getfqdn())
+    if hostname is None:
+        if backend == "gloo":
+            hostname = "localhost"
+        else:
+            hostname = socket.gethostbyname(socket.getfqdn())
 
     if os.environ.get("LOCAL_RANK") is None:
         os.environ["MASTER_ADDR"] = hostname
@@ -75,6 +78,10 @@ def _setup_dist():
         os.environ['LOCAL_RANK'] = str(0)
 
     dist.init_process_group(backend=backend, init_method="env://")
+
+
+def _fetch_windows():
+    os.sync = lambda: None  # signature: () -> None
 
 
 def get_rank(group=None):
