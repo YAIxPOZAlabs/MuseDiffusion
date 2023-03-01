@@ -34,8 +34,8 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
 
         for i in range(len(group_lst['src'])):
 
-            src = group_lst['src'][i]
-            trg = group_lst['trg'][i]
+            src = np.array(group_lst['src'][i])
+            trg = np.array(group_lst['trg'][i])
 
             chord_idx_bool = np.logical_and(195 <= trg, trg <= 303)
             chord_position_idx_int = np.repeat(np.where(chord_idx_bool)[0], 2)
