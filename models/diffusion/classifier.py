@@ -1,6 +1,7 @@
-'''
+"""
 For Better Embedding
-TOKEN CLASS
+
+[TOKEN CLASS]
 NOTE SEQ
 0 : PAD
 1 : EOS
@@ -21,18 +22,20 @@ META
 15 : META VELOCITY
 16 : TRACK ROLE
 17 : RHYTHM
-'''
-import torch
+"""
+
 import torch.nn as nn
+
+
 class Classifier(nn.Module):
-    def __init__(self,hidden_dim,num_cls = 18):
+
+    def __init__(self, hidden_dim, num_cls=18):
         super().__init__()
         self.classifier_layer = nn.Sequential(
-            nn.Linear(hidden_dim,hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_dim,num_cls)
+            nn.Linear(hidden_dim, num_cls)
         )
 
     def forward(self, x):
         return self.classifier_layer(x)
-    

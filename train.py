@@ -6,7 +6,6 @@ import os
 import json
 
 import wandb
-import torch
 from config import CHOICES, DEFAULT_CONFIG
 from utils.argument_util import add_dict_to_argparser, args_to_dict
 
@@ -57,7 +56,8 @@ def main(args):
     from models.diffusion.step_sample import create_named_schedule_sampler
     from utils import dist_util, logger
     from utils.initialization import create_model_and_diffusion, seed_all, \
-        fetch_pretrained_embedding, overload_embedding
+        fetch_pretrained_embedding, overload_embedding, \
+        fetch_pretrained_denoiser, overload_denoiser
     from utils.train_util import TrainLoop
     from utils.plotting import embedding_tsne_trainer_wandb_callback
 
@@ -102,22 +102,19 @@ def main(args):
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    pretrained_emb_weight = fetch_pretrained_embedding(args)
     model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
-    
-    
-    ### Loading Pretrained ###
+
+    # Load Pretrained Embedding Layer
+    pretrained_emb_weight = fetch_pretrained_embedding(args)
     if pretrained_emb_weight is not None:
         overload_embedding(model, pretrained_emb_weight, args.freeze_embedding)
-    
-    pretrained_dict = torch.load("diffusion.pt")
-    model_dict = model.state_dict()
 
-    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-    model_dict.update(pretrained_dict) 
-    model.load_state_dict(model_dict)
-    ### Loaded Pretrained ###
-    
+    # Loaded Pretrained De-noising Layer
+    pretrained_denoiser_dict = fetch_pretrained_denoiser(args)
+    if pretrained_denoiser_dict is not None:
+        overload_denoiser(model, pretrained_denoiser_dict)
+
+    # Load model to each node's device
     model.to(dist_util.dev())
     dist_util.barrier()  # Sync
 
