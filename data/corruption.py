@@ -52,7 +52,7 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
         corr_available = list(self.corr_available)
         generator.shuffle(corr_available)
         for corruption_fn in corr_available[:self.corr_max]:
-            if generator.random() > self.corr_p:
+            if generator.random() > 1 - self.corr_p:
                 corrupted = corruption_fn(corrupted, inplace=True)
         return corrupted
 
