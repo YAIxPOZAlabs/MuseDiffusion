@@ -30,7 +30,7 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
         lst = []
         mask = []
         length = []
-        label = []
+        # label = []
 
         for i in range(len(group_lst['src'])):
 
@@ -54,61 +54,61 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
             mask.append([*(0 for _ in range(src_eos_len)), *(1 for _ in range(trg_len))])
             length.append(src_eos_trg_len)
 
-            lab = []
-
-            for j in range(len(src)):
-                if src[j] in range(560, 601):  # BPM
-                    lab.append(8)
-                elif src[j] in range(195, 304):  # CHORD
-                    lab.append(5)
-                elif src[j] in range(601, 626):  # KEY
-                    lab.append(9)
-                elif src[j] in range(626, 630):  # TIME SIGNATURE
-                    lab.append(10)
-                elif src[j] in range(630, 638):  # PITCH RANGE
-                    lab.append(11)
-                elif src[j] in range(638, 641):  # NUMBER OF MEASURE
-                    lab.append(12)
-                elif src[j] in range(641, 650):  # INSTRUMENT
-                    lab.append(13)
-                elif src[j] in range(650, 653):  # GENRE
-                    lab.append(14)
-                elif src[j] in range(653, 719):  # META VELOCITY
-                    lab.append(15)
-                elif src[j] in range(719, 726):  # TRACK ROLE
-                    lab.append(16)
-                elif src[j] in range(726, 729):  # RHYTHM
-                    lab.append(17)
-                else:
-                    raise ValueError("Check your Meta Data")
-
-            lab.append(1)  # EOS
-
-            for j in range(len(trg)):
-                if trg[j] == 1:  # EOS
-                    lab.append(1)
-                elif trg[j] == 2:  # BAR
-                    lab.append(2)
-                elif trg[j] in range(3, 131):  # PITCH
-                    lab.append(3)
-                elif trg[j] in range(131, 195):  # VELOCITY
-                    lab.append(4)
-                elif trg[j] in range(195, 304):  # CHORD
-                    lab.append(5)
-                elif trg[j] in range(304, 432):  # DURATION
-                    lab.append(6)
-                elif trg[j] in range(432, 560):  # POSITION
-                    lab.append(7)
-                else:
-                    raise ValueError("Check your Midi Data")
-                    
-            label.append(lab)
-        assert len(lst) == len(label)
+        #     lab = []
+        #
+        #     for j in range(len(src)):
+        #         if src[j] in range(560, 601):  # BPM
+        #             lab.append(8)
+        #         elif src[j] in range(195, 304):  # CHORD
+        #             lab.append(5)
+        #         elif src[j] in range(601, 626):  # KEY
+        #             lab.append(9)
+        #         elif src[j] in range(626, 630):  # TIME SIGNATURE
+        #             lab.append(10)
+        #         elif src[j] in range(630, 638):  # PITCH RANGE
+        #             lab.append(11)
+        #         elif src[j] in range(638, 641):  # NUMBER OF MEASURE
+        #             lab.append(12)
+        #         elif src[j] in range(641, 650):  # INSTRUMENT
+        #             lab.append(13)
+        #         elif src[j] in range(650, 653):  # GENRE
+        #             lab.append(14)
+        #         elif src[j] in range(653, 719):  # META VELOCITY
+        #             lab.append(15)
+        #         elif src[j] in range(719, 726):  # TRACK ROLE
+        #             lab.append(16)
+        #         elif src[j] in range(726, 729):  # RHYTHM
+        #             lab.append(17)
+        #         else:
+        #             raise ValueError("Check your Meta Data")
+        #
+        #     lab.append(1)  # EOS
+        #
+        #     for j in range(len(trg)):
+        #         if trg[j] == 1:  # EOS
+        #             lab.append(1)
+        #         elif trg[j] == 2:  # BAR
+        #             lab.append(2)
+        #         elif trg[j] in range(3, 131):  # PITCH
+        #             lab.append(3)
+        #         elif trg[j] in range(131, 195):  # VELOCITY
+        #             lab.append(4)
+        #         elif trg[j] in range(195, 304):  # CHORD
+        #             lab.append(5)
+        #         elif trg[j] in range(304, 432):  # DURATION
+        #             lab.append(6)
+        #         elif trg[j] in range(432, 560):  # POSITION
+        #             lab.append(7)
+        #         else:
+        #             raise ValueError("Check your Midi Data")
+        #
+        #     label.append(lab)
+        # assert len(lst) == len(label)
 
         group_lst['input_ids'] = lst
         group_lst['input_mask'] = mask
         group_lst['length'] = length
-        group_lst['label'] = label
+        # group_lst['label'] = label
         return group_lst
 
     return ArrowDataset.from_dict(sentence_lst).map(
