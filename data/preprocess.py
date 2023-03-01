@@ -40,12 +40,10 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
             chord_idx_bool = np.logical_and(195 <= trg, trg <= 303)
             chord_position_idx_int = np.repeat(np.where(chord_idx_bool)[0], 2)
             chord_position_idx_int[::2] -= 1
-            chord_position_idx_bool = np.zeros_like(trg, dtype='?')
-            chord_position_idx_bool[chord_position_idx_int] = True
             to_trg_idx_bool = np.ones_like(trg, dtype='?')
             to_trg_idx_bool[chord_position_idx_int] = False
 
-            src = np.concatenate(src, trg[chord_position_idx_bool])
+            src = np.concatenate(src, trg[chord_position_idx_int.astype(int)])
             trg = trg[to_trg_idx_bool]
 
             src_eos_len = len(src) + 1
