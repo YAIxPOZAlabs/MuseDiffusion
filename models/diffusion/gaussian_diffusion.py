@@ -598,7 +598,7 @@ class GaussianDiffusion:
         assert 'input_ids' in model_kwargs
         input_ids_x = model_kwargs['input_ids'].to(t.device)
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
-        input_label = model_kwargs['label'].to(t.device)
+        # input_label = model_kwargs['label'].to(t.device)
 
         x_start_mean = model.model.module.get_embeds(input_ids_x)
 
@@ -629,10 +629,10 @@ class GaussianDiffusion:
         terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
         
         ### Classifier ###
-        cls_pred = model.model.module.get_cls(model_out_x_start)
-        cls_loss = th.nn.CrossEntropyLoss()
-        cls_nll = cls_loss(cls_pred.view(-1, cls_pred.size(-1)), input_label.view(-1))
-        terms['cls'] = cls_nll
+        # cls_pred = model.model.module.get_cls(model_out_x_start)
+        # cls_loss = th.nn.CrossEntropyLoss()
+        # cls_nll = cls_loss(cls_pred.view(-1, cls_pred.size(-1)), input_label.view(-1))
+        # terms['cls'] = cls_nll
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
@@ -644,7 +644,7 @@ class GaussianDiffusion:
                                                  truncate=True, t=t)  # x_0->model_out_x_start
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
-        terms["loss"] = terms["mse"] + decoder_nll + tT_loss + 0.2*terms['cls']
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss  # + 0.2 * terms['cls']
 
         return terms
 
