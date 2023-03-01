@@ -48,7 +48,7 @@ def wrap_dataset(
 class MidiSequenceDataset(torch.utils.data.Dataset[datasets.Dataset], datasets.Dataset):  # NOQA
 
     def __init__(self, dataset: "datasets.Dataset", corruption: "Callable" = None):  # NOQA
-        expected_column_names = {'input_ids', 'input_mask', 'label', 'length'}
+        expected_column_names = {'input_ids', 'input_mask', 'length'}  # | {'label'}
         if not isinstance(dataset, datasets.Dataset):
             raise TypeError("argument dataset must be instance of datasets.Dataset!")
         elif set(dataset.column_names) != expected_column_names:
@@ -60,8 +60,8 @@ class MidiSequenceDataset(torch.utils.data.Dataset[datasets.Dataset], datasets.D
         datasets.Dataset.set_format(
             self,
             type='torch',
-            columns=['input_ids', 'input_mask', 'label'],
-            output_all_columns=True
+            output_all_columns=True,
+            columns=['input_ids', 'input_mask']  # + ['label']
         )
         self.corruption = corruption
 
