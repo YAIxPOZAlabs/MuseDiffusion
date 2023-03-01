@@ -15,11 +15,7 @@ class ModelArguments(BaseModel):
 
 
 class TransXlInputData(MidiMeta):
-    output_dir: Path
 
-    num_generate: int
-    top_k: int
-    temperature: float
     chord_progression: List[str]
 
     @validator("chord_progression")
