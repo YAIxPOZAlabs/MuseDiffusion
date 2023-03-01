@@ -101,11 +101,12 @@ def collate_batches(batch_samples, seq_len=None, dtype=None):
     shape = (batch_len, seq_len)
     dtype = dtype or torch.long
     has_corruption = 'correct_ids' in batch_samples[0]
+    has_label = 'label' in batch_samples[0]
 
     correct_ids = torch.zeros(shape, dtype=dtype) if has_corruption else None
     input_ids = torch.zeros(shape, dtype=dtype)
     input_mask = torch.ones(shape, dtype=dtype)
-    label = torch.zeros(shape, dtype=dtype)
+    label = torch.zeros(shape, dtype=dtype) if has_label else None
     length = torch.zeros((batch_len, ), dtype=dtype)
 
     for idx, batch in enumerate(batch_samples):
@@ -114,18 +115,17 @@ def collate_batches(batch_samples, seq_len=None, dtype=None):
             correct_ids[idx][:lth] = batch['correct_ids']
         input_ids[idx][:lth] = batch['input_ids']
         input_mask[idx][:lth] = batch['input_mask']
-        label[idx][:lth] = batch['label']
+        if has_label:
+            label[idx][:lth] = batch['label']
         length[idx] = lth
 
-    result = {
-        'correct_ids': correct_ids,
-        'input_ids': input_ids,
-        'input_mask': input_mask,
-        'label': label,
-        'length': length
-    }
-    if not has_corruption:
-        result.pop('correct_ids')
+    result = {'input_ids': input_ids,
+              'input_mask': input_mask,
+              'length': length}
+    if has_corruption:
+        result['correct_ids'] = correct_ids
+    if has_label:
+        result['label'] = label
     return result
 
 

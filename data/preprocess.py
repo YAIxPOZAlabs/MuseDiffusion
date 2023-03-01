@@ -36,10 +36,16 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
 
             src = group_lst['src'][i]
             trg = group_lst['trg'][i]
-            
-            src = np.concatenate(src,trg[np.logical_and(195<=trg,trg<=303)])
-            trg = trg[np.logical_or(trg<195,trg>303)]
-            
+
+            chord_idx_bool = np.logical_and(195 <= trg, trg <= 303)
+            chord_position_idx_int = np.repeat(np.where(chord_idx_bool)[0], 2)
+            chord_position_idx_int[::2] -= 1
+            to_trg_idx_bool = np.ones_like(trg, dtype='?')
+            to_trg_idx_bool[chord_position_idx_int] = False
+
+            src = np.concatenate(src, trg[chord_position_idx_int])
+            trg = trg[to_trg_idx_bool]
+
             src_eos_len = len(src) + 1
             trg_len = len(trg)
             src_eos_trg_len = src_eos_len + trg_len
@@ -47,73 +53,58 @@ def helper_tokenize(sentence_lst, end_token=1, num_proc=4):
             lst.append([*src, end_token, *trg])
             mask.append([*(0 for _ in range(src_eos_len)), *(1 for _ in range(trg_len))])
             length.append(src_eos_trg_len)
+
             lab = []
+
             for j in range(len(src)):
-                #BPM
-                if src[j] in range(560,601):
+                if src[j] in range(560, 601):  # BPM
                     lab.append(8)
-                #CHORD
-                elif src[j] in range(195,304):
+                elif src[j] in range(195, 304):  # CHORD
                     lab.append(5)
-                #KEY
-                elif src[j] in range(601,626):
+                elif src[j] in range(601, 626):  # KEY
                     lab.append(9)
-                #TIME SIGNATURE
-                elif src[j] in range(626,630):
+                elif src[j] in range(626, 630):  # TIME SIGNATURE
                     lab.append(10)
-                #PITCH RANGE
-                elif src[j] in range(630,638):
+                elif src[j] in range(630, 638):  # PITCH RANGE
                     lab.append(11)
-                #NUMBER OF MEASURE
-                elif src[j] in range(638,641):
+                elif src[j] in range(638, 641):  # NUMBER OF MEASURE
                     lab.append(12)
-                #INSTRUMENT
-                elif src[j] in range(641,650):
+                elif src[j] in range(641, 650):  # INSTRUMENT
                     lab.append(13)
-                #GENRE
-                elif src[j] in range(650,653):
+                elif src[j] in range(650, 653):  # GENRE
                     lab.append(14)
-                #META VELOCITY
-                elif src[j] in range(653,719):
+                elif src[j] in range(653, 719):  # META VELOCITY
                     lab.append(15)
-                #TRACK ROLE
-                elif src[j] in range(719,726):
+                elif src[j] in range(719, 726):  # TRACK ROLE
                     lab.append(16)
-                #RHYTHM
-                elif src[j] in range(726,729):
+                elif src[j] in range(726, 729):  # RHYTHM
                     lab.append(17)
                 else:
                     raise ValueError("Check your Meta Data")
-                    
-            #EOS
-            lab.append(1)
+
+            lab.append(1)  # EOS
+
             for j in range(len(trg)):
-                #EOS    
-                if trg[j] == 1:
+                if trg[j] == 1:  # EOS
                     lab.append(1)
-                #BAR    
-                elif trg[j] == 2:
+                elif trg[j] == 2:  # BAR
                     lab.append(2)
-                #PITCH
-                elif trg[j] in range(3,131):
+                elif trg[j] in range(3, 131):  # PITCH
                     lab.append(3)
-                #VELOCITY
-                elif trg[j] in range(131,195):
+                elif trg[j] in range(131, 195):  # VELOCITY
                     lab.append(4)
-                #CHORD
-                elif trg[j] in range(195,304):
+                elif trg[j] in range(195, 304):  # CHORD
                     lab.append(5)
-                #DURATION
-                elif trg[j] in range(304,432):
+                elif trg[j] in range(304, 432):  # DURATION
                     lab.append(6)
-                #POSITION
-                elif trg[j] in range(432,560):
+                elif trg[j] in range(432, 560):  # POSITION
                     lab.append(7)
                 else:
                     raise ValueError("Check your Midi Data")
                     
             label.append(lab)
         assert len(lst) == len(label)
+
         group_lst['input_ids'] = lst
         group_lst['input_mask'] = mask
         group_lst['length'] = length

@@ -1,4 +1,3 @@
-
 def seed_all(seed, deterministic=False):
     import random
     import numpy as np
@@ -16,7 +15,7 @@ def seed_all(seed, deterministic=False):
         generator.seed(int(seed) + get_rank())  # Make corruption's seed differ by node rank
 
 
-def fetch_pretrained_embedding(args):
+def fetch_pretrained_embedding(args):  # Returns single parameter
     import os
     from utils import dist_util, logger
     if args.pretrained_embedding:
@@ -42,7 +41,7 @@ def fetch_pretrained_embedding(args):
 
 
 def overload_embedding(model, emb_weight, freeze_embedding):
-    from utils import logger
+    from utils import dist_util, logger
     import torch
     orig_vocab_size, _ = emb_weight.shape
     assert model.word_embedding.weight.shape[0] == orig_vocab_size
@@ -51,6 +50,26 @@ def overload_embedding(model, emb_weight, freeze_embedding):
     if freeze_embedding:
         model.word_embedding.requires_grad_(False)
     logger.log("### Successfully overloaded pretrained embedding weight.")
+    dist_util.barrier()
+    return model
+
+
+def fetch_pretrained_denoiser(args):  # Returns state dict
+    from utils import dist_util
+    if args.pretrained_denoiser:
+        denoiser_state_dict = dist_util.load_state_dict(args.pretrained_denoiser)
+        return denoiser_state_dict
+    return
+
+
+def overload_denoiser(model, denoiser_state_dict):
+    from utils import dist_util, logger
+    model_dict = model.state_dict()
+    pretrained_dict = {k: v for k, v in denoiser_state_dict.items() if k in model_dict}
+    model_dict.update(pretrained_dict)
+    model.load_state_dict(model_dict)
+    logger.log("### Successfully overloaded pretrained denoiser dict.")
+    dist_util.barrier()
     return model
 
 
@@ -81,9 +100,9 @@ def create_model_and_diffusion(
         output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
         hidden_t_dim=hidden_t_dim,
         vocab_size=vocab_size,
-        seq_len=seq_len, 
+        seq_len=seq_len,
         dropout=dropout,
-        )
+    )
 
     betas = get_named_beta_schedule(noise_schedule, diffusion_steps)
 
