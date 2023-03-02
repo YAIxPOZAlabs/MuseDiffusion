@@ -77,11 +77,10 @@ def main(args):
     from tqdm.auto import tqdm
 
     # Import everything
-    from MuseDiffusion.config import DEFAULT_CONFIG, load_json_config
+    from MuseDiffusion.config import TrainSettings
     from MuseDiffusion.data import load_data_music
     from MuseDiffusion.models.diffusion.rounding import denoised_fn_round
     from MuseDiffusion.utils import dist_util, logger
-    from MuseDiffusion.utils.argument_util import args_to_dict
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
     from MuseDiffusion.utils.decode_util import SequenceToMidi
 
@@ -106,15 +105,16 @@ def main(args):
     # Reload train configurations from model folder
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
     logger.log(f"### Loading training config from {config_path} ... ")
-    training_args = load_json_config(config_path)
-    training_args.pop('batch_size')
-    args.__dict__.update(training_args)
+    training_args = TrainSettings.parse_file(config_path)
+    training_args_dict = training_args.dict()
+    training_args_dict.pop('batch_size')
+    args.__dict__.update(training_args_dict)
     dist_util.barrier()  # Sync
     #########################################################################################
 
     ##################################### Initialization ####################################
     logger.log("### Creating model and diffusion... ")
-    model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    model, diffusion = create_model_and_diffusion(**training_args.dict())
 
     # Reload model weight from model folder
     model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))

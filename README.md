@@ -65,7 +65,7 @@ python3 -m MuseDiffusion.config --save_into train_cfg.json
 vi train_cfg.json
 
 # Run training script
-python3 scripts/run_train.py --config_file train_cfg.json --notes commu
+python3 -m MuseDiffusion.run.train --config_json train_cfg.json
 ```
 * Note: required arguments of `train.py` will be automatically loaded from `train_cfg.json`.
 * Note: script `scripts/run_train.py` will **run `train.py` with torch.distributed runner**. \

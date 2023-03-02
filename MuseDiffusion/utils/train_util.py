@@ -104,7 +104,7 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if dist_util.is_available():
+        if dist_util.is_initialized():
             if th.cuda.is_available():  # DEBUG **
                 self.use_ddp = True
                 print(dist_util.dev())

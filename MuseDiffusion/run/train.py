@@ -1,13 +1,12 @@
 """
 Train a diffusion model on images.
 """
-
 import os
 import json
 
 import wandb
-from MuseDiffusion.config import CHOICES, DEFAULT_CONFIG
-from MuseDiffusion.utils.argument_util import add_dict_to_argparser, args_to_dict, dist_util
+from MuseDiffusion.config import TrainSettings
+from MuseDiffusion.utils import dist_util
 
 
 def configure_wandb(args):
@@ -18,13 +17,6 @@ def configure_wandb(args):
         name=args.checkpoint_path
     )
     wandb.config.update(args.__dict__, allow_val_change=True)
-
-
-def parse_args(argv=None):
-    import argparse
-    parser = argparse.ArgumentParser()
-    add_dict_to_argparser(parser, DEFAULT_CONFIG, CHOICES)  # update latest args according to argparse
-    return parser.parse_args(argv)
 
 
 def print_credit():  # Optional
@@ -39,33 +31,66 @@ def print_credit():  # Optional
 def patch_proc_name_by_rank():
     if dist_util.is_available():
         title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
+        try:
+            import setproctitle  # NOQA
+            setproctitle.setproctitle(title)
+        except ImportError:
+            pass
+
+
+def parse_args() -> TrainSettings:
+
+    import argparse
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    setting_group = parser.add_argument_group(title="settings")
+    setting_group.add_mutually_exclusive_group().add_argument(
+        "--config_json", type=str, required=False,
+        help="You can alter arguments all below by config_json file.")
+    TrainSettings.to_argparse(setting_group.add_mutually_exclusive_group())
+
+    namespace = dist_util.parse_and_autorun(parser)
+
+    if namespace.config_json:
+        return TrainSettings.parse_file(namespace.config_json)
     else:
-        return
-    try:
-        import setproctitle  # NOQA
-        setproctitle.setproctitle(title)
-    except ImportError:
-        pass
+        if hasattr(namespace, "config_json"):
+            delattr(namespace, "config_json")
+        return TrainSettings.from_argparse(namespace)
 
 
-def main(args):
+def main(args: TrainSettings):
 
     # Import everything
+    import time
     from MuseDiffusion.data import load_data_music
     from MuseDiffusion.models.diffusion.step_sample import create_named_schedule_sampler
-    from MuseDiffusion.utils import dist_util
     from MuseDiffusion.utils import logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all, \
         fetch_pretrained_embedding, overload_embedding, \
         fetch_pretrained_denoiser, overload_denoiser
     from MuseDiffusion.utils.train_util import TrainLoop
-    from MuseDiffusion.utils import embedding_tsne_trainer_wandb_callback
+    from MuseDiffusion.utils.plotting import embedding_tsne_trainer_wandb_callback
 
-    # Setup everything
+    # Setup distributed
     dist_util.setup_dist()
     rank = dist_util.get_rank()
     dist_util.barrier()  # Sync
-    logger.configure(format_strs=["log", "csv"] + (["stdout"] if rank == 0 else []))
+
+    # Set checkpoint path
+    folder_name = "diffusion_models/"
+    if not os.path.isdir(folder_name) and rank == 0:
+        os.mkdir(folder_name)
+    if not args.checkpoint_path:
+        model_file = f"MuseDiffusion_{args.dataset}_h{args.hidden_dim}_lr{args.lr}" \
+                     f"_t{args.diffusion_steps}_{args.noise_schedule}_{args.schedule_sampler}" \
+                     f"_seed{args.seed}_{time.strftime('%Y%m%d-%H:%M:%S')}"
+        args.checkpoint_path = os.path.join(folder_name, model_file)
+    if not os.path.isdir(args.checkpoint_path) and rank == 0:
+        os.mkdir(args.checkpoint_path)
+
+    # Configure log and seed
+    logger.configure(dir=args.checkpoint_path, format_strs=["log", "csv"] + (["stdout"] if rank == 0 else []))
     seed_all(args.seed)
 
     # Prepare dataloader
@@ -102,7 +127,7 @@ def main(args):
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    model, diffusion = create_model_and_diffusion(**args.dict())
 
     # Load Pretrained Embedding Layer
     pretrained_emb_weight = fetch_pretrained_embedding(args)

@@ -10,9 +10,12 @@ def create_parser():
 
 def main(args):
     import sys
-    from . import load_json_config, dump_json_config, load_defaults_config
-    config_to_dump = load_json_config(args.load_from) if args.load_from else load_defaults_config()
-    dump_json_config(config_to_dump, args.save_into or sys.stdout, reduce=False)
+    import json
+    from . import TrainSettings
+    config = TrainSettings.parse_file(args.load_from) if args.load_from else TrainSettings()
+    fp = open(args.save_into, "w") if args.save_into else sys.stdout
+    with fp:
+        json.dump(config.dict(), fp, indent=2)
     return 0
 
 
