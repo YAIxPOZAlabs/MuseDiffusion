@@ -41,7 +41,7 @@ conda activate <environment-name>
 <h3>2. Preprocess dataset</h3>
 
 ```bash
-python3 -m data --num_proc <num-proc>
+python3 -m MuseDiffusion.data --num_proc <num-proc>
 ```
 * where `<num-proc>` can be optimized, according to your node spec.
 
@@ -59,7 +59,7 @@ $ TBD
 
 ```bash
 # Copy config file to root directory
-python3 -m config --save_into train_cfg.json
+python3 -m MuseDiffusion.config --save_into train_cfg.json
 
 # Optional: customize config on your own
 vi train_cfg.json
