@@ -2,9 +2,9 @@ import os
 import numpy as np
 from miditoolkit import MidiFile
 
-from models.commu.preprocessor.utils.container import MidiInfo
-from models.commu.preprocessor.encoder import EventSequenceEncoder
-from models.commu.midi_generator.midi_inferrer import InferenceTask
+from MuseDiffusion.models.commu.preprocessor.utils.container import MidiInfo
+from MuseDiffusion.models.commu.preprocessor.encoder import EventSequenceEncoder
+from MuseDiffusion.models.commu.midi_generator.midi_inferrer import InferenceTask
 
 import contextlib
 import io

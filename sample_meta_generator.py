@@ -1,6 +1,6 @@
 META = {}
 
-with open("./models/commu/preprocessor/utils/constants.py") as f:
+with open("MuseDiffusion/models/commu/preprocessor/utils/constants.py") as f:
         namespace = {}
         exec(f.read(), namespace)
         key_map = namespace['KEY_MAP']
@@ -79,7 +79,7 @@ for ch in t_chord:
 META['chord_progression'] = chord
 
 print(META)
-with open('./config/meta_dict.py', "w") as f:
+with open('meta_dict.py', "w") as f:
         import pprint
         print("META = ", end="", file=f)
         pprint.pprint(META, stream=f)

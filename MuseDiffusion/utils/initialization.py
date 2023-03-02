@@ -2,8 +2,8 @@ def seed_all(seed, deterministic=False):
     import random
     import numpy as np
     import torch
-    from data.corruption import generator
-    from utils.dist_util import get_rank
+    from ..data.corruption import generator
+    from .dist_util import get_rank
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)  # contains torch.cuda.manual_seed_all
@@ -17,7 +17,7 @@ def seed_all(seed, deterministic=False):
 
 def fetch_pretrained_embedding(args):  # Returns single parameter
     import os
-    from utils import dist_util, logger
+    from . import dist_util, logger
     if args.pretrained_embedding:
         emb_weight = dist_util.load_state_dict(args.pretrained_embedding)['weight']
         _, orig_hidden_dim = emb_weight.shape
@@ -41,7 +41,7 @@ def fetch_pretrained_embedding(args):  # Returns single parameter
 
 
 def overload_embedding(model, emb_weight, freeze_embedding):
-    from utils import dist_util, logger
+    from . import dist_util, logger
     import torch
     orig_vocab_size, _ = emb_weight.shape
     assert model.word_embedding.weight.shape[0] == orig_vocab_size
@@ -55,7 +55,7 @@ def overload_embedding(model, emb_weight, freeze_embedding):
 
 
 def fetch_pretrained_denoiser(args):  # Returns state dict
-    from utils import dist_util
+    from . import dist_util
     if args.pretrained_denoiser:
         denoiser_state_dict = dist_util.load_state_dict(args.pretrained_denoiser)
         return denoiser_state_dict
@@ -63,7 +63,7 @@ def fetch_pretrained_denoiser(args):  # Returns state dict
 
 
 def overload_denoiser(model, denoiser_state_dict):
-    from utils import dist_util, logger
+    from . import dist_util, logger
     model_dict = model.state_dict()
     pretrained_dict = {k: v for k, v in denoiser_state_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
@@ -91,9 +91,9 @@ def create_model_and_diffusion(
         use_kl,
         **_,
 ):
-    from models.diffusion.gaussian_diffusion \
+    from ..models.diffusion.gaussian_diffusion \
         import SpacedDiffusion, space_timesteps, get_named_beta_schedule
-    from models.diffusion.transformer_model import TransformerNetModel
+    from ..models.diffusion.transformer_model import TransformerNetModel
 
     model = TransformerNetModel(
         input_dims=hidden_dim,

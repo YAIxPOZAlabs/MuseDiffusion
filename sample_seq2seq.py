@@ -56,7 +56,7 @@ def parse_args(argv=None):
 def print_credit():  # Optional
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         try:
-            from utils.etc import credit
+            from MuseDiffusion.utils.etc import credit
             credit()
         except ImportError:
             pass
@@ -77,13 +77,13 @@ def main(args):
     from tqdm.auto import tqdm
 
     # Import everything
-    from config import DEFAULT_CONFIG, load_json_config
-    from data import load_data_music
-    from models.diffusion.rounding import denoised_fn_round
-    from utils import dist_util, logger
-    from utils.argument_util import args_to_dict
-    from utils.initialization import create_model_and_diffusion, seed_all
-    from utils.decode_util import SequenceToMidi
+    from MuseDiffusion.config import DEFAULT_CONFIG, load_json_config
+    from MuseDiffusion.data import load_data_music
+    from MuseDiffusion.models.diffusion.rounding import denoised_fn_round
+    from MuseDiffusion.utils import dist_util, logger
+    from MuseDiffusion.utils.argument_util import args_to_dict
+    from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
+    from MuseDiffusion.utils.decode_util import SequenceToMidi
 
     # Setup everything
     dist_util.setup_dist()
@@ -243,7 +243,6 @@ def main(args):
                 decoder(
                     sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - 원래 토큰으로 할 때
                     input_ids_mask_ori=input_ids_mask_ori,
-                    seq_len=args.seq_len,
                     output_dir=out_path,
                     batch_index=batch_index,
                     batch_size=args.batch_size

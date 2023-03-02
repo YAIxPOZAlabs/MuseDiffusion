@@ -11,7 +11,7 @@ if __name__ == '__main__':
     sys.path.append(dname)  # Assure upper folder import
     os.chdir(dname)
 
-    from config import DEFAULT_CONFIG
+    from MuseDiffusion.config import DEFAULT_CONFIG
 
     parser = argparse.ArgumentParser(description='Data preparing args.')
     parser.add_argument('--data_dir', type=str, default=DEFAULT_CONFIG['data_dir'], help='path to training dataset')
@@ -19,6 +19,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    from data.preprocess import tokenize_with_caching as main
+    from .preprocess import tokenize_with_caching as main
     for split in ('train', 'valid'):
         main(split=split, data_dir=args.data_dir, num_proc=args.num_proc, seq_len=float('inf'))

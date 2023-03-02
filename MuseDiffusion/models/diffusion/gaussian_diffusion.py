@@ -9,8 +9,6 @@ import math
 
 import numpy as np
 import torch as th
-import sys
-sys.path.append('.')
 
 from .nn import mean_flat
 
@@ -189,7 +187,6 @@ class GaussianDiffusion:
         )
 
         self.mapping_func = None  # implement in train main()
-        self.add_mask_noise = False  # TODO
 
     def training_losses(self, model, t, model_kwargs, noise=None):
         if 'correct_ids' in model_kwargs:
@@ -425,7 +422,7 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
-        eta = 0.0
+        eta=0.0
     ):
         """
         Generate samples from the model.
@@ -462,9 +459,10 @@ class GaussianDiffusion:
             clamp_first=clamp_first,
             mask=mask,
             x_start=x_start,
-            eta = eta
+            eta=eta
         ):
-            continue
+            # final.append(sample['sample'])  # TODO
+            pass
         final.append(sample['sample'])
         return final
 
@@ -483,6 +481,7 @@ class GaussianDiffusion:
         clamp_first=None,
         mask=None,
         x_start=None,
+        eta=0.0,
     ):
         """
         Generate samples from the model and yield intermediate samples from
@@ -598,7 +597,7 @@ class GaussianDiffusion:
         assert 'input_ids' in model_kwargs
         input_ids_x = model_kwargs['input_ids'].to(t.device)
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
-        input_label = model_kwargs['label'].to(t.device)
+        # input_label = model_kwargs['label'].to(t.device)
 
         x_start_mean = model.model.module.get_embeds(input_ids_x)
 
@@ -629,10 +628,10 @@ class GaussianDiffusion:
         terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
         
         ### Classifier ###
-        cls_pred = model.model.module.get_cls(model_out_x_start)
-        cls_loss = th.nn.CrossEntropyLoss()
-        cls_nll = cls_loss(cls_pred.view(-1, cls_pred.size(-1)), input_label.view(-1))
-        terms['cls'] = cls_nll
+        # cls_pred = model.model.module.get_cls(model_out_x_start)
+        # cls_loss = th.nn.CrossEntropyLoss()
+        # cls_nll = cls_loss(cls_pred.view(-1, cls_pred.size(-1)), input_label.view(-1))
+        # terms['cls'] = cls_nll
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
@@ -644,7 +643,7 @@ class GaussianDiffusion:
                                                  truncate=True, t=t)  # x_0->model_out_x_start
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
-        terms["loss"] = terms["mse"] + decoder_nll + tT_loss + 0.2*terms['cls']
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss  # + 0.2 * terms['cls']
 
         return terms
 
@@ -836,8 +835,8 @@ class GaussianDiffusion:
             progress=progress,
             mask=mask,
             x_start=x_start,
-            gap = gap,
-            eta = eta
+            gap=gap,
+            eta=eta
         ):
             final.append(sample['sample'])
         return final
@@ -890,7 +889,8 @@ class GaussianDiffusion:
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
                     mask=mask,
-                    x_start=x_start
+                    x_start=x_start,
+                    eta=eta
                 )
                 yield out
                 sample_x = out["sample"]

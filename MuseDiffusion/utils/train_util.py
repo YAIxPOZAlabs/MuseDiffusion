@@ -8,10 +8,10 @@ import torch as th
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
-from models.diffusion.nn import update_ema
-from models.diffusion.step_sample import LossAwareSampler, UniformSampler
-from utils import dist_util, logger
-from utils.fp16_util import (
+from ..models.diffusion.nn import update_ema
+from ..models.diffusion.step_sample import LossAwareSampler, UniformSampler
+from . import dist_util, logger
+from .fp16_util import (
     make_master_params,
     master_params_to_model_params,
     model_grads_to_master_grads,
