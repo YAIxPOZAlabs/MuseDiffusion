@@ -26,10 +26,10 @@ def fetch_pretrained_embedding(args):  # Returns single parameter
                 f"Pretrained embedding {os.path.basename(args.pretrained_embedding)}'s "
                 f"hidden_dim {orig_hidden_dim} is differ from "
                 f"config's hidden dim {args.hidden_dim}.\n"
-                f"args.hidden_dim and args.fnet_hidden_dim will be overwritten into"
+                f"args.hidden_dim will be overwritten into"
                 f"pretrained embedding's hidden dim {orig_hidden_dim}"
             )
-            args.hidden_dim = args.fnet_hidden_dim = orig_hidden_dim
+            args.hidden_dim = orig_hidden_dim
         return emb_weight
     else:
         if args.freeze_embedding:
@@ -43,10 +43,11 @@ def fetch_pretrained_embedding(args):  # Returns single parameter
 def overload_embedding(model, emb_weight, freeze_embedding):
     from . import dist_util, logger
     import torch
+    from torch.nn import Parameter
     orig_vocab_size, _ = emb_weight.shape
     assert model.word_embedding.weight.shape[0] == orig_vocab_size
     with torch.no_grad():
-        model.word_embedding.weight.data[:orig_vocab_size] = emb_weight
+        model.word_embedding.weight = Parameter(emb_weight)
     if freeze_embedding:
         model.word_embedding.requires_grad_(False)
     logger.log("### Successfully overloaded pretrained embedding weight.")

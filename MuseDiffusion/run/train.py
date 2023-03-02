@@ -2,7 +2,12 @@
 Train a diffusion model on images.
 """
 import os
-from MuseDiffusion.config import TrainSettings
+try:
+    from MuseDiffusion.config import TrainSettings
+except ImportError:
+    import sys
+    sys.path.insert(0, os.getcwd())
+    from MuseDiffusion.config import TrainSettings
 
 
 def configure_wandb(args: TrainSettings):
