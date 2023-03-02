@@ -2,18 +2,20 @@
 Train a diffusion model on images.
 """
 import os
-import json
+try:
+    from MuseDiffusion.config import TrainSettings
+except ImportError:
+    import sys
+    sys.path.insert(0, os.getcwd())
+    from MuseDiffusion.config import TrainSettings
 
-import wandb
-from MuseDiffusion.config import TrainSettings
-from MuseDiffusion.utils import dist_util
 
-
-def configure_wandb(args):
+def configure_wandb(args: TrainSettings):
+    import wandb
     wandb.init(
         mode=os.getenv("WANDB_MODE", "online"),  # you can change it to offline
-        entity=os.getenv("WANDB_ENTITY", "yai-diffusion"),
-        project=os.getenv("WANDB_PROJECT", "YAIxPOZAlabs"),
+        entity=os.getenv("WANDB_ENTITY", "yai-diffusion"),  # TODO: getenv("WANDB_ENTITY")
+        project=os.getenv("WANDB_PROJECT", "YAIxPOZAlabs"),  # TODO: getenv("WANDB_PROJECT")
         name=args.checkpoint_path
     )
     wandb.config.update(args.__dict__, allow_val_change=True)
@@ -25,6 +27,7 @@ def print_credit():  # Optional
 
 
 def patch_proc_name_by_rank():
+    from MuseDiffusion.utils import dist_util
     if dist_util.is_available():
         title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
         try:
@@ -37,6 +40,7 @@ def patch_proc_name_by_rank():
 def parse_args() -> TrainSettings:
 
     import argparse
+    from MuseDiffusion.utils.dist_run import parse_and_autorun
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     setting_group = parser.add_argument_group(title="settings")
@@ -45,7 +49,7 @@ def parse_args() -> TrainSettings:
         help="You can alter arguments all below by config_json file.")
     TrainSettings.to_argparse(setting_group.add_mutually_exclusive_group())
 
-    namespace = dist_util.parse_and_autorun(parser)
+    namespace = parse_and_autorun(parser)
 
     if namespace.config_json:
         return TrainSettings.parse_file(namespace.config_json)
@@ -59,9 +63,10 @@ def main(args: TrainSettings):
 
     # Import everything
     import time
+    import json
     from MuseDiffusion.data import load_data_music
     from MuseDiffusion.models.diffusion.step_sample import create_named_schedule_sampler
-    from MuseDiffusion.utils import logger
+    from MuseDiffusion.utils import dist_util, logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all, \
         fetch_pretrained_embedding, overload_embedding, \
         fetch_pretrained_denoiser, overload_denoiser
