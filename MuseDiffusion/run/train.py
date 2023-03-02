@@ -20,12 +20,8 @@ def configure_wandb(args):
 
 
 def print_credit():  # Optional
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        try:
-            from MuseDiffusion.utils.etc import credit
-            credit()
-        except ImportError:
-            pass
+    from MuseDiffusion.utils.etc import credit
+    credit()
 
 
 def patch_proc_name_by_rank():

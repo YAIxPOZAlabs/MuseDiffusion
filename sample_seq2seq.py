@@ -1,69 +1,18 @@
-"""
-Generate a large batch of image samples from a model and save them as a large
-numpy array. This can be used to produce samples for FID evaluation.
-"""
-
 import os
 
+
 def parse_args(argv=None):
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='',
-                        help='folder where model checkpoint exist')
-    parser.add_argument('--step', type=int, default=100,
-                        help='ddim step, if not using ddim, should be same as diffusion step')
-    parser.add_argument('--out_dir', type=str, default='./generation_outputs/',
-                        help='output directory to store generated midi')
-    parser.add_argument('--batch_size', type=int, default=50,
-                        help='batch size to run decode')
-    parser.add_argument('--use_ddim_reverse', type=bool, default=False,
-                        help='choose forward process as ddim or not')
-    parser.add_argument('--top_p', type=int, default=0,
-                        help='range of the noise added to input, should be set between 0 and 1 (0=no restriction)')
-    parser.add_argument('--split', type=str, default='valid',
-                        help='dataset type used in sampling')
-    parser.add_argument('--clamp_step', type=int, default=0,
-                        help='in clamp_first mode, choose end clamp step, otherwise starting clamp step')
-    parser.add_argument('--sample_seed', type=int, default=105,
-                        help='random seed for sampling')
-    parser.add_argument('--clip_denoised', type=bool, default=False,
-                        help='denoising 시 clipping 진행여부')
-    args = parser.parse_args(argv)
-
-    if not args.model_path:  # Try to get latest model_path
-        def get_latest_model_path(base_path):
-            candidates = filter(os.path.isdir, os.listdir(base_path))
-            candidates_join = (os.path.join(base_path, x) for x in candidates)
-            candidates_sort = sorted(candidates_join, key=os.path.getmtime, reverse=True)
-            if not candidates_sort:
-                return
-            ckpt_path = candidates_sort[0]
-            candidates = filter(os.path.isfile, os.listdir(ckpt_path))
-            candidates_join = (os.path.join(ckpt_path, x) for x in candidates if x.endswith('.pt'))
-            candidates_sort = sorted(candidates_join, key=os.path.getmtime, reverse=True)
-            if not candidates_sort:
-                return
-            return candidates_sort[0]
-
-        model_path = get_latest_model_path("diffusion_models")
-        if model_path is None:
-            raise argparse.ArgumentTypeError("You should specify --model_path: no trained model in ./diffusion_models")
-        args.model_path = model_path
-
-    return args
+    from MuseDiffusion.config import SamplingSettings
+    return SamplingSettings.from_argv(argv)
 
 
 def print_credit():  # Optional
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        try:
-            from MuseDiffusion.utils.etc import credit
-            credit()
-        except ImportError:
-            pass
+    from MuseDiffusion.utils.etc import credit
+    credit()
 
 
 def main(args):
-    ######################################### Setup #####################################
+
     # Ensure no_grad()
     import torch as th
     if th.is_grad_enabled():
@@ -110,9 +59,8 @@ def main(args):
     training_args_dict.pop('batch_size')
     args.__dict__.update(training_args_dict)
     dist_util.barrier()  # Sync
-    #########################################################################################
 
-    ##################################### Initialization ####################################
+    # Initialize model and diffusion
     logger.log("### Creating model and diffusion... ")
     model, diffusion = create_model_and_diffusion(**training_args.dict())
 
@@ -158,7 +106,6 @@ def main(args):
     dist_util.barrier()  # Sync
 
     # Set up forward and sample functions
-    # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample
     if args.step == args.diffusion_steps:
         args.use_ddim = False
         step_gap = 1
@@ -179,29 +126,17 @@ def main(args):
         if batch_index % world_size != rank:
             continue
 
-        input_ids_x = cond['input_ids']
-        input_ids_mask_ori = cond['input_mask']
+        input_ids_x = cond['input_ids'].to(dev)
+        input_ids_mask_ori = cond['input_mask'].to(dev)
 
-        x_start = model.get_embeds(input_ids_x.to(dev))
-        input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
+        x_start = model.get_embeds(input_ids_x)
+        input_ids_mask = th.broadcast_to(input_ids_mask_ori.unsqueeze(dim=-1), x_start.shape)
         model_kwargs = cond
 
-        # noise = th.randn_like(x_start)
-
-        # if args.use_ddim_reverse:
-        #     noise = x_start
-        #     timestep = th.zeros((args.batch_size, ), device=dev, dtype=th.long)
-        #     for i in range(args.diffusion_steps):
-        #         timestep.fill_(i)
-        #         noise = diffusion.ddim_reverse_sample(model, noise, t=timestep, clip_denoised=args.clip_denoised, model_kwargs=model_kwargs, )["sample"]
-        # else:  
-        # 일단 ddim reverse는 안쓰는게 나아 보임. 
-        # 추가로 noising을 얼마나 줄지를 결정해야됨.
         noising_t = args.diffusion_steps
         timestep = th.full((args.batch_size, 1), noising_t - 1, device=dev)
-        noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask)
-
-        x_noised = th.where(input_ids_mask == 0, x_start, noise.squeeze(-1))
+        noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask).squeeze(-1)
+        x_noised = th.where(input_ids_mask == 0, x_start, noise)
 
         samples = sample_fn(
             model=model,
@@ -242,7 +177,7 @@ def main(args):
                 # )
                 decoder(
                     sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - 원래 토큰으로 할 때
-                    input_ids_mask_ori=input_ids_mask_ori,
+                    input_ids_mask_ori=input_ids_mask_ori.cpu().numpy(),
                     output_dir=out_path,
                     batch_index=batch_index,
                     batch_size=args.batch_size

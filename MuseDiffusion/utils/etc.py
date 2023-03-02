@@ -1,8 +1,6 @@
 class CreditPrinter(object):
 
     def __init__(self):
-        import shutil
-        self._get_terminal_size = shutil.get_terminal_size
         self._chr_list = (
             "⠀⠁⠂⠃⠄⠅⠆⠇⠈⠉⠊⠋⠌⠍⠎⠏⠐⠑⠒⠓⠔⠕⠖⠗⠘⠙⠚⠛⠜⠝⠞⠟⠠⠡⠢⠣⠤⠥⠦⠧⠨⠩⠪⠫⠬⠭⠮⠯⠰⠱⠲⠳⠴⠵⠶⠷⠸⠹⠺⠻⠼⠽⠾⠿"
             "⡀⡁⡂⡃⡄⡅⡆⡇⡈⡉⡊⡋⡌⡍⡎⡏⡐⡑⡒⡓⡔⡕⡖⡗⡘⡙⡚⡛⡜⡝⡞⡟⡠⡡⡢⡣⡤⡥⡦⡧⡨⡩⡪⡫⡬⡭⡮⡯⡰⡱⡲⡳⡴⡵⡶⡷⡸⡹⡺⡻⡼⡽⡾⡿"
@@ -84,11 +82,12 @@ class CreditPrinter(object):
         self.members_offset = 6
         self.members_minimum = 30
 
-    def __call__(self):
+    def print(self):
+        import shutil
         try:
             key = columns = 0
             try:
-                columns, _ = self._get_terminal_size()
+                columns, _ = shutil.get_terminal_size()
             except OSError:
                 key = self.main_logos_default_key
             else:
@@ -111,6 +110,11 @@ class CreditPrinter(object):
                 print()
         except Exception:  # NOQA
             pass
+
+    def __call__(self):
+        import os
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            self.print()
 
 
 credit = CreditPrinter()

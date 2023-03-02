@@ -4,7 +4,7 @@ try:
 except ImportError:
     from typing_extensions import get_args
 from argparse import ArgumentParser as Ap, ArgumentDefaultsHelpFormatter as Df
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from pydantic.validators import bool_validator
 import yaml
 
@@ -71,6 +71,9 @@ def item(default, description=None):
 
 
 _ = Item = item  # Alias
+
+
+Validator = validator  # Alias
 
 
 if __name__ == '__main__':
