@@ -153,8 +153,8 @@ def main(args: TrainSettings):
     if not os.path.exists(training_args_path):
         logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
         if dist_util.get_rank() == 0:
-            with open(training_args_path, 'w') as f:
-                json.dump(args.__dict__, f, indent=2)
+            with open(training_args_path, 'w') as fp:
+                json.dump(args.dict(), fp, indent=2)
 
     # Init wandb
     if dist_util.get_rank() == 0:
