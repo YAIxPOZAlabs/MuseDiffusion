@@ -35,6 +35,50 @@ class SequenceToMidi:
         else:
             return None
             # raise ValueError('Error in note sequence, no eos token')
+    @staticmethod
+    def restore_chord(seq, meta):
+        '''
+        decode에서 remove padding 후에
+        encoded meta랑 zero padding 없어진 seq input으로 사용
+        '''
+        new_meta = meta[:11]
+        chord_info = meta[11:]
+        bar_idx = np.where(seq==2)[0]
+        #print(bar_idx)
+        #assert len(bar_idx) == len(np.where(chord_info==432)[0])
+        if len(bar_idx) == len(np.where(chord_info==432)[0]):
+            new_seq = np.concatenate((seq[:bar_idx[0]+1],chord_info[:2]),axis=0)
+            bar_count = 0
+            last_idx = bar_idx[0]
+        elif len(bar_idx) == len(np.where(chord_info==432)[0])+1:
+            new_seq = np.concatenate((seq[:bar_idx[1]+1],chord_info[:2]),axis=0)
+            bar_count = 1
+            last_idx = bar_idx[1]
+        else:
+            raise ValueError('Somethings wrong')
+
+        for i in range(2, len(chord_info), 2):
+            if chord_info[i] == 432:
+                new_seq = np.concatenate((new_seq, seq[last_idx+1:bar_idx[bar_count+1]+1],chord_info[i:i+2]),axis=0)
+                bar_count += 1
+                last_idx=bar_idx[bar_count]
+
+            else:
+                #print(chord_info[i], chord_info[i+1])
+                candidate = np.logical_and(432<=seq,seq<chord_info[i])
+                candidate = np.where(candidate==True)[0]
+                if bar_count != len(bar_idx)-1:
+                    can_idx = np.where(np.logical_and(bar_idx[bar_count]<candidate,candidate<bar_idx[bar_count+1])==True)[0]
+                else:
+                    can_idx = np.where(bar_idx[bar_count]<candidate)[0]
+                
+                if len(can_idx) == 0:
+                    new_seq = np.concatenate((new_seq, chord_info[i:i+2]),axis=0)
+                else:
+                    new_seq = np.concatenate((new_seq, seq[last_idx+1:candidate[can_idx[-1]] + 4], chord_info[i:i+2]),axis=0)
+                    last_idx = candidate[can_idx[-1]] + 3 # 무조건 note 일것으로 예상됨
+        new_seq = np.concatenate((new_seq, seq[last_idx+1:]),axis=0)
+        return new_seq, new_meta
 
     # Get method from pre-declared class
     validate_generated_sequence = InferenceTask.validate_generated_sequence
@@ -51,11 +95,11 @@ class SequenceToMidi:
 
     def _decode_single(self, seq, input_mask):  # Output: Midi, Errcode
         len_meta = len(seq) - int((input_mask.sum()))
-        assert len_meta == 12
 
         encoded_meta = seq[:len_meta - 1]  # meta의 eos 토큰 제외 11개만 가져오기
         note_seq = seq[len_meta:]
         note_seq = self.remove_padding(note_seq)
+        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
 
         if note_seq is not None:
             if self.validate_generated_sequence(note_seq):
