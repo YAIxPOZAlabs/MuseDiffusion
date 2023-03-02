@@ -1,9 +1,7 @@
-import pathlib
-import hashlib
-from urllib.request import urlretrieve
+__all__ = ('guarantee_data', 'validate_checksum', 'download_data', 'get_data_dir')
 
 
-dataset_info = {
+DATASET_INFO = {
     'target_train.npy': (
         'https://github.com/YAIxPOZAlabs/ComMU-processed/blob/master/target_train.npy?raw=true',
         '3721233979443a35b66de1f55baf0c89'),
@@ -20,15 +18,18 @@ dataset_info = {
 
 
 def get_data_dir(data_dir=None):
+    import os
+    from pathlib import Path
     if data_dir is not None:
-        return pathlib.Path(data_dir).absolute()
+        return Path(data_dir).absolute()
     else:
-        return pathlib.Path(__file__).absolute().parent.parent.joinpath('datasets').joinpath('ComMU-processed')
+        return Path(os.getcwd()) / 'datasets' / 'ComMU-processed'
 
 
 def check_hash(data_dir):
+    import hashlib
     download_path = get_data_dir(data_dir)
-    for filename, (_, checksum) in dataset_info.items():
+    for filename, (_, checksum) in DATASET_INFO.items():
         filepath = download_path.joinpath(filename)
         with open(filepath, 'rb') as f:
             assert checksum == hashlib.md5(f.read()).hexdigest(), \
@@ -37,13 +38,14 @@ def check_hash(data_dir):
 
 
 def download_data(data_dir, *, mode=0o755):
+    from urllib.request import urlretrieve
     download_path = get_data_dir(data_dir)
-    print('#' * 30, '\nDownloading Datasets...')
+    print('#' * 30 + '\nDownloading Datasets...\n' + '#' * 30)
     download_path.parent.mkdir(mode=mode, exist_ok=True)
     download_path.mkdir(mode=mode, exist_ok=True)
-    for idx, (filename, (url, _)) in enumerate(dataset_info.items(), start=1):
+    for idx, (filename, (url, _)) in enumerate(DATASET_INFO.items(), start=1):
         filepath = download_path.joinpath(filename)
-        print(filename, "({idx}/{total})".format(idx=idx, total=len(dataset_info)))
+        print(filename, "({idx}/{total})".format(idx=idx, total=len(DATASET_INFO)))
         urlretrieve(url, str(filepath))
         filepath.chmod(mode=mode)
     check_hash(data_dir)
@@ -53,7 +55,7 @@ def validate_checksum(data_dir):
     download_path = get_data_dir(data_dir)
     return download_path.parent.is_dir() and \
         download_path.is_dir() and \
-        all((download_path.joinpath(filename).is_file() for filename in dataset_info.keys())) and \
+        all((download_path.joinpath(filename).is_file() for filename in DATASET_INFO.keys())) and \
         check_hash(data_dir)
 
 
@@ -67,6 +69,3 @@ if __name__ == '__main__':
     print("Dataset is {0} to {1}.".format(
         "downloaded and validated" if validate_checksum(None) else "not downloaded",
         get_data_dir(None)))
-
-
-__all__ = ('guarantee_data', 'validate_checksum', 'download_data', 'get_data_dir')

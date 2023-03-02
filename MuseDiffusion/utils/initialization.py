@@ -73,6 +73,25 @@ def overload_denoiser(model, denoiser_state_dict):
     return model
 
 
+def get_latest_model_path(base_path):
+    try:
+        import os
+        candidates = filter(os.path.isdir, os.listdir(base_path))
+        candidates_join = (os.path.join(base_path, x) for x in candidates)
+        candidates_sort = sorted(candidates_join, key=os.path.getmtime, reverse=True)
+        if not candidates_sort:
+            return
+        ckpt_path = candidates_sort[0]
+        candidates = filter(os.path.isfile, os.listdir(ckpt_path))
+        candidates_join = (os.path.join(ckpt_path, x) for x in candidates if x.endswith('.pt'))
+        candidates_sort = sorted(candidates_join, key=os.path.getmtime, reverse=True)
+        if not candidates_sort:
+            return
+        return candidates_sort[0]
+    except OSError:
+        return
+
+
 def create_model_and_diffusion(
         *,
         hidden_t_dim,

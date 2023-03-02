@@ -1,66 +1,14 @@
-"""
-Generate a large batch of image samples from a model and save them as a large
-numpy array. This can be used to produce samples for FID evaluation.
-"""
-
 import os
 
 
 def parse_args(argv=None):
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default='',
-                        help='folder where model checkpoint exist')
-    parser.add_argument('--step', type=int, default=100,
-                        help='ddim step, if not using ddim, should be same as diffusion step')
-    parser.add_argument('--out_dir', type=str, default='./generation_outputs/',
-                        help='output directory to store generated midi')
-    parser.add_argument('--batch_size', type=int, default=50,
-                        help='batch size to run decode')
-    parser.add_argument('--use_ddim_reverse', type=bool, default=True,
-                        help='choose forward process as ddim or not')
-    parser.add_argument('--top_p', type=int, default=0,
-                        help='이거는 어떤 역할을 하는지 확인 필요')
-    parser.add_argument('--split', type=str, default='valid',
-                        help='dataset type used in sampling')
-    parser.add_argument('--clamp_step', type=int, default=0,
-                        help='in clamp_first mode, choose end clamp step, otherwise starting clamp step')
-    parser.add_argument('--sample_seed', type=int, default=105,
-                        help='random seed for sampling')
-    parser.add_argument('--clip_denoised', type=bool, default=False,
-                        help='아마도 denoising 시 clipping 진행여부')
-    args = parser.parse_args(argv)
-
-    if not args.model_path:  # Try to get latest model_path
-        def get_latest_model_path(base_path):
-            candidates = filter(os.path.isdir, os.listdir(base_path))
-            candidates_join = (os.path.join(base_path, x) for x in candidates)
-            candidates_sort = sorted(candidates_join, key=os.path.getmtime, reverse=True)
-            if not candidates_sort:
-                return
-            ckpt_path = candidates_sort[0]
-            candidates = filter(os.path.isfile, os.listdir(ckpt_path))
-            candidates_join = (os.path.join(ckpt_path, x) for x in candidates if x.endswith('.pt'))
-            candidates_sort = sorted(candidates_join, key=os.path.getmtime, reverse=True)
-            if not candidates_sort:
-                return
-            return candidates_sort[0]
-
-        model_path = get_latest_model_path("diffusion_models")
-        if model_path is None:
-            raise argparse.ArgumentTypeError("You should specify --model_path: no trained model in ./diffusion_models")
-        args.model_path = model_path
-
-    return args
+    from MuseDiffusion.config import SamplingSettings
+    return SamplingSettings.from_argv(argv)
 
 
 def print_credit():  # Optional
-    if int(os.environ.get('LOCAL_RANK', "0")) == 0:
-        try:
-            from MuseDiffusion.utils.etc import credit
-            credit()
-        except ImportError:
-            pass
+    from MuseDiffusion.utils.etc import credit
+    credit()
 
 
 def main(args):
@@ -75,12 +23,13 @@ def main(args):
     from io import StringIO
     from contextlib import redirect_stdout
     from functools import partial
+    from tqdm.auto import tqdm
 
     # Import everything
-    from MuseDiffusion.config import DEFAULT_CONFIG, load_json_config
+    from MuseDiffusion.config import TrainSettings
+    from MuseDiffusion.data import load_data_music
     from MuseDiffusion.models.diffusion.rounding import denoised_fn_round
     from MuseDiffusion.utils import dist_util, logger
-    from MuseDiffusion.utils.argument_util import args_to_dict
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
     from MuseDiffusion.utils.decode_util import SequenceToMidi
 
@@ -105,14 +54,15 @@ def main(args):
     # Reload train configurations from model folder
     config_path = os.path.join(os.path.split(args.model_path)[0], "training_args.json")
     logger.log(f"### Loading training config from {config_path} ... ")
-    training_args = load_json_config(config_path)
-    training_args.pop('batch_size')
-    args.__dict__.update(training_args)
+    training_args = TrainSettings.parse_file(config_path)
+    training_args_dict = training_args.dict()
+    training_args_dict.pop('batch_size')
+    args.__dict__.update(training_args_dict)
     dist_util.barrier()  # Sync
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion... ")
-    model, diffusion = create_model_and_diffusion(**args_to_dict(args, DEFAULT_CONFIG.keys()))
+    model, diffusion = create_model_and_diffusion(**training_args.dict())
 
     # Reload model weight from model folder
     model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
@@ -147,10 +97,10 @@ def main(args):
 
     preprocess_task = PreprocessTask()
     encoded_meta = preprocess_task.excecute(META)
-    encoded_meta = th.Tensor(encoded_meta)
+    encoded_meta = th.tensor(encoded_meta, device=dev)
+    dist_util.barrier()  # Sync
 
     # Set up forward and sample functions
-    # forward_fn = diffusion.q_sample if not args.use_ddim_reverse else diffusion.ddim_reverse_sample # config에 use_ddim_reverse boolean 타입으로 추가해야됨
     if args.step == args.diffusion_steps:
         args.use_ddim = False
         step_gap = 1
@@ -164,18 +114,18 @@ def main(args):
     logger.log(f"### Sampling on {args.split} ... ")
     start_t = time.time()
 
-    input_ids_mask_ori = th.ones(args.batch_size, args.seq_len)
-    input_ids_mask_ori[:,:len(encoded_meta)]=0
+    input_ids_mask_ori = th.ones(args.batch_size, args.seq_len, device=dev)
+    input_ids_mask_ori[:, :len(encoded_meta) + 1] = 0
 
-    input_ids_x = th.zeros(args.batch_size, args.seq_len)
-    input_ids_x[:,:len(encoded_meta)] = encoded_meta
+    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev)
+    input_ids_x[:, :len(encoded_meta)] = encoded_meta
 
-    x_start = model.get_embeds(input_ids_x.to(dev))
-    input_ids_mask = th.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
-    model_kwargs = {'input_ids':input_ids_x, 'input_mask':input_ids_mask_ori}
+    x_start = model.get_embeds(input_ids_x)
+    input_ids_mask = th.broadcast_to(input_ids_mask_ori.unsqueeze(dim=-1), x_start.shape)
+    model_kwargs = {'input_ids': input_ids_x, 'input_mask': input_ids_mask_ori}
 
-    noise = th.randn(args.batch_size, args.seq_len)
-    x_noised = th.where(input_ids_mask == 0, x_start, noise.squeeze(-1))
+    noise = th.randn_like(x_start)  # randn_like: device will be same as x_start
+    x_noised = th.where(input_ids_mask == 0, x_start, noise)
 
     samples = sample_fn(
         model=model,
@@ -217,7 +167,7 @@ def main(args):
             # )
             decoder(
                 sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - 원래 토큰으로 할 때
-                input_ids_mask_ori=input_ids_mask_ori,
+                input_ids_mask_ori=input_ids_mask_ori.cpu().numpy(),
                 output_dir=out_path,
                 batch_index=batch_index,
                 batch_size=args.batch_size
