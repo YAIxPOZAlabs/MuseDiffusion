@@ -12,19 +12,12 @@ import io
 
 class SequenceToMidi:
 
+    decoder = EventSequenceEncoder()
+
     output_file_format = "{output_dir}/{original_index}_batch{batch_index}_{index}.midi"
-
-    def __init__(self):
-        self.decoder = EventSequenceEncoder()
-
-    decoder: "EventSequenceEncoder"
 
     @staticmethod
     def remove_padding(generation_result):
-        """
-        TODO
-        Future Work
-        """
         npy = np.array(generation_result)
         assert npy.ndim == 1
 
@@ -34,89 +27,99 @@ class SequenceToMidi:
             return generation_result[:eos_idx + 1]
         else:
             return None
-            # raise ValueError('Error in note sequence, no eos token')
+
     @staticmethod
     def restore_chord(seq, meta):
-        '''
-        decode에서 remove padding 후에
-        encoded meta랑 zero padding 없어진 seq input으로 사용
-        '''
+        """
+        decode 시 remove padding 후에
+        encoded meta 및 zero padding 없어진 seq input 으로 사용
+        """
         new_meta = meta[:11]
         chord_info = meta[11:]
-        bar_idx = np.where(seq==2)[0]
-        #print(bar_idx)
-        #assert len(bar_idx) == len(np.where(chord_info==432)[0])
-        if len(bar_idx) == len(np.where(chord_info==432)[0]):
-            new_seq = np.concatenate((seq[:bar_idx[0]+1],chord_info[:2]),axis=0)
+        bar_idx = np.where(seq == 2)[0]
+        if len(bar_idx) == len(np.where(chord_info == 432)[0]):
+            new_seq = np.concatenate((seq[:bar_idx[0]+1], chord_info[:2]) ,axis=0)
             bar_count = 0
             last_idx = bar_idx[0]
-        elif len(bar_idx) == len(np.where(chord_info==432)[0])+1:
-            new_seq = np.concatenate((seq[:bar_idx[1]+1],chord_info[:2]),axis=0)
+        elif len(bar_idx) == len(np.where(chord_info == 432)[0]) + 1:
+            new_seq = np.concatenate((seq[:bar_idx[1]+1], chord_info[:2]), axis=0)
             bar_count = 1
             last_idx = bar_idx[1]
         else:
-            raise ValueError('Somethings wrong')
+            return None, None
+            # raise ValueError("Restoring Chord Failed")
 
         for i in range(2, len(chord_info), 2):
             if chord_info[i] == 432:
                 new_seq = np.concatenate((new_seq, seq[last_idx+1:bar_idx[bar_count+1]+1],chord_info[i:i+2]),axis=0)
                 bar_count += 1
-                last_idx=bar_idx[bar_count]
+                last_idx = bar_idx[bar_count]
 
             else:
-                #print(chord_info[i], chord_info[i+1])
-                candidate = np.logical_and(432<=seq,seq<chord_info[i])
-                candidate = np.where(candidate==True)[0]
+                candidate = np.where(np.logical_and(432 <= seq, seq < chord_info[i]))[0]
                 if bar_count != len(bar_idx)-1:
-                    can_idx = np.where(np.logical_and(bar_idx[bar_count]<candidate,candidate<bar_idx[bar_count+1])==True)[0]
+                    can_idx = np.where(
+                        np.logical_and(bar_idx[bar_count] < candidate, candidate < bar_idx[bar_count+1])
+                    )[0]
                 else:
-                    can_idx = np.where(bar_idx[bar_count]<candidate)[0]
-                
+                    can_idx = np.where(bar_idx[bar_count] < candidate)[0]
+
                 if len(can_idx) == 0:
-                    new_seq = np.concatenate((new_seq, chord_info[i:i+2]),axis=0)
+                    new_seq = np.concatenate(
+                        (new_seq, chord_info[i:i+2]), axis=0
+                    )
                 else:
-                    new_seq = np.concatenate((new_seq, seq[last_idx+1:candidate[can_idx[-1]] + 4], chord_info[i:i+2]),axis=0)
-                    last_idx = candidate[can_idx[-1]] + 3 # 무조건 note 일것으로 예상됨
-        new_seq = np.concatenate((new_seq, seq[last_idx+1:]),axis=0)
+                    new_seq = np.concatenate(
+                        (new_seq, seq[last_idx+1:candidate[can_idx[-1]] + 4], chord_info[i:i+2]),
+                        axis=0
+                    )
+                    last_idx = candidate[can_idx[-1]] + 3  # 무조건 note 일 것으로 예상됨
+
+        new_seq = np.concatenate((new_seq, seq[last_idx+1:]), axis=0)
         return new_seq, new_meta
 
     # Get method from pre-declared class
-    validate_generated_sequence = InferenceTask.validate_generated_sequence
+    @staticmethod
+    def validate_generated_sequence(seq):
+        return InferenceTask.validate_generated_sequence(seq)
 
+    @classmethod
     def decode_event_sequence(
-            self,
+            cls,
             encoded_meta,
             note_seq
     ) -> "MidiFile":
-        decoded_midi = self.decoder.decode(
+        decoded_midi = cls.decoder.decode(
             midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),
         )
         return decoded_midi
 
-    def _decode_single(self, seq, input_mask):  # Output: Midi, Errcode
+    @classmethod
+    def _decode_single(cls, seq, input_mask):  # Output: Midi, Errcode
         len_meta = len(seq) - int((input_mask.sum()))
 
-        encoded_meta = seq[:len_meta - 1]  # meta의 eos 토큰 제외 11개만 가져오기
+        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
         note_seq = seq[len_meta:]
-        note_seq = self.remove_padding(note_seq)
-        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
-
+        note_seq = cls.remove_padding(note_seq)
         if note_seq is not None:
-            if self.validate_generated_sequence(note_seq):
-                decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
-                return decoded_midi, 0
-            else:
-                return None, 2
-        else:
-            return None, 1
+            note_seq, encoded_meta = cls.restore_chord(note_seq, encoded_meta)
+            if note_seq is not None:
+                if cls.validate_generated_sequence(note_seq):
+                    decoded_midi = cls.decode_event_sequence(encoded_meta, note_seq)
+                    return decoded_midi, 0  # Success
+                return None, 3  # Validation Failure
+            return None, 2  # restore_chord Failure
+        return None, 1  # remove_padding Failure
 
     _errmsg = {
         1: "NO EOS TOKEN",
-        2: "VALIDATION OF SEQUENCE FAILED"
+        2: "RESTORE_CHORD FROM META FAILED",
+        3: "VALIDATION OF SEQUENCE FAILED"
     }
 
-    def decode_single(self, seq, input_mask, output_file_path):
-        decoded_midi, errcode = self._decode_single(seq, input_mask)
+    @classmethod
+    def decode_single(cls, seq, input_mask, output_file_path):
+        decoded_midi, errcode = cls._decode_single(seq, input_mask)
         if errcode == 0:
             decoded_midi.dump(output_file_path)
         return errcode
@@ -199,11 +202,9 @@ class SequenceToMidi:
     @classmethod
     def save_tokens(cls, input_tokens, output_tokens, output_dir, batch_index):
         out_list = []
+        len_meta = 12
         for (in_seq, out_seq) in zip(input_tokens, output_tokens):
-            len_meta = 12
-            # assert len_meta == 12  # meta와 midi사이에 들어가는 meta eos까지 12(11+1)
-
-            encoded_meta = in_seq[:len_meta-1]  # meta의 eos 토큰 제외 11개만 가져오기
+            encoded_meta = in_seq[:len_meta-1]
             in_note_seq = in_seq[len_meta:]
             in_note_seq = cls.remove_padding(in_note_seq)
             out_note_seq = out_seq[len_meta:]

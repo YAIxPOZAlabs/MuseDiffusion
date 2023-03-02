@@ -6,7 +6,6 @@ except ImportError:
 from argparse import ArgumentParser as Ap, ArgumentDefaultsHelpFormatter as Df
 from pydantic import BaseModel, Field, validator
 from pydantic.validators import bool_validator
-import yaml
 
 
 class ArgparseCompatibleBaseModel(BaseModel):
@@ -77,6 +76,8 @@ Validator = validator  # Alias
 
 
 if __name__ == '__main__':
+
+    import yaml
 
     class Config1(S):
         a: int = _(1, description='this is a')

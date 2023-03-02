@@ -319,7 +319,8 @@ class InferenceTask:
             seq = None
         return seq
 
-    def validate_generated_sequence(self, seq: List[int]) -> bool:
+    @staticmethod
+    def validate_generated_sequence(seq: "np.ndarray|List[int]") -> bool:
         num_note = 0
         for idx, token in enumerate(seq):
             if idx + 2 > len(seq) - 1:
