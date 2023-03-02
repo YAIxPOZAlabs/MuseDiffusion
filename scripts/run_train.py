@@ -38,7 +38,7 @@ def main():
     sys.path.append(dirname)  # Assure upper folder import
     os.chdir(dirname)
 
-    import config  # lazy import
+    from MuseDiffusion import config
 
     if args.resume_checkpoint:   # TODO : RESUME 있을때 없을때 다 잘되는가 확인하기
         resume_checkpoint = args.resume_checkpoint

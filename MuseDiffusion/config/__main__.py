@@ -10,7 +10,7 @@ def create_parser():
 
 def main(args):
     import sys
-    from config import load_json_config, dump_json_config, load_defaults_config
+    from . import load_json_config, dump_json_config, load_defaults_config
     config_to_dump = load_json_config(args.load_from) if args.load_from else load_defaults_config()
     dump_json_config(config_to_dump, args.save_into or sys.stdout, reduce=False)
     return 0

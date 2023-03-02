@@ -7,7 +7,7 @@ def load_defaults_config():
 
 
 def load_dict_config(config_dict):
-    from utils.argument_util import str2bool
+    from MuseDiffusion.utils.argument_util import str2bool
     cfg = load_defaults_config()
     for key in list(config_dict):
         expected_value = DEFAULT_CONFIG[key]

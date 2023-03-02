@@ -9,8 +9,6 @@ import math
 
 import numpy as np
 import torch as th
-import sys
-sys.path.append('.')
 
 from .nn import mean_flat
 
@@ -189,7 +187,6 @@ class GaussianDiffusion:
         )
 
         self.mapping_func = None  # implement in train main()
-        self.add_mask_noise = False  # TODO
 
     def training_losses(self, model, t, model_kwargs, noise=None):
         if 'correct_ids' in model_kwargs:
@@ -425,7 +422,7 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
-        eta = 0.0
+        eta=0.0
     ):
         """
         Generate samples from the model.
@@ -462,9 +459,10 @@ class GaussianDiffusion:
             clamp_first=clamp_first,
             mask=mask,
             x_start=x_start,
-            eta = eta
+            eta=eta
         ):
-            continue
+            # final.append(sample['sample'])  # TODO
+            pass
         final.append(sample['sample'])
         return final
 
@@ -483,6 +481,7 @@ class GaussianDiffusion:
         clamp_first=None,
         mask=None,
         x_start=None,
+        eta=0.0,
     ):
         """
         Generate samples from the model and yield intermediate samples from
@@ -836,8 +835,8 @@ class GaussianDiffusion:
             progress=progress,
             mask=mask,
             x_start=x_start,
-            gap = gap,
-            eta = eta
+            gap=gap,
+            eta=eta
         ):
             final.append(sample['sample'])
         return final
@@ -890,7 +889,8 @@ class GaussianDiffusion:
                     denoised_fn=denoised_fn,
                     model_kwargs=model_kwargs,
                     mask=mask,
-                    x_start=x_start
+                    x_start=x_start,
+                    eta=eta
                 )
                 yield out
                 sample_x = out["sample"]

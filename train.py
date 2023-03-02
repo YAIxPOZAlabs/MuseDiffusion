@@ -6,8 +6,8 @@ import os
 import json
 
 import wandb
-from config import CHOICES, DEFAULT_CONFIG
-from utils.argument_util import add_dict_to_argparser, args_to_dict
+from MuseDiffusion.config import CHOICES, DEFAULT_CONFIG
+from MuseDiffusion.utils.argument_util import add_dict_to_argparser, args_to_dict, dist_util
 
 
 def configure_wandb(args):
@@ -30,14 +30,13 @@ def parse_args(argv=None):
 def print_credit():  # Optional
     if int(os.environ.get('LOCAL_RANK', "0")) == 0:
         try:
-            from utils.etc import credit
+            from MuseDiffusion.utils.etc import credit
             credit()
         except ImportError:
             pass
 
 
 def patch_proc_name_by_rank():
-    from utils import dist_util
     if dist_util.is_available():
         title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
     else:
@@ -52,14 +51,15 @@ def patch_proc_name_by_rank():
 def main(args):
 
     # Import everything
-    from data import load_data_music
-    from models.diffusion.step_sample import create_named_schedule_sampler
-    from utils import dist_util, logger
-    from utils.initialization import create_model_and_diffusion, seed_all, \
+    from MuseDiffusion.data import load_data_music
+    from MuseDiffusion.models.diffusion.step_sample import create_named_schedule_sampler
+    from MuseDiffusion.utils import dist_util
+    from MuseDiffusion.utils import logger
+    from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all, \
         fetch_pretrained_embedding, overload_embedding, \
         fetch_pretrained_denoiser, overload_denoiser
-    from utils.train_util import TrainLoop
-    from utils.plotting import embedding_tsne_trainer_wandb_callback
+    from MuseDiffusion.utils.train_util import TrainLoop
+    from MuseDiffusion.utils import embedding_tsne_trainer_wandb_callback
 
     # Setup everything
     dist_util.setup_dist()
