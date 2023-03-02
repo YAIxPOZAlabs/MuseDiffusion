@@ -16,6 +16,7 @@ datasets
 scipy
 scikit-learn
 seaborn
+pydantic
 
 miditoolkit==0.1.16
 pretty-midi==0.2.9
