@@ -4,15 +4,16 @@ def seed_all(seed, deterministic=False):
     import torch
     from ..data.corruption import generator
     from .dist_util import get_rank
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)  # contains torch.cuda.manual_seed_all
     if deterministic:
-        generator.seed(seed)
+        seed = int(seed)
         torch.backends.cudnn.deterministic = True  # NOQA
         torch.backends.cudnn.benchmark = False  # NOQA
     else:
-        generator.seed(int(seed) + get_rank())  # Make corruption's seed differ by node rank
+        seed = int(seed) + get_rank()  # Make seed differ by node rank
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)  # contains torch.cuda.manual_seed_all
+    generator.seed(seed)
 
 
 def fetch_pretrained_embedding(args):  # Returns single parameter
