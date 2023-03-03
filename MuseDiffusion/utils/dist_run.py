@@ -76,6 +76,7 @@ def parse_and_autorun(parser, parse_all=True):
         result = namespace
     else:
         result = args
-    from .dist_util import is_available
-    is_available.cache = bool(int(os.getenv("DIST_RUNNING_FLAG", "0")))
+    if int(os.getenv("DIST_RUNNING_FLAG", "0")) == 1:
+        from .dist_util import is_available
+        is_available.cache = True
     return result
