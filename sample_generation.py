@@ -90,7 +90,7 @@ def main(args):
 
     # Encode input meta
     from MuseDiffusion.models.commu.midi_generator.info_preprocessor import PreprocessTask
-    with open("meta_dict.py") as f:
+    with open("sample_meta_generator.py") as f:
         namespace = {}
         exec(f.read(), namespace)
         META = namespace['META']
