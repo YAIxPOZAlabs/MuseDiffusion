@@ -116,7 +116,7 @@ def masking_token(seq: _torch.Tensor, p: float, inplace: bool = False):
             break
         rnd = generator.random()
         if rnd < p:
-            corrupted[i+12] = 729
+            corrupted[i+12] = 0
     return corrupted
 
 
@@ -135,7 +135,7 @@ def masking_note(seq: _torch.Tensor, p: float, inplace: bool = False):
         if idx + 3 > len(seq):
             continue
         if generator.random() < p:
-            corrupted[idx-1:idx+3] = 729
+            corrupted[idx-1:idx+3] = 0
     return corrupted
 
 
