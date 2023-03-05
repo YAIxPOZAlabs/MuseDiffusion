@@ -110,6 +110,14 @@ class SequenceToMidi:
             new_seq = np.concatenate((seq[:bar_idx[1] + 1], chord_info[:2]), axis=0)
             bar_count = 1
             last_idx = bar_idx[1]
+        elif len(bar_idx) < len(np.where(chord_info == 432)[0]):
+            diff = len(np.where(chord_info == 432)[0]) - len(bar_idx)
+            for _ in range(diff):
+                seq = np.insert(seq, -2, 2)
+            bar_idx = np.where(seq == 2)[0]
+            new_seq = np.concatenate((seq[:bar_idx[0] + 1], chord_info[:2]), axis=0)
+            bar_count = 0
+            last_idx = bar_idx[0]
         else:
             raise SequenceToMidiError("RESTORE_CHORD FROM META FAILED")
 
