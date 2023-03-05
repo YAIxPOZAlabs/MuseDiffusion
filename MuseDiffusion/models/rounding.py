@@ -1,5 +1,5 @@
 import torch
-import numpy as np
+import math
 
 
 def get_knn(model_emb, text_emb, dist='cos'):
@@ -9,40 +9,40 @@ def get_knn(model_emb, text_emb, dist='cos'):
         adjacency = model_emb.unsqueeze(1).expand(-1, text_emb.size(0), -1) - text_emb.unsqueeze(0).expand(
             model_emb.size(0), -1, -1)
         adjacency = -torch.norm(adjacency, dim=-1)
+    else:
+        assert False
     topk_out = torch.topk(adjacency, k=6, dim=0)
     return topk_out.values, topk_out.indices
 
 
 def get_efficient_knn(model_emb, text_emb):
-    emb_norm = (model_emb**2).sum(-1).view(-1, 1) # vocab
-    text_emb_t = torch.transpose(text_emb.view(-1, text_emb.size(-1)), 0, 1) # d, bsz*seqlen
-    arr_norm = (text_emb ** 2).sum(-1).view(-1, 1) # bsz*seqlen, 1
-    # print(emb_norm.shape, arr_norm.shape)
-    dist = emb_norm + arr_norm.transpose(0, 1) - 2.0 * torch.mm(model_emb, text_emb_t) # (vocab, d) x (d, bsz*seqlen)
-    dist = torch.clamp(dist, 0.0, np.inf)
+    emb_norm = (model_emb**2).sum(-1).view(-1, 1)  # vocab
+    text_emb_t = torch.transpose(text_emb.view(-1, text_emb.size(-1)), 0, 1)  # d, bsz * seq_len
+    arr_norm = (text_emb ** 2).sum(-1).view(-1, 1)  # bsz * seq_len, 1
+    dist = emb_norm + arr_norm.transpose(0, 1) - 2.0 * torch.mm(model_emb, text_emb_t)  # (vocab, d) x (d, bsz*seq_len)
+    dist = torch.clamp(dist, 0.0, math.inf)
     topk_out = torch.max(-dist, dim=0)  # topk(k=1, dim=0) -> max & unsquueze(0)
     return topk_out.values.unsqueeze(0), topk_out.indices.unsqueeze(0)
 
 
 def rounding_func(text_emb_lst, model, tokenizer, emb_scale_factor=1.0):
     decoded_out_lst = []
-    
+
     model_emb = model.weight  # input_embs
     down_proj_emb2 = None
 
     dist = 'l2'
-    
+
     for text_emb in text_emb_lst:
         import torch
         text_emb = torch.tensor(text_emb)
-        # print(text_emb.shape)
-        if len(text_emb.shape) > 2:
-            text_emb = text_emb.view(-1, text_emb.size(-1))
+        if text_emb.ndim > 2:
+            text_emb = text_emb.view(-1, text_emb.shape[-1])
         else:
             text_emb = text_emb
         val, indices = get_knn((down_proj_emb2 if dist == 'cos' else model_emb),
                                 text_emb.to(model_emb.device), dist=dist)
-    
+
         decoded_out_lst.append(tokenizer.decode_token(indices[0]))
 
     return decoded_out_lst
@@ -69,29 +69,8 @@ def compute_logp(args, model, x, input_ids):
     return loss
 
 
-def get_weights(model, args):
-    if hasattr(model, 'transformer'):
-        input_embs = model.transformer.wte  # input_embs
-        down_proj = model.down_proj
-        model_emb = down_proj(input_embs.weight)
-        print(model_emb.shape)
-        model = torch.nn.Embedding(model_emb.size(0), model_emb.size(1))
-        print(args.emb_scale_factor)
-        model.weight.data = model_emb * args.emb_scale_factor
-
-    elif hasattr(model, 'weight'):
-        pass
-    else:
-        assert NotImplementedError
-        
-    model.weight.requires_grad = False
-    return model
-
-
 def denoised_fn_round(args, model, text_emb, t):
-    # print(text_emb.shape) # bsz, seqlen, dim
     model_emb = model.weight  # input_embs
-    # print(t)
     old_shape = text_emb.shape
     old_device = text_emb.device
 

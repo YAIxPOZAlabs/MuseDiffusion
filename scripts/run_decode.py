@@ -23,8 +23,6 @@ def main():
                         help='if less than diffusion training steps (which is 2000 in default), use ddim sampling')
     parser.add_argument('--batch_size', type=int, default=50,
                         help='batch size')
-    parser.add_argument('--use_ddim_reverse', type=bool, default=False,
-                        help='choose forward process as ddim or not')
     parser.add_argument('--top_p', type=int, default=0,
                         help='range of the noise added to input, should be set between 0 and 1 (0=no restriction)')
     parser.add_argument('--split', type=str, default='valid', choices=['train', 'valid'],

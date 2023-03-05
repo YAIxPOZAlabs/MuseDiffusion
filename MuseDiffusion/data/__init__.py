@@ -5,25 +5,7 @@ if TYPE_CHECKING:
     import os
 
 
-def __guarantee_clean_log_in_distributed(func):  # since datasets.Dataset logs progress with tqdm
-    def decorator(*args, **kwargs):
-        import os
-        if int(os.getenv("LOCAL_RANK", "0")) == 0:
-            return func(*args, **kwargs)
-        from datasets.utils import logging
-        prev = logging.is_progress_bar_enabled()
-        try:
-            logging.disable_progress_bar()
-            return func(*args, **kwargs)
-        finally:
-            if prev:
-                logging.enable_progress_bar()
-    import functools
-    return functools.update_wrapper(decorator, func)
-
-
 # usage: from data import load_data_text
-@__guarantee_clean_log_in_distributed
 def load_data_music(
         split: "str|list|tuple" = 'train',
         batch_size: "Optional[int]" = 1,
@@ -32,6 +14,7 @@ def load_data_music(
         corr_available: "str|list|tuple" = None,
         corr_max: "str|int" = None,
         corr_p: "str|float" = None,
+        corr_kwargs: "Optional[str]" = None,
         use_bucketing: bool = True,
         seq_len: "Optional[int]" = None,
         deterministic: bool = False,
@@ -53,6 +36,7 @@ The kwargs dict can be used for some meta information.
 :param corr_available: available corruptions.
 :param corr_max: max number of corruptions.
 :param corr_p: probability to choice each corruption.
+:param corr_kwargs: eval form of dict contains keyword arguments of each corruption. (ex: 'dict(p=0.4)')
 :param use_bucketing: if True, padding will be optimized by each batch.
 :param seq_len: default sequence length to pad when not using bucketing.
 :param deterministic: if True, yield results in a deterministic order.
@@ -107,3 +91,24 @@ The kwargs dict can be used for some meta information.
 def _infinite_loader(iterable):
     while True:
         yield from iterable
+
+
+def __guarantee_clean_log_in_distributed(func):  # since datasets.Dataset logs progress with tqdm
+    def decorator(*args, **kwargs):
+        import os
+        if int(os.getenv("LOCAL_RANK", "0")) == 0:
+            return func(*args, **kwargs)
+        from datasets.utils import logging
+        prev = logging.is_progress_bar_enabled()
+        try:
+            logging.disable_progress_bar()
+            return func(*args, **kwargs)
+        finally:
+            if prev:
+                logging.enable_progress_bar()
+    import functools
+    return functools.update_wrapper(decorator, func)
+
+
+globals().update(load_data_music=__guarantee_clean_log_in_distributed(load_data_music))
+del __guarantee_clean_log_in_distributed
