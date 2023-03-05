@@ -3,8 +3,8 @@ import functools
 import os
 
 import blobfile as bf
-import numpy as np
-import torch as th
+import math
+import torch
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
@@ -129,6 +129,8 @@ class TrainLoop:
             self.use_ddp = False
             self.ddp_model = self.model
 
+        torch.cuda.empty_cache()
+
     def _load_and_sync_parameters(self):
         resume_checkpoint = self.find_resume_checkpoint() or self.resume_checkpoint
         if not resume_checkpoint:
@@ -170,7 +172,7 @@ class TrainLoop:
 
     def _setup_fp16(self):
         self.master_params = make_master_params(self.model_params)
-        self.model: th.nn.Module
+        self.model: torch.nn.Module
         self.model.apply(convert_module_to_f16)
 
     def run_loop(self):
@@ -234,7 +236,7 @@ class TrainLoop:
 
         return losses, t, weights
 
-    @th.no_grad()
+    @torch.no_grad()
     def forward_only(self, cond):
         self._zero_grad()
         for i in range(0, cond['input_ids'].shape[0], self.microbatch):
@@ -265,7 +267,7 @@ class TrainLoop:
                 loss.backward()
 
     def optimize_fp16(self):
-        if any(not th.isfinite(p.grad).all() for p in self.model_params):
+        if any(not torch.isfinite(p.grad).all() for p in self.model_params):
             self.lg_loss_scale -= 1
             logger.log(f"Found NaN, decreased lg_loss_scale to {self.lg_loss_scale}")
             return
@@ -295,7 +297,7 @@ class TrainLoop:
             # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
             self.opt.clip_grad_norm(max_grad_norm)
         else:
-            th.nn.utils.clip_grad_norm_(
+            torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(),
                 max_grad_norm,
             )
@@ -314,7 +316,7 @@ class TrainLoop:
         for p in self.master_params:
             if p.grad is not None:
                 sqsum += (p.grad ** 2).sum().item()
-        logger.logkv_mean("grad_norm", np.sqrt(sqsum))
+        logger.logkv_mean("grad_norm", math.sqrt(sqsum))
 
     def log_step(self):
         logger.logkv("step", self.step + self.resume_step)
@@ -348,7 +350,7 @@ class TrainLoop:
                 filename = f"ema_{rate}_{(self.step+self.resume_step):06d}.pt"
             print('writing to', bf.join(self.checkpoint_path, filename))
             with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:
-                th.save(state_dict, f)
+                torch.save(state_dict, f)
 
     def _save_opt(self):
         if dist_util.get_rank() == 0:
@@ -356,7 +358,7 @@ class TrainLoop:
             filename = f"opt_{(self.step+self.resume_step):06d}.pt"
             print('writing to', bf.join(self.checkpoint_path, filename))
             with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:
-                th.save(self.opt.state_dict(), f)
+                torch.save(self.opt.state_dict(), f)
 
     def _master_params_to_state_dict(self, master_params, key=None):
         if self.use_fp16:
