@@ -125,6 +125,8 @@ class SamplingSettings(S):
         = _(105, 'random seed for sampling')
     clip_denoised: bool \
         = _(True, 'to do clipping while denoising')
+    use_ddim: bool \
+        = _(True, 'DDIM Sampling')
 
     @Validator('model_path')
     def validate(cls, model_path):  # NOQA

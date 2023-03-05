@@ -52,6 +52,8 @@ After this step, your directory structure would be like:
 
 ```
 MuseDiffusion
+├── commu
+│   └── (https://github.com/POZAlabs/ComMU-code/blob/master/commu/)
 ├── MuseDiffusion
 │   ├── __init__.py
 │   ├── config
@@ -65,13 +67,10 @@ MuseDiffusion
 │   │   └── ...
 │   ├── models
 │   │   ├── __init__.py
-│   │   ├── commu
-│   │   │   └── (ComMU python module files...)
-│   │   └── diffusion
-│   │       ├── __init__.py
-│   │       ├── classifier.py
-│   │       ├── denoising_model.py
-│   │       └── ...
+│   │   ├── denoising_model.py
+│   │   ├── gaussian_diffusion.py
+│   │   ├── nn.py
+│   │   └── ...
 │   ├── run
 │   │   ├── __init__.py
 │   │   ├── sample_generation.py
@@ -81,6 +80,7 @@ MuseDiffusion
 │       ├── __init__.py
 │       ├── decode_util.py
 │       ├── dist_util.py
+│       ├── train_util.py
 │       └── ...
 ├── assets
 │   └── (files for readme...)

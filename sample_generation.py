@@ -23,12 +23,10 @@ def main(args):
     from io import StringIO
     from contextlib import redirect_stdout
     from functools import partial
-    from tqdm.auto import tqdm
 
     # Import everything
     from MuseDiffusion.config import TrainSettings
-    from MuseDiffusion.data import load_data_music
-    from MuseDiffusion.models.diffusion.rounding import denoised_fn_round
+    from MuseDiffusion.models.rounding import denoised_fn_round
     from MuseDiffusion.utils import dist_util, logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
     from MuseDiffusion.utils.decode_util import SequenceToMidi
@@ -89,14 +87,10 @@ def main(args):
     seed_all(args.sample_seed, deterministic=True)
 
     # Encode input meta
-    from MuseDiffusion.models.commu.midi_generator.info_preprocessor import PreprocessTask
-    with open("meta_dict.py") as f:
-        namespace = {}
-        exec(f.read(), namespace)
-        META = namespace['META']
+    from MuseDiffusion.utils.decode_util import MetaToSequence
+    from sample_meta_generator import get_meta
 
-    preprocess_task = PreprocessTask()
-    encoded_meta = preprocess_task.excecute(META)
+    encoded_meta = MetaToSequence().execute(get_meta())
     encoded_meta = th.tensor(encoded_meta, device=dev)
     dist_util.barrier()  # Sync
 
@@ -117,70 +111,79 @@ def main(args):
     input_ids_mask_ori = th.ones(args.batch_size, args.seq_len, device=dev)
     input_ids_mask_ori[:, :len(encoded_meta) + 1] = 0
 
-    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev)
+    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev, dtype=th.int)
     input_ids_x[:, :len(encoded_meta)] = encoded_meta
 
     x_start = model.get_embeds(input_ids_x)
     input_ids_mask = th.broadcast_to(input_ids_mask_ori.unsqueeze(dim=-1), x_start.shape)
     model_kwargs = {'input_ids': input_ids_x, 'input_mask': input_ids_mask_ori}
 
-    noise = th.randn_like(x_start)  # randn_like: device will be same as x_start
-    x_noised = th.where(input_ids_mask == 0, x_start, noise)
+    trial = 0
+    batch_index = 0  # TODO: Fix it
+    while True:
+        try:
+            logger.log("\n### Trial: %s" % trial)
+            noise = th.randn_like(x_start)  # randn_like: device will be same as x_start
+            x_noised = th.where(input_ids_mask == 0, x_start, noise)
 
-    samples = sample_fn(
-        model=model,
-        shape=(x_start.shape[0], args.seq_len, args.hidden_dim),
-        noise=x_noised,
-        clip_denoised=args.clip_denoised,
-        denoised_fn=partial(denoised_fn_round, args, model_emb),
-        model_kwargs=model_kwargs,
-        top_p=args.top_p,
-        clamp_step=args.clamp_step,
-        clamp_first=True,
-        mask=input_ids_mask,
-        x_start=x_start,
-        gap=step_gap
-    )
-
-    # #################################################################################### #
-    #                                        Decode                                        #
-    #                          Convert Note Sequence To Midi file                          #
-    # #################################################################################### #
-
-    decoder = SequenceToMidi()
-
-    sample = samples[-1]  # Sample last step
-
-    reshaped_x_t = sample
-    logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
-    sample_tokens = th.argmax(logits, dim=-1)
-
-    out = StringIO()
-    try:
-        with redirect_stdout(out):
-            batch_index = 0
-            # SequenceToMidi.save_tokens(
-            #     input_ids_x.cpu().numpy(),
-            #     sample_tokens.cpu().squeeze(-1).numpy(),
-            #     output_dir=out_path,
-            #     batch_index=batch_index
-            # )
-            decoder(
-                sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - 원래 토큰으로 할 때
-                input_ids_mask_ori=input_ids_mask_ori.cpu().numpy(),
-                output_dir=out_path,
-                batch_index=batch_index,
-                batch_size=args.batch_size
+            samples = sample_fn(
+                model=model,
+                shape=(x_start.shape[0], args.seq_len, args.hidden_dim),
+                noise=x_noised,
+                clip_denoised=args.clip_denoised,
+                denoised_fn=partial(denoised_fn_round, args, model_emb),
+                model_kwargs=model_kwargs,
+                top_p=args.top_p,
+                clamp_step=args.clamp_step,
+                clamp_first=True,
+                mask=input_ids_mask,
+                x_start=x_start,
+                gap=step_gap
             )
-    finally:
-        logs_per_batch = out.getvalue()
-        with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
-            fp.write(logs_per_batch)
-        print(logs_per_batch)
 
-    # Log final result
-    logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
-    logger.log(f'### Written the decoded output to {out_path}')
+            # #################################################################################### #
+            #                                        Decode                                        #
+            #                          Convert Note Sequence To Midi file                          #
+            # #################################################################################### #
+
+            decoder = SequenceToMidi()
+
+            sample = samples[-1]  # Sample last step
+
+            reshaped_x_t = sample
+            logits = model.get_logits(reshaped_x_t)  # bsz, seqlen, vocab
+            sample_tokens = th.argmax(logits, dim=-1)
+
+            out = StringIO()
+            try:
+                with redirect_stdout(out):
+                    # SequenceToMidi.save_tokens(
+                    #     input_ids_x.cpu().numpy(),
+                    #     sample_tokens.cpu().squeeze(-1).numpy(),
+                    #     output_dir=out_path,
+                    #     batch_index=batch_index
+                    # )
+                    decoder(
+                        sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - 원래 토큰으로 할 때
+                        input_ids_mask_ori=input_ids_mask_ori.cpu().numpy(),
+                        output_dir=out_path,
+                        batch_index=batch_index,
+                        batch_size=args.batch_size
+                    )
+            finally:
+                logs_per_batch = out.getvalue()
+                with open(os.path.join(log_path, f"batch{batch_index}.txt"), "wt") as fp:
+                    fp.write(logs_per_batch)
+                print(logs_per_batch)
+
+            # Log final result
+            logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
+            logger.log(f'### Written the decoded output to {out_path}')
+            break
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logger.log("### Trial %s has been failed due to %s." % (trial, type(e).__name__))
 
 
 if __name__ == "__main__":

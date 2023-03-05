@@ -65,7 +65,7 @@ def main(args: TrainSettings):
     import time
     import json
     from MuseDiffusion.data import load_data_music
-    from MuseDiffusion.models.diffusion.step_sample import create_named_schedule_sampler
+    from MuseDiffusion.models.step_sample import create_named_schedule_sampler
     from MuseDiffusion.utils import dist_util, logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all, \
         fetch_pretrained_embedding, overload_embedding, \

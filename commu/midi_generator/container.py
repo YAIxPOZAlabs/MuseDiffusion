@@ -5,9 +5,9 @@ from typing import Dict, Any, List
 
 from pydantic import BaseModel, validator
 
-from ..preprocessor.encoder import encoder_utils, TOKEN_OFFSET
-from ..preprocessor.utils import constants
-from ..preprocessor.utils.container import MidiMeta
+from commu.preprocessor.encoder import encoder_utils, TOKEN_OFFSET
+from commu.preprocessor.utils import constants
+from commu.preprocessor.utils.container import MidiMeta
 
 
 class ModelArguments(BaseModel):
@@ -15,7 +15,11 @@ class ModelArguments(BaseModel):
 
 
 class TransXlInputData(MidiMeta):
+    output_dir: Path
 
+    num_generate: int
+    top_k: int
+    temperature: float
     chord_progression: List[str]
 
     @validator("chord_progression")

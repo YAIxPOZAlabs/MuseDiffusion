@@ -7,10 +7,10 @@ import torch.nn.functional as F
 import yacs.config
 
 from logger import logger
-from .container import TransXlInputData
-from ..model.model import MemTransformerLM
-from ..preprocessor.encoder import TOKEN_OFFSET
-from ..preprocessor.utils.constants import DEFAULT_POSITION_RESOLUTION
+from commu.midi_generator.container import TransXlInputData
+from commu.model.model import MemTransformerLM
+from commu.preprocessor.encoder import TOKEN_OFFSET
+from commu.preprocessor.utils.constants import DEFAULT_POSITION_RESOLUTION
 
 
 class TeacherForceTask:
@@ -319,8 +319,7 @@ class InferenceTask:
             seq = None
         return seq
 
-    @staticmethod
-    def validate_generated_sequence(seq: "np.ndarray|List[int]") -> bool:
+    def validate_generated_sequence(self, seq: List[int]) -> bool:
         num_note = 0
         for idx, token in enumerate(seq):
             if idx + 2 > len(seq) - 1:

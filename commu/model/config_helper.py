@@ -2,7 +2,7 @@ from yacs.config import CfgNode as CN
 
 
 def model(cfg):
-    # For Transformer model
+    # For model
     cfg.MODEL = CN()
     cfg.MODEL.num_layers = 6
     cfg.MODEL.num_heads = 10
