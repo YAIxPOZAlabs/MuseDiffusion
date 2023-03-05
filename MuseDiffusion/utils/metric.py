@@ -39,7 +39,7 @@ def get_vectors(midi, note_len=128):
                 continue
             max_amplitude = (0.00542676376 * (midi[i+1] - 130) * 2 + 0.310801) ** 2
             tmp_groove_vec[t // 4] = max(tmp_groove_vec[t // 4],
-                (max_amplitude * max(0, 1 - (t-startp) / note_len)) ** 2)
+                max_amplitude * max(0, 1 - (t-startp) / note_len))
         if cur_highest_pitch >= 0:
             if prev_startp != startp:
                 if prev_highest_pitch >= 0:
