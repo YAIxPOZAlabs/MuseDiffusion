@@ -117,7 +117,7 @@ def main(args):
     input_ids_mask_ori = th.ones(args.batch_size, args.seq_len, device=dev)
     input_ids_mask_ori[:, :len(encoded_meta) + 1] = 0
 
-    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev)
+    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev, torch.int)
     input_ids_x[:, :len(encoded_meta)] = encoded_meta
 
     x_start = model.get_embeds(input_ids_x)
