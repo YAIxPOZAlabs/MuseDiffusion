@@ -8,8 +8,8 @@ import torch as th
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
-from ..models.diffusion.nn import update_ema
-from ..models.diffusion.step_sample import LossAwareSampler, UniformSampler
+from MuseDiffusion.models.nn import update_ema
+from MuseDiffusion.models.step_sample import LossAwareSampler, UniformSampler
 from . import dist_util, logger
 from .fp16_util import (
     make_master_params,
@@ -19,10 +19,8 @@ from .fp16_util import (
     convert_module_to_f16
 )
 
-# For ImageNet experiments, this was a good default value.
-# We found that the lg_loss_scale quickly climbed to
-# 20-21 within the first ~1K steps of training.
-INITIAL_LOG_LOSS_SCALE = 20.0
+
+INITIAL_LOG_LOSS_SCALE = 2e1
 
 
 class TrainLoop:

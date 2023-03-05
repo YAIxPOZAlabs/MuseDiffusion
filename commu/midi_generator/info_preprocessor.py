@@ -1,8 +1,8 @@
 from typing import List, Any
 
-from .container import TransXlInputData
-from ..preprocessor.encoder import MetaEncoder
-from ..preprocessor.utils.container import MidiMeta
+from commu.midi_generator.container import TransXlInputData
+from commu.preprocessor.encoder import MetaEncoder
+from commu.preprocessor.utils.container import MidiMeta
 
 
 def parse_meta(**kwargs: Any) -> MidiMeta:

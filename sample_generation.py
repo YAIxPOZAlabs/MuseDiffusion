@@ -23,12 +23,10 @@ def main(args):
     from io import StringIO
     from contextlib import redirect_stdout
     from functools import partial
-    from tqdm.auto import tqdm
 
     # Import everything
     from MuseDiffusion.config import TrainSettings
-    from MuseDiffusion.data import load_data_music
-    from MuseDiffusion.models.diffusion.rounding import denoised_fn_round
+    from MuseDiffusion.models.rounding import denoised_fn_round
     from MuseDiffusion.utils import dist_util, logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
     from MuseDiffusion.utils.decode_util import SequenceToMidi

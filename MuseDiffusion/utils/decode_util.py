@@ -3,14 +3,19 @@ import io
 import contextlib
 import numpy as np
 from miditoolkit import MidiFile
-np.int = int  # for backward compatibility
 
-from MuseDiffusion.models.commu.midi_generator.midi_inferrer import InferenceTask
-from MuseDiffusion.models.commu.preprocessor.encoder import EventSequenceEncoder, MetaEncoder
-from MuseDiffusion.models.commu.preprocessor.utils.container import MidiInfo, MidiMeta
-from MuseDiffusion.models.commu.preprocessor.utils.constants import (
+try:
+    np.int
+except AttributeError:
+    np.int = int  # for backward compatibility
+
+from commu.midi_generator.midi_inferrer import InferenceTask
+from commu.preprocessor.encoder import EventSequenceEncoder, MetaEncoder
+from commu.preprocessor.utils.container import MidiInfo, MidiMeta
+from commu.preprocessor.utils.constants import (
     KEY_MAP, TIME_SIG_MAP, PITCH_RANGE_MAP, INST_MAP, GENRE_MAP, TRACK_ROLE_MAP, RHYTHM_MAP
 )
+
 
 CHORD_MAP = {
     'A': 195, 'A7': 196, 'A+': 197, 'Adim': 198, 'Am': 199, 'Am7': 200, 'Am7b5': 201, 'Amaj7': 202, 'Asus4': 203,

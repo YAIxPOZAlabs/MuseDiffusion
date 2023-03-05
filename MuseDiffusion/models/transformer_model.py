@@ -58,9 +58,12 @@ class TransformerNetModel(nn.Module):
         )
 
         if self.input_dims != config.hidden_size:
-            self.input_up_proj = nn.Sequential(nn.Linear(input_dims, config.hidden_size),
-                                              nn.Tanh(), nn.Linear(config.hidden_size, config.hidden_size))
-        
+            self.input_up_proj = nn.Sequential(
+                nn.Linear(input_dims, config.hidden_size),
+                nn.Tanh(),
+                nn.Linear(config.hidden_size, config.hidden_size)
+            )
+
         self.input_transformers = BertEncoder(config)
 
         self.dropout = nn.Dropout(dropout)
@@ -69,8 +72,11 @@ class TransformerNetModel(nn.Module):
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         if self.output_dims != config.hidden_size:
-            self.output_down_proj = nn.Sequential(nn.Linear(config.hidden_size, config.hidden_size),
-                                                nn.Tanh(), nn.Linear(config.hidden_size, self.output_dims))
+            self.output_down_proj = nn.Sequential(
+                nn.Linear(config.hidden_size, config.hidden_size),
+                nn.Tanh(),
+                nn.Linear(config.hidden_size, self.output_dims)
+            )
 
     def get_embeds(self, input_ids):
         return self.word_embedding(input_ids)
@@ -92,7 +98,7 @@ class TransformerNetModel(nn.Module):
         else:
             raise NotImplementedError
 
-    def forward(self, x, timesteps,**kwargs):
+    def forward(self, x, timesteps, **kwargs):
         """
         Apply the model to an input batch.
 
@@ -101,7 +107,6 @@ class TransformerNetModel(nn.Module):
         :return: an [N x C x ...] Tensor of outputs.
         """
         emb_t = self.time_embed(timestep_embedding(timesteps, self.hidden_t_dim))
-       # input_ids_mask = model_kwargs['input_mask'].to(x.device)
 
         if self.input_dims != self.hidden_size:
             emb_x = self.input_up_proj(x)
@@ -110,7 +115,6 @@ class TransformerNetModel(nn.Module):
 
         seq_length = x.size(1)
         position_ids = self.position_ids[:, : seq_length]
-        # print(emb_x.shape, emb_t.shape, self.position_embeddings)
         emb_inputs = self.position_embeddings(position_ids) + emb_x + emb_t.unsqueeze(1).expand(-1, seq_length, -1) 
         emb_inputs = self.dropout(self.LayerNorm(emb_inputs))
 
