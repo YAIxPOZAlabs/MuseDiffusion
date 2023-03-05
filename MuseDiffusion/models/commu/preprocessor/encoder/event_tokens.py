@@ -306,7 +306,7 @@ base_event = [
 import enum
 
 class TOKEN_OFFSET(enum.Enum):
-    EOS = 1 
+    EOS = 1
     BAR = 2
     PITCH = 3
     NOTE_VELOCITY = 131

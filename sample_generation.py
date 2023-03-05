@@ -89,14 +89,10 @@ def main(args):
     seed_all(args.sample_seed, deterministic=True)
 
     # Encode input meta
-    from MuseDiffusion.models.commu.midi_generator.info_preprocessor import PreprocessTask
-    with open("meta_dict.py") as f:
-        namespace = {}
-        exec(f.read(), namespace)
-        META = namespace['META']
+    from MuseDiffusion.utils.decode_util import MetaToSequence
+    from sample_meta_generator import get_meta
 
-    preprocess_task = PreprocessTask()
-    encoded_meta = preprocess_task.excecute(META)
+    encoded_meta = MetaToSequence().execute(get_meta())
     encoded_meta = th.tensor(encoded_meta, device=dev)
     dist_util.barrier()  # Sync
 
@@ -117,15 +113,18 @@ def main(args):
     input_ids_mask_ori = th.ones(args.batch_size, args.seq_len, device=dev)
     input_ids_mask_ori[:, :len(encoded_meta) + 1] = 0
 
-    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev)
+    input_ids_x = th.zeros(args.batch_size, args.seq_len, device=dev, dtype=th.int)
     input_ids_x[:, :len(encoded_meta)] = encoded_meta
 
     x_start = model.get_embeds(input_ids_x)
     input_ids_mask = th.broadcast_to(input_ids_mask_ori.unsqueeze(dim=-1), x_start.shape)
     model_kwargs = {'input_ids': input_ids_x, 'input_mask': input_ids_mask_ori}
 
+    trial = 0
+    batch_index = 0  # TODO: Fix it
     while True:
-        try:    
+        try:
+            logger.log("\n### Trial: %s" % trial)
             noise = th.randn_like(x_start)  # randn_like: device will be same as x_start
             x_noised = th.where(input_ids_mask == 0, x_start, noise)
 
@@ -160,7 +159,6 @@ def main(args):
             out = StringIO()
             try:
                 with redirect_stdout(out):
-                    batch_index = 0
                     # SequenceToMidi.save_tokens(
                     #     input_ids_x.cpu().numpy(),
                     #     sample_tokens.cpu().squeeze(-1).numpy(),
@@ -184,8 +182,11 @@ def main(args):
             logger.log(f'### Total takes {time.time() - start_t:.2f}s .....')
             logger.log(f'### Written the decoded output to {out_path}')
             break
-        except Exception as e: 
-            print(e)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logger.log("### Trial %s has been failed due to %s." % (trial, type(e).__name__))
+
 
 if __name__ == "__main__":
     arg = parse_args()

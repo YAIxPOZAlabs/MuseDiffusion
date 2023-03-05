@@ -1,13 +1,77 @@
 import os
+import io
+import contextlib
 import numpy as np
 from miditoolkit import MidiFile
+np.int = int  # for backward compatibility
 
-from MuseDiffusion.models.commu.preprocessor.utils.container import MidiInfo
-from MuseDiffusion.models.commu.preprocessor.encoder import EventSequenceEncoder
 from MuseDiffusion.models.commu.midi_generator.midi_inferrer import InferenceTask
+from MuseDiffusion.models.commu.preprocessor.encoder import EventSequenceEncoder, MetaEncoder
+from MuseDiffusion.models.commu.preprocessor.utils.container import MidiInfo, MidiMeta
+from MuseDiffusion.models.commu.preprocessor.utils.constants import (
+    KEY_MAP, TIME_SIG_MAP, PITCH_RANGE_MAP, INST_MAP, GENRE_MAP, TRACK_ROLE_MAP, RHYTHM_MAP
+)
 
-import contextlib
-import io
+CHORD_MAP = {
+    'A': 195, 'A7': 196, 'A+': 197, 'Adim': 198, 'Am': 199, 'Am7': 200, 'Am7b5': 201, 'Amaj7': 202, 'Asus4': 203,
+    'A#': 204, 'A#7': 205, 'A#+': 206, 'A#dim': 207, 'A#m': 208, 'A#m7': 209, 'A#m7b5': 210, 'A#maj7': 211, 'A#sus4': 212,
+    'B': 213, 'B7': 214, 'B+': 215, 'Bdim': 216, 'Bm': 217, 'Bm7': 218, 'Bm7b5': 219, 'Bmaj7': 220, 'Bsus4': 221,
+    'C': 222, 'C7': 223, 'C+': 224, 'Cdim': 225, 'Cm': 226, 'Cm7': 227, 'Cm7b5': 228, 'Cmaj7': 229, 'Csus4': 230,
+    'C#': 231, 'C#7': 232, 'C#+': 233, 'C#dim': 234, 'C#m': 235, 'C#m7': 236, 'C#m7b5': 237, 'C#maj7': 238, 'C#sus4': 239,
+    'D': 240, 'D7': 241, 'D+': 242, 'Ddim': 243, 'Dm': 244, 'Dm7': 245, 'Dm7b5': 246, 'Dmaj7': 247, 'Dsus4': 248,
+    'D#': 249, 'D#7': 250, 'D#+': 251, 'D#dim': 252, 'D#m': 253, 'D#m7': 254, 'D#m7b5': 255, 'D#maj7': 256, 'D#sus4': 257,
+    'E': 258, 'E7': 259, 'E+': 260, 'Edim': 261, 'Em': 262, 'Em7': 263, 'Em7b5': 264, 'Emaj7': 265, 'Esus4': 266,
+    'F': 267, 'F7': 268, 'F+': 269, 'Fdim': 270, 'Fm': 271, 'Fm7': 272, 'Fm7b5': 273, 'Fmaj7': 274, 'Fsus4': 275,
+    'F#': 276, 'F#7': 277, 'F#+': 278, 'F#dim': 279, 'F#m': 280, 'F#m7': 281, 'F#m7b5': 282, 'F#maj7': 283, 'F#sus4': 284,
+    'G': 285, 'G7': 286, 'G+': 287, 'Gdim': 288, 'Gm': 289, 'Gm7': 290, 'Gm7b5': 291, 'Gmaj7': 292, 'Gsus4': 293,
+    'G#': 294, 'G#7': 295, 'G#+': 296, 'G#dim': 297, 'G#m': 298, 'G#m7': 299, 'G#m7b5': 300, 'G#maj7': 301, 'G#sus4': 302,
+    'NN': 303
+}
+
+
+class META_CONSTANTS:
+
+    audio_key = KEY_MAP
+    time_signature = TIME_SIG_MAP
+    pitch_range = PITCH_RANGE_MAP
+    instrument = INST_MAP
+    genre = GENRE_MAP
+    track_role = TRACK_ROLE_MAP
+    rhythm = RHYTHM_MAP
+
+
+class MetaToSequence:
+
+    @staticmethod
+    def encode_chord(chord_progression):
+        encoded_chord = []
+        chord_progression = chord_progression
+        assert len(chord_progression) % 8 == 0
+
+        for idx in range(0, len(chord_progression), 8):
+            encoded_chord.append(432)
+            chord_token = CHORD_MAP[chord_progression[idx]]
+            encoded_chord.append(chord_token)
+            recent_chord = chord_progression[idx]
+            for i in range(1, 8):
+                if recent_chord != chord_progression[idx+i]:
+                    encoded_chord.append(432+i*16)
+                    recent_chord = chord_progression[idx+i]
+        return encoded_chord
+
+    def execute(self, input_data: dict) -> "list[int]":
+
+        midi_meta = MidiMeta(**input_data)
+        chord_progression = input_data["chord_progression"].split("-")
+
+        encoded_meta = MetaEncoder().encode(midi_meta)
+        encoded_chord = self.encode_chord(chord_progression)
+
+        return encoded_meta + encoded_chord
+
+
+class SequenceToMidiError(Exception):
+    pass
 
 
 class SequenceToMidi:
@@ -26,7 +90,7 @@ class SequenceToMidi:
             eos_idx = eos_idx[0].item()  # note seq 의 첫 eos 이후에 나온 토큰은 모두 패딩이 잘못 생성된 거로 간주
             return generation_result[:eos_idx + 1]
         else:
-            return None
+            raise SequenceToMidiError("NO EOS TOKEN")
 
     @staticmethod
     def restore_chord(seq, meta):
@@ -46,8 +110,7 @@ class SequenceToMidi:
             bar_count = 1
             last_idx = bar_idx[1]
         else:
-            return None, None
-            # raise ValueError("Restoring Chord Failed")
+            raise SequenceToMidiError("RESTORE_CHORD FROM META FAILED")
 
         for i in range(2, len(chord_info), 2):
             if chord_info[i] == 432:
@@ -81,7 +144,8 @@ class SequenceToMidi:
     # Get method from pre-declared class
     @staticmethod
     def validate_generated_sequence(seq):
-        return InferenceTask.validate_generated_sequence(seq)
+        if not InferenceTask(...).validate_generated_sequence(seq):
+            raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
 
     @classmethod
     def decode_event_sequence(
@@ -95,34 +159,21 @@ class SequenceToMidi:
         return decoded_midi
 
     @classmethod
-    def _decode_single(cls, seq, input_mask):  # Output: Midi, Errcode
+    def _decode(cls, seq, input_mask):  # Output: Midi, Errcode
         len_meta = len(seq) - int((input_mask.sum()))
 
         encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
         note_seq = seq[len_meta:]
         note_seq = cls.remove_padding(note_seq)
-        if note_seq is not None:
-            note_seq, encoded_meta = cls.restore_chord(note_seq, encoded_meta)
-            if note_seq is not None:
-                if cls.validate_generated_sequence(note_seq):
-                    decoded_midi = cls.decode_event_sequence(encoded_meta, note_seq)
-                    return decoded_midi, 0  # Success
-                return None, 3  # Validation Failure
-            return None, 2  # restore_chord Failure
-        return None, 1  # remove_padding Failure
-
-    _errmsg = {
-        1: "NO EOS TOKEN",
-        2: "RESTORE_CHORD FROM META FAILED",
-        3: "VALIDATION OF SEQUENCE FAILED"
-    }
+        note_seq, encoded_meta = cls.restore_chord(note_seq, encoded_meta)
+        cls.validate_generated_sequence(note_seq)
+        decoded_midi = cls.decode_event_sequence(encoded_meta, note_seq)
+        return decoded_midi
 
     @classmethod
     def decode_single(cls, seq, input_mask, output_file_path):
-        decoded_midi, errcode = cls._decode_single(seq, input_mask)
-        if errcode == 0:
-            decoded_midi.dump(output_file_path)
-        return errcode
+        decoded_midi = cls._decode(seq, input_mask)
+        decoded_midi.dump(output_file_path)
 
     def decode_multi_verbose(
             self, sequences, output_dir, input_ids_mask_ori, batch_index, batch_size
@@ -136,7 +187,15 @@ class SequenceToMidi:
             logger = io.StringIO()
             try:
                 with contextlib.redirect_stdout(logger):
-                    decoded_midi, errcode = self._decode_single(seq, input_mask)
+                    decoded_midi = self._decode(seq, input_mask)
+            except SequenceToMidiError as exc:
+                log = logger.getvalue()
+                print(f"<Warning> Batch {batch_index} Index {idx} "
+                      f"(Original: {num_files_before_batch + idx}) "
+                      f"- Generation Failure: {exc}")
+                if log:
+                    print(log)
+                invalid_idxes.add(idx)
             except Exception as exc:
                 print(logger.getvalue())
                 print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
@@ -148,25 +207,17 @@ class SequenceToMidi:
                 raise
             else:
                 log = logger.getvalue()
-                if errcode == 0:  # Validation Succeeded
-                    if log:
-                        print(f"<Warning> Batch {batch_index} Index {idx} "
-                              f"(Original: {num_files_before_batch + idx})"
-                              f" - {' '.join(log.splitlines())}")
-                    output_file_path = self.output_file_format.format(
-                        original_index=num_files_before_batch + idx,
-                        batch_index=batch_index,
-                        index=idx,
-                        output_dir=output_dir
-                    )
-                    decoded_midi.dump(output_file_path)
-                else:
+                if log:
                     print(f"<Warning> Batch {batch_index} Index {idx} "
                           f"(Original: {num_files_before_batch + idx}) "
-                          f"- {self._errmsg[errcode]}")
-                    if log:
-                        print(log)
-                    invalid_idxes.add(idx)
+                          f"- {' '.join(log.splitlines())}")
+                output_file_path = self.output_file_format.format(
+                    original_index=num_files_before_batch + idx,
+                    batch_index=batch_index,
+                    index=idx,
+                    output_dir=output_dir
+                )
+                decoded_midi.dump(output_file_path)
 
         valid_count = len(sequences) - len(invalid_idxes)
 

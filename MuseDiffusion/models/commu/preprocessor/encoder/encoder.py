@@ -17,8 +17,8 @@ class EventSequenceEncoder:
         self.event2word = encoder_utils.add_flat_chord2map(self.event2word)
         self.event2word = encoder_utils.abstract_chord_types(self.event2word)
         self.position_resolution = DEFAULT_POSITION_RESOLUTION
-    # encode : Token화
-    def encode(self, midi_paths, sample_info=None, for_cp=False): 
+
+    def encode(self, midi_paths, sample_info=None, for_cp=False):
         midi_file = miditoolkit.MidiFile(midi_paths)
         ticks_per_beat = midi_file.ticks_per_beat
         chord_progression = sample_info["chord_progressions"]
