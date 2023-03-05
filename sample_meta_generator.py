@@ -41,7 +41,7 @@ META['num_measures'] = num
 inst = ''
 while inst not in inst_map:
     inst = input('instrument : ')
-META['instrument'] = inst
+META['inst'] = inst
 
 genre = ''
 while genre not in genre_map:
@@ -49,9 +49,9 @@ while genre not in genre_map:
 META['genre'] = genre
 
 min_vel = int(input('min_velosity : '))
-META['min_velosity'] = min_vel
+META['min_velocity'] = min_vel
 max_vel = int(input('max_velosity : '))
-META['max_velosity'] = max_vel
+META['max_velocity'] = max_vel
 
 track = ''
 while track not in track_map:
