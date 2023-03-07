@@ -221,6 +221,11 @@ class SequenceToMidi:
             decoded_midi.dump(output_file_path)
         return decoded_midi
 
+    execute = decode
+
+    def __call__(self, *args, **kwargs):
+        return self.decode(*args, **kwargs)
+
 
 def save_tokens(input_tokens, output_tokens, output_dir, batch_index):
     out_list = []

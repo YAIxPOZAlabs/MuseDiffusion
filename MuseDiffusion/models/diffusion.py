@@ -261,7 +261,7 @@ class GaussianDiffusion:
             return x_t
         else:
             mask = th.broadcast_to(mask.unsqueeze(dim=-1), x_start.shape)
-            return th.where(mask==0, x_start, x_t)
+            return th.where(mask == 0, x_start, x_t)
 
     def q_posterior_mean_variance(self, x_start, x_t, t):
         """
@@ -428,6 +428,7 @@ class GaussianDiffusion:
         x_start=None,
         gap=1,
         eta=0.0,
+        t_enc=None,
         only_last=False,
     ):
         """
@@ -448,6 +449,8 @@ class GaussianDiffusion:
         :param device: if specified, the device to create the samples on.
                        If not specified, use a model parameter's device.
         :param progress: if True, show a tqdm progress bar.
+        :param t_enc: scope for strength argument.
+        :param only_last: returns 1-length batch contains only last sample.
         :return: a non-differentiable batch of samples.
         """
         sample = None
@@ -466,7 +469,8 @@ class GaussianDiffusion:
             clamp_first=clamp_first,
             mask=mask,
             x_start=x_start,
-            eta=eta
+            eta=eta,
+            t_enc=t_enc,
         ):
             if not only_last:
                 final.append(sample['sample'])
@@ -492,6 +496,7 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         eta=0.0,
+        t_enc=None,
     ):
         """
         Generate samples from the model and yield intermediate samples from
@@ -508,7 +513,7 @@ class GaussianDiffusion:
             sample_x = noise
         else:
             sample_x = th.randn(*shape, device=device)
-        indices = list(range(self.num_timesteps))[::-1]
+        indices = list(range(self.num_timesteps))[::-1][slice(t_enc)]
 
         if progress:
             # Lazy import so that we don't depend on tqdm.
@@ -820,6 +825,7 @@ class GaussianDiffusion:
         x_start=None,
         gap=1,
         eta = 0.0,
+        t_enc=None,
         only_last=False,
     ):
         """
@@ -842,7 +848,8 @@ class GaussianDiffusion:
             mask=mask,
             x_start=x_start,
             gap=gap,
-            eta=eta
+            eta=eta,
+            t_enc=t_enc,
         ):
             if not only_last:
                 final.append(sample['sample'])
@@ -866,7 +873,8 @@ class GaussianDiffusion:
         langevin_fn=None,
         mask=None,
         x_start=None,
-        gap=1
+        gap=1,
+        t_enc=None,
     ):
         """
         Use DDIM to sample from the model and yield intermediate samples from
@@ -881,7 +889,7 @@ class GaussianDiffusion:
             sample_x = noise
         else:
             sample_x = th.randn(*shape, device=device)
-        indices = list(range(self.num_timesteps))[::-1][::gap]
+        indices = list(range(self.num_timesteps))[::-1][::gap][slice(t_enc)]
 
         if progress:
             # Lazy import so that we don't depend on tqdm.

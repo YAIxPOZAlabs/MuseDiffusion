@@ -1,4 +1,4 @@
-python3 -m MuseDiffusion.run.sample generation --distributed \
+python3 -m MuseDiffusion generation --distributed \
 --bpm {BPM} \
 --audio_key {AUDIO_KEY} \
 --time_signature {TIME_SIGNATURE} \
@@ -12,9 +12,9 @@ python3 -m MuseDiffusion.run.sample generation --distributed \
 --rhythm {RHYTHM} \
 --chord_progression {CHORD_PROGRESSION} \
 --num_samples 1000 \
---model_path diffusion_models/{name-of-model-folder}/{weight-file} \
 --step 1000 \
 --top_p 1 \
 --clamp_step 0 \
 --clip_denoised true \
---sample_seed 123
+--sample_seed 123 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file}

@@ -44,7 +44,7 @@ class DiffusionSettings(S):
 
 class DataModelCommonSettings(S):
     seq_len: int \
-        = _(256, "Sequence length to be used in model and data filtering. max is 2096.\n")
+        = _(2096, "Sequence length to be used in model and data filtering. max is 2096.\n")
     vocab_size: int \
         = _(729, "Vocab size for embeddings. Fixed to 729")
     pretrained_denoiser: str \

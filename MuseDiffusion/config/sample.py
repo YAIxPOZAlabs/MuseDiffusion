@@ -188,6 +188,19 @@ class MidiMeta(S):
 @final
 class ModificationSettings(SamplingCommonSettings, ModificationExtraSettingsMixin):
     __GENERATE__ = False
+    strength: float = _(0.75, 'strength for noising/denoising. '
+                              '1.0 corresponds to full destruction of information of original midi.')
+
+    @validator('strength')  # NOQA
+    @classmethod
+    def validate_strength(cls, value, values):
+        value = float(value)
+        if not 0. < value <= 1.:
+            raise ValueError("--strength must be in (0.0, 1.0]")
+        timestep_encode = int(value * values.get('step'))
+        if not timestep_encode:
+            raise ValueError("--strength must be greater than {}: ddim_step * strength = 0".format(value))
+        return value
 
 
 @final
@@ -208,7 +221,7 @@ class GenerationSettings(SamplingCommonSettings, MidiMeta):
         meta_group.add_mutually_exclusive_group().add_argument(
             "--meta_json", type=str, required=False,
             help="you can alter meta arguments all below by meta_json file.")
-        MidiMeta.to_argparse(meta_group.add_mutually_exclusive_group().add_argument_group())
+        MidiMeta.to_argparse(meta_group.add_mutually_exclusive_group())
         num_samples = parser_or_group.add_argument_group(title="num_samples")
         num_samples.add_argument("--num_samples", type=int, default=cls.__fields__["num_samples"].default,
                                  help="number of midi samples to generate from metadata")

@@ -53,11 +53,28 @@ def parse_distributed_args(parser, argv=None, parse_all=True):
     dist_namespace, args = dist_parser.parse_known_args(argv)
 
     # Attach helps to original parser
-    parser.usage = parser.format_usage().strip("usage: ") + dist_parser.format_usage().replace("usage: ", " " * 7)
-    parser.epilog = (
-        "NOTE - You can run this script with [torch.distributed]. "
-        "Add some args at first by " + dist_parser.format_usage()
-    )
+    subparsers = [parser]
+    try:
+        if parser._subparsers is not None:  # NOQA
+            from argparse import _SubParsersAction  # NOQA
+            subparsers = next(s for s in parser._subparsers._actions if isinstance(s, _SubParsersAction))  # NOQA
+            subparsers = list(subparsers._name_parser_map.values())  # NOQA
+            subparsers.append(parser)  # NOQA
+    except (ImportError, StopIteration):
+        pass
+    for _parser in subparsers:
+        dist_parser.prog = " " * len(_parser.prog)
+        _parser.usage = _parser._get_formatter()._format_usage(  # NOQA
+            _parser.usage, _parser._actions, _parser._mutually_exclusive_groups, ""  # NOQA
+        )
+        if _parser.usage.endswith("\n"):
+            _parser.usage = _parser.usage[:-1]
+        _parser.usage += dist_parser.format_usage().replace("usage: ", " " * 7)
+        _parser.epilog = (
+            "NOTE - You can run this script with [torch.distributed]. "
+            "Add some args at first by " + dist_parser.format_usage()
+        )
+    dist_parser.prog = " " * len(parser.prog)
 
     if parse_all:
         namespace = parser.parse_args(args)

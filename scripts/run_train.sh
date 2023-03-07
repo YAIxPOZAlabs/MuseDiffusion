@@ -1,0 +1,31 @@
+python3 -m MuseDiffusion train --distributed \
+--lr 0.0001 \
+--batch_size 2048 \
+--microbatch 64 \
+--learning_steps 320000 \
+--log_interval 20 \
+--save_interval 1000 \
+--eval_interval 500 \
+--ema_rate 0.5,0.9,0.99 \
+--seed 102 \
+--diffusion_steps 2000 \
+--schedule_sampler lossaware \
+--noise_schedule sqrt \
+--seq_len 2096 \
+--pretrained_denoiser diffuseq.pt \
+--pretrained_embedding pozalabs_embedding.pt \
+--freeze_embedding false \
+--use_bucketing true \
+--dataset ComMU \
+--data_dir datasets/ComMU-processed \
+--data_loader_workers 4 \
+--use_corruption true \
+--corr_available mt,mn,rn,rr \
+--corr_max 4 \
+--corr_p 0.5 \
+--corr_kwargs "{'p':0.4}" \
+--hidden_t_dim 128 \
+--hidden_dim 128 \
+--dropout 0.4 \
+--weight_decay 0.1 \
+--gradient_clipping -1.0
