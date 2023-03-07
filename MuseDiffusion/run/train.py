@@ -1,69 +1,21 @@
-"""
-Train a diffusion model on images.
-"""
-import os
-try:
-    from MuseDiffusion.config import TrainSettings
-except ImportError:
-    import sys
-    sys.path.insert(0, os.getcwd())
-    from MuseDiffusion.config import TrainSettings
-
-
-def configure_wandb(args: TrainSettings):
-    import wandb
-    wandb.init(
-        mode=os.getenv("WANDB_MODE", "online"),  # you can change it to offline
-        entity=os.getenv("WANDB_ENTITY", "yai-diffusion"),  # TODO: getenv("WANDB_ENTITY")
-        project=os.getenv("WANDB_PROJECT", "YAIxPOZAlabs"),  # TODO: getenv("WANDB_PROJECT")
-        name=args.checkpoint_path
-    )
-    wandb.config.update(args.__dict__, allow_val_change=True)
-
-
-def print_credit():  # Optional
-    from MuseDiffusion.utils.etc import credit
-    credit()
-
-
-def patch_proc_name_by_rank():
-    from MuseDiffusion.utils import dist_util
-    if dist_util.is_available():
-        title = f"[DISTRIBUTED NODE {dist_util.get_rank()}]"
-        try:
-            import setproctitle  # NOQA
-            setproctitle.setproctitle(title)
-        except ImportError:
-            pass
+from MuseDiffusion.config import TrainSettings
 
 
 def parse_args() -> TrainSettings:
-
-    import argparse
     from MuseDiffusion.utils.dist_run import parse_and_autorun
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-    setting_group = parser.add_argument_group(title="settings")
-    setting_group.add_mutually_exclusive_group().add_argument(
-        "--config_json", type=str, required=False,
-        help="You can alter arguments all below by config_json file.")
-    TrainSettings.to_argparse(setting_group.add_mutually_exclusive_group())
-
-    namespace = parse_and_autorun(parser)
-
-    if namespace.config_json:
-        return TrainSettings.parse_file(namespace.config_json)
-    else:
-        if hasattr(namespace, "config_json"):
-            delattr(namespace, "config_json")
-        return TrainSettings.from_argparse(namespace)
+    parser = TrainSettings.to_argparse(add_json=True)
+    namespace = parse_and_autorun(parser, module_name="MuseDiffusion.run.train")
+    return TrainSettings.from_argparse(namespace)
 
 
 def main(args: TrainSettings):
 
-    # Import everything
+    # Import dependencies
+    import os
     import time
     import json
+
+    # Import everything
     from MuseDiffusion.data import load_data_music
     from MuseDiffusion.models.step_sample import create_named_schedule_sampler
     from MuseDiffusion.utils import dist_util, logger
@@ -161,7 +113,14 @@ def main(args: TrainSettings):
 
     # Init wandb
     if dist_util.get_rank() == 0:
-        configure_wandb(args)
+        # Uncomment and customize your wandb setting on your own, or just use environ.
+        import wandb
+        wandb.init(
+            mode=os.getenv("WANDB_MODE", "online"),
+            # entity=os.getenv("WANDB_ENTITY", "<your-value>"),
+            # project=os.getenv("WANDB_PROJECT", "<your-value>"),
+        )
+        wandb.config.update(args.__dict__, allow_val_change=True)
     dist_util.barrier()  # Sync last
 
     # Run train loop
@@ -192,6 +151,6 @@ def main(args: TrainSettings):
 
 if __name__ == "__main__":
     arg = parse_args()
-    print_credit()
-    patch_proc_name_by_rank()
+    from MuseDiffusion.run.credit import credit
+    credit()
     main(arg)

@@ -13,9 +13,8 @@ import torch
 import torch.distributed as dist
 from torch.cuda import is_available as _cuda_available
 
-# Change this to reflect your cluster layout.
 
-USE_DIST_IN_WINDOWS = False
+USE_DIST_IN_WINDOWS = False  # Change this to enable torch.distributed in windows.
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -137,7 +136,7 @@ def load_state_dict(path, **kwargs):
     return torch.load(io.BytesIO(data), **kwargs)
 
 
-def sync_params(params):
+def sync_params(params, src=0):
     """
     Synchronize a sequence of Tensors across ranks from rank 0.
     """
@@ -145,7 +144,7 @@ def sync_params(params):
         return
     for p in params:
         with torch.no_grad():
-            dist.broadcast(p, 0)
+            dist.broadcast(p, src)
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

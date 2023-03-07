@@ -9,11 +9,17 @@ try:
 except AttributeError:
     np.int = int  # for backward compatibility
 
-from commu.preprocessor.encoder import EventSequenceEncoder, MetaEncoder, TOKEN_OFFSET
-from commu.preprocessor.utils.container import MidiInfo, MidiMeta
-from commu.preprocessor.utils.constants import (
-    KEY_MAP, TIME_SIG_MAP, PITCH_RANGE_MAP, INST_MAP, GENRE_MAP, TRACK_ROLE_MAP, RHYTHM_MAP
-)
+try:
+    from commu.preprocessor.encoder import EventSequenceEncoder, MetaEncoder, TOKEN_OFFSET
+    from commu.preprocessor.utils.container import MidiInfo, MidiMeta
+except ModuleNotFoundError as e:
+    raise ImportError(
+        "In Sampling task, ComMU module is required. Try to install by command"
+        " 'pip install git+https://github.com/YAIxPOZAlabs/ComMU-package'."
+    ) from e
+
+
+# Constants
 
 CHORD_MAP = {
   'A': 195, 'A7': 196, 'A+': 197, 'Adim': 198, 'Am': 199, 'Am7': 200, 'Am7b5': 201, 'Amaj7': 202, 'Asus4': 203,
@@ -32,15 +38,7 @@ CHORD_MAP = {
 }
 
 
-class META_CONSTANTS:
-    audio_key = KEY_MAP
-    time_signature = TIME_SIG_MAP
-    pitch_range = PITCH_RANGE_MAP
-    instrument = INST_MAP
-    genre = GENRE_MAP
-    track_role = TRACK_ROLE_MAP
-    rhythm = RHYTHM_MAP
-
+# Pipelines
 
 class MetaToSequence:
 
@@ -61,15 +59,33 @@ class MetaToSequence:
                     recent_chord = chord_progression[idx + i]
         return encoded_chord
 
-    def execute(self, input_data: dict) -> "list[int]":
+    @staticmethod
+    def encode_meta(midi_meta):
+        return MetaEncoder().encode(midi_meta)
 
+    @classmethod
+    def execute(cls, input_data: dict) -> "list[int]":
         midi_meta = MidiMeta(**input_data)
         chord_progression = input_data["chord_progression"].split("-")
+        return cls.encode_meta(midi_meta) + cls.encode_chord(chord_progression)
 
-        encoded_meta = MetaEncoder().encode(midi_meta)
-        encoded_chord = self.encode_chord(chord_progression)
+    def __call__(self, *args, **kwargs):
+        return self.execute(*args, **kwargs)
 
-        return encoded_meta + encoded_chord
+
+class MetaToBatch(MetaToSequence):
+
+    @classmethod
+    def execute(cls, input_data, batch_size, seq_len):  # NOQA
+        import torch
+        encoded_meta = super(MetaToBatch, cls).execute(input_data)
+        encoded_meta = torch.tensor(encoded_meta)
+        input_ids = torch.zeros(batch_size, seq_len, dtype=torch.int)
+        input_ids[:, :len(encoded_meta)] = encoded_meta
+        input_mask = torch.ones(batch_size, seq_len, dtype=torch.int)
+        input_mask[:, :len(encoded_meta) + 1] = 0
+        batch = {'input_ids': input_ids, 'input_mask': input_mask}
+        return batch
 
 
 class SequenceToMidiError(Exception):
@@ -77,9 +93,8 @@ class SequenceToMidiError(Exception):
 
 
 class SequenceToMidi:
-    decoder = EventSequenceEncoder()
 
-    output_file_format = "{output_dir}/{original_index}_batch{batch_index}_{index}.midi"
+    decoder = EventSequenceEncoder()
 
     @staticmethod
     def remove_padding(generation_result):
@@ -179,9 +194,18 @@ class SequenceToMidi:
         return decoded_midi
 
     @classmethod
+    def extract_note_seq(cls, seq, input_mask):
+        len_meta = len(seq) - int((input_mask.sum()))
+        note_seq = seq[len_meta:]
+        try:
+            note_seq = cls.remove_padding(note_seq)
+            return note_seq[np.where(note_seq < 559)]
+        except SequenceToMidiError:
+            return
+
+    @classmethod
     def _decode(cls, seq, input_mask):  # Output: Midi, Errcode
         len_meta = len(seq) - int((input_mask.sum()))
-
         encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
         note_seq = seq[len_meta:]
         note_seq = cls.remove_padding(note_seq)
@@ -191,96 +215,128 @@ class SequenceToMidi:
         return decoded_midi
 
     @classmethod
-    def decode_single(cls, seq, input_mask, output_file_path):
+    def decode(cls, seq, input_mask, output_file_path=None):
         decoded_midi = cls._decode(seq, input_mask)
-        decoded_midi.dump(output_file_path)
+        if output_file_path:
+            decoded_midi.dump(output_file_path)
+        return decoded_midi
 
-    def decode_multi_verbose(
-            self, sequences, output_dir, input_ids_mask_ori, batch_index, batch_size
-    ) -> "None":
 
-        invalid_idxes = set()
-        num_files_before_batch = batch_index * batch_size
-        assert len(sequences) == batch_size, "Length of sequence differs from batch size"
+def save_tokens(input_tokens, output_tokens, output_dir, batch_index):
+    out_list = []
+    len_meta = 12
+    for (in_seq, out_seq) in zip(input_tokens, output_tokens):
+        encoded_meta = in_seq[:len_meta - 1]
+        in_note_seq = in_seq[len_meta:]
+        in_note_seq = SequenceToMidi.remove_padding(in_note_seq)
+        out_note_seq = out_seq[len_meta:]
+        out_note_seq = SequenceToMidi.remove_padding(out_note_seq)
+        # output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
+        out_list.append(np.concatenate((encoded_meta, in_note_seq, [0], out_note_seq)))
+    path = os.path.join(output_dir, f'token_batch{batch_index}.npy')
+    np.save(path, out_list)
 
-        for idx, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
-            logger = io.StringIO()
-            try:
-                with contextlib.redirect_stdout(logger):
-                    decoded_midi = self._decode(seq, input_mask)
-            except SequenceToMidiError as exc:
-                log = logger.getvalue()
-                print(f"<Warning> Batch {batch_index} Index {idx} "
-                      f"(Original: {num_files_before_batch + idx}) "
-                      f"- Generation Failure: {exc}")
-                if log:
-                    print(log)
-                invalid_idxes.add(idx)
-            except Exception as exc:
-                print(logger.getvalue())
-                print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
-                      f"  occurred while generating midi of Batch {batch_index} Index {idx} "
-                      f"(Original: {num_files_before_batch + idx}).")
-                raise
-            except BaseException:
-                print(logger.getvalue())
-                raise
-            else:
-                log = logger.getvalue()
-                if log:
-                    print(f"<Warning> Batch {batch_index} Index {idx} "
-                          f"(Original: {num_files_before_batch + idx}) "
-                          f"- {' '.join(log.splitlines())}")
-                output_file_path = self.output_file_format.format(
-                    original_index=num_files_before_batch + idx,
-                    batch_index=batch_index,
-                    index=idx,
-                    output_dir=output_dir
-                )
-                decoded_midi.dump(output_file_path)
 
-        valid_count = len(sequences) - len(invalid_idxes)
+def batch_decode_seq2seq(
+        sequences,
+        input_ids_mask_ori,
+        batch_index,
+        previous_count,
+        output_dir,
+        output_file_format="{original_index}_batch{batch_index}_{index}.midi"
+):
 
-        self.print_summary(
-            batch_index=batch_index,
-            batch_size=batch_size,
-            valid_count=valid_count,
-            invalid_idxes=invalid_idxes,
-            output_dir=output_dir
-        )
+    invalid_idxes = set()
 
-    __call__ = decode_multi_verbose
-
-    @staticmethod
-    def print_summary(batch_index, batch_size, valid_count, invalid_idxes, output_dir):
-        invalid_idxes = sorted(invalid_idxes)
-        log = (
-            "\n"
-            f"{f' Summary of Batch {batch_index} ':=^40}\n"
-            f" * Original index: from {batch_index * batch_size} to {(batch_index + 1) * batch_size - 1}\n"
-            f" * {valid_count} valid sequences are converted to midi into path:\n"
-            f"     {os.path.abspath(output_dir)}\n"
-            f" * {len(invalid_idxes)} sequences are invalid.\n"
-        )
-        if invalid_idxes:
-            log += (
-                f" * Index (in batch {batch_index}) of invalid sequence:\n"
-                f"    {invalid_idxes}\n"
+    for index, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
+        original_index = previous_count + index
+        logger = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(logger):
+                decoded_midi = SequenceToMidi.decode(seq, input_mask)
+        except SequenceToMidiError as exc:
+            log = logger.getvalue()
+            print(f"<Warning> Batch {batch_index} Index {index} "
+                  f"(Original: {original_index}) "
+                  f"- Generation Failure: {exc}")
+            if log:
+                print(log)
+            invalid_idxes.add(index)
+        except Exception as exc:
+            print(logger.getvalue())
+            print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
+                  f"  occurred while generating midi of Batch {batch_index} Index {index} "
+                  f"(Original: {original_index}).")
+            raise
+        except BaseException:
+            print(logger.getvalue())
+            raise
+        else:
+            log = logger.getvalue()
+            if log:
+                print(f"<Warning> Batch {batch_index} Index {index} "
+                      f"(Original: {original_index}) "
+                      f"- {' '.join(log.splitlines())}")
+            output_file_path = output_file_format.format(
+                original_index=original_index,
+                batch_index=batch_index,
+                index=index
             )
-        log += ("=" * 40) + "\n"
-        print(log)
+            decoded_midi.dump(os.path.join(output_dir, output_file_path))
 
-    @classmethod
-    def save_tokens(cls, input_tokens, output_tokens, output_dir, batch_index):
-        out_list = []
-        len_meta = 12
-        for (in_seq, out_seq) in zip(input_tokens, output_tokens):
-            encoded_meta = in_seq[:len_meta - 1]
-            in_note_seq = in_seq[len_meta:]
-            in_note_seq = cls.remove_padding(in_note_seq)
-            out_note_seq = out_seq[len_meta:]
-            out_note_seq = cls.remove_padding(out_note_seq)
-            # output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
-            out_list.append(np.concatenate((encoded_meta, in_note_seq, [0], out_note_seq)))
-        path = os.path.join(output_dir, f'token_batch{batch_index}.npy')
-        np.save(path, out_list)
+    valid_count = len(sequences) - len(invalid_idxes)
+    invalid_idxes = sorted(invalid_idxes)
+    log = (
+        "\n"
+        f"{f' Summary of Batch {batch_index} ':=^60}\n"
+        f" * Original index: from {previous_count} to {previous_count + len(sequences)}\n"
+        f" * {valid_count} valid sequences are converted to midi into path:\n"
+        f"     {os.path.abspath(output_dir)}\n"
+        f" * {len(invalid_idxes)} sequences are invalid.\n"
+    )
+    if invalid_idxes:
+        log += (
+            f" * Index (in batch {batch_index}) of invalid sequence:\n"
+            f"    {invalid_idxes}\n"
+        )
+    log += ("=" * 60) + "\n"
+    print(log)
+
+    return valid_count
+
+
+def batch_decode_generate(
+        sequences,
+        input_ids_mask_ori,
+        batch_index,
+        previous_count,
+        output_dir,
+        output_file_format="generated_{valid_index}.midi"
+):
+
+    valid_index = previous_count
+
+    for seq, input_mask in zip(sequences, input_ids_mask_ori):
+        logger = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(logger):
+                decoded_midi = SequenceToMidi.decode(seq, input_mask)
+        except SequenceToMidiError:
+            continue
+        log = logger.getvalue()
+        if log:
+            print(f"<Warning> Index {valid_index} "
+                  f"- {' '.join(log.splitlines())}")
+        output_file_path = output_file_format.format(valid_index)
+        decoded_midi.dump(os.path.join(output_dir, output_file_path))
+        valid_index += 1
+
+    log = (
+        "\n"
+        f"{f' Summary of Trial {batch_index} ':=^60}\n"
+        f" * {valid_index} valid sequences are converted to midi into path:\n"
+        f"     {os.path.abspath(output_dir)}\n"
+    ) + ("=" * 60) + "\n"
+    print(log)
+
+    return valid_index

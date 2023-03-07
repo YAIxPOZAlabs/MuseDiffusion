@@ -123,8 +123,8 @@ python3 -m MuseDiffusion.run.train --distributed --config_json train_cfg.json
 * Note: required arguments will be automatically loaded from `train_cfg.json`. \
   if you want not to use json config, you could manually type arguments, \
   refer to signatures in `python3 -m MuseDiffusion.run.train --help`.
-* Note: argument `--distributed` will run `MuseDiffusion.run.train` \
-  **with torch.distributed runner**. (you can omit this argument.) \
+* Note: argument `--distributed will run `MuseDiffusion.run.*` modules \
+  **with torch.distributed` runner**. (you can omit this argument.) \
 * Note: you can customize distributed options e.g. `--nproc_per_node`, `--master_port`, \
   or environs e.g. `OPT_NUM_THREADS`, `CUDA_VISIBLE_DEVICES`. \
   (`OPT_NUM_THREADS` will be set to `$CPU_CORE` / / `$TOTAL_GPU` in default.)
@@ -133,19 +133,53 @@ python3 -m MuseDiffusion.run.train --distributed --config_json train_cfg.json
 * Note: After training, weights and configs will be saved into `./diffusion_models/<name>/`. \
   **<u>do not move or delete ANY FILE ENDS WITH .PT OR .JSON in this directory</u>**.
 
-<h3>4. Sample with model!</h3>
+<h3>4. Sample with model - Modify or Generate Midi!</h3>
 
 <h4>From corrupted samples</h4>
 
 ```bash
-$ TBD
+python3 -m MuseDiffusion.run.sample modification --distributed \
+--use_corruption True \
+--corr_available mt,mn,rn,rr \
+--corr_max 4 \
+--corr_p 0.5 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file} \
+--step 1000 \
+--top_p 1 \
+--clamp_step 0 \
+--clip_denoised true \
+--sample_seed 123
 ```
+* Note: You can use arguments for `torch.distributed`, which is same as training script.
+* Note: Type `python3 -m MuseDiffusion.run.sample modification --help` for detailed usage.
 
 <h4>From metadata</h4>
 
 ```bash
-$ TBD
+python3 -m MuseDiffusion.run.sample generation --distributed \
+--bpm {BPM} \
+--audio_key {AUDIO_KEY} \
+--time_signature {TIME_SIGNATURE} \
+--pitch_range {PITCH_RANGE} \
+--num_measures {NUM_MEASURES} \
+--inst {INST} \
+--genre {GENRE} \
+--min_velocity {MIN_VELOCITY} \
+--max_velocity {MAX_VELOCITY} \
+--track_role {TRACK_ROLE} \
+--rhythm {RHYTHM} \
+--chord_progression {CHORD_PROGRESSION} \
+--num_samples 1000 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file} \
+--step 1000 \
+--top_p 1 \
+--clamp_step 0 \
+--clip_denoised true \
+--sample_seed 123
 ```
+* Note: You can use arguments for `torch.distributed`, which is same as training script.
+* Note: Type `python3 -m MuseDiffusion.run.sample generation --help` for detailed usage.
+
 <br>
 <hr>
 <h2> Datasets</h2>

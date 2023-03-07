@@ -1,5 +1,5 @@
 from .train import TrainSettings
-from .sample import SamplingSettings
+from .sample import ModificationSettings, GenerationSettings
 
 
-__all__ = ('TrainSettings', 'SamplingSettings')
+__all__ = ('TrainSettings', 'ModificationSettings', 'GenerationSettings')

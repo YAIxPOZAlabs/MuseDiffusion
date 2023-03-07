@@ -109,3 +109,7 @@ class CreditPrinter(object):
 
 credit = CreditPrinter()
 del CreditPrinter
+
+
+if __name__ == '__main__':
+    credit()
