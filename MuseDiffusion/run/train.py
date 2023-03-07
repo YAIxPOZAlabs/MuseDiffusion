@@ -1,14 +1,15 @@
+# python3 MuseDiffusion/run/train.py
 from MuseDiffusion.config import TrainSettings
 
 
-def parse_args() -> TrainSettings:
-    from MuseDiffusion.utils.dist_run import parse_and_autorun
-    parser = TrainSettings.to_argparse(add_json=True)
-    namespace = parse_and_autorun(parser, module_name="MuseDiffusion.run.train")
-    return TrainSettings.from_argparse(namespace)
+def create_parser():
+    return TrainSettings.to_argparse(add_json=True)
 
 
-def main(args: TrainSettings):
+def main(namespace):
+
+    # Create config from parsed argument namespace
+    args: TrainSettings = TrainSettings.from_argparse(namespace)
 
     # Import dependencies
     import os
@@ -154,4 +155,5 @@ def main(args: TrainSettings):
 
 
 if __name__ == "__main__":
-    main(parse_args())
+    from MuseDiffusion.utils.dist_run import parse_and_autorun
+    main(parse_and_autorun(create_parser(), module_name="MuseDiffusion.run.train"))

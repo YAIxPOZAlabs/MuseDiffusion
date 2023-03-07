@@ -44,7 +44,7 @@ def is_initialized():
 
 
 @functools.lru_cache(maxsize=None)
-def setup_dist(backend=None, hostname=None):
+def setup_dist(backend=None, hostname=None, silent=False):
     """
     Setup a distributed process group.
     """
@@ -58,15 +58,16 @@ def setup_dist(backend=None, hostname=None):
             if _cuda_available():
                 torch.cuda.set_device(dev())
                 torch.cuda.empty_cache()
-            if os.environ["LOCAL_RANK"] == str(0):
+            if os.environ["LOCAL_RANK"] == str(0) and not silent:
                 print("<INFO> torch.distributed setup success, using distributed setting..")
             return True
         except Exception as exc:
-            print(f"<INFO> {exc.__class__.__qualname__}: {exc}")
+            if not silent:
+                print(f"<INFO> {exc.__class__.__qualname__}: {exc}")
             is_available.cache = False
 
     os.environ.setdefault("LOCAL_RANK", str(0))  # make legacy-rank-getter compatible
-    if int(os.getenv("LOCAL_RANK")) == 0:
+    if int(os.getenv("LOCAL_RANK")) == 0 and not silent:
         print("<INFO> torch.distributed is not available, skipping distributed setting..")
     return False
 

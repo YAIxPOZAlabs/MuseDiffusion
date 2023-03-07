@@ -1,5 +1,3 @@
-git+https://github.com/YAIxPOZAlabs/ComMU-package@master
-
 bert_score
 blobfile
 nltk

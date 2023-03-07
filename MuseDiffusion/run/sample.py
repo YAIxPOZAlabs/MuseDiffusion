@@ -1,9 +1,10 @@
+# python3 MuseDiffusion/run/sample.py
+import torch
 from MuseDiffusion.config import GenerationSettings, ModificationSettings
 
 
-def parse_args() -> "ModificationSettings|GenerationSettings":
+def create_parser():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter as Df
-    from MuseDiffusion.utils.dist_run import parse_and_autorun
     parser = ArgumentParser(formatter_class=Df)
     subparsers = parser.add_subparsers(title="sampling-mode", dest="mode", required=True,
                                        help="available sampling mode. "
@@ -11,17 +12,15 @@ def parse_args() -> "ModificationSettings|GenerationSettings":
                                             "available modes are 'generation'(=gen) and 'modification'(=mod).")
     GenerationSettings.to_argparse(subparsers.add_parser("generation", aliases=["gen"], formatter_class=Df))
     ModificationSettings.to_argparse(subparsers.add_parser("modification", aliases=["mod"], formatter_class=Df))
-    namespace = parse_and_autorun(parser, module_name="MuseDiffusion.run.sample")
+    return parser
+
+
+@torch.no_grad()
+def main(namespace):
+
+    # Create config from parsed argument namespace
     klass = {"generation": GenerationSettings, "modification": ModificationSettings}[namespace.__dict__.pop("mode")]
-    return klass.from_argparse(namespace)
-
-
-def main(args: "ModificationSettings|GenerationSettings"):
-
-    # Ensure no_grad()
-    import torch
-    if torch.is_grad_enabled():
-        return torch.no_grad()(main)(args)
+    args: "ModificationSettings|GenerationSettings" = klass.from_argparse(namespace)
 
     # Import dependencies
     import os
@@ -153,13 +152,13 @@ def main(args: "ModificationSettings|GenerationSettings"):
         model_kwargs = cond
 
         if args.__GENERATE__:
+            noising_t = None
             noise = torch.randn_like(x_start)  # randn_like: device will be same as x_start
+            x_noised = torch.where(input_ids_mask == 0, x_start, noise)
         else:
-            noising_t = training_args.diffusion_steps
+            noising_t = int(args.step * args.strength)
             timestep = torch.full((args.batch_size, 1), noising_t - 1, device=dev)
-            noise = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask).squeeze(-1)
-
-        x_noised = torch.where(input_ids_mask == 0, x_start, noise)
+            x_noised = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask).squeeze(-1)
 
         samples = sample_fn(
             model=model,
@@ -174,6 +173,7 @@ def main(args: "ModificationSettings|GenerationSettings"):
             mask=input_ids_mask,
             x_start=x_start,
             gap=step_gap,
+            t_enc=noising_t,
             only_last=True  # Use only last step (returns length-1 list)
         )
 
@@ -187,15 +187,8 @@ def main(args: "ModificationSettings|GenerationSettings"):
                 out = StringIO()
                 try:
                     with redirect_stdout(out):
-                        # from MuseDiffusion.utils.decode_util import save_tokens
-                        # save_tokens(
-                        #     input_ids_x.cpu().numpy(),
-                        #     sample_tokens.cpu().squeeze(-1).numpy(),
-                        #     output_dir=out_path,
-                        #     batch_index=batch_index
-                        # )  # TODO: remove
                         valid_count = midi_decode_fn(
-                            sequences=sample_tokens.cpu().numpy(),  # input_ids_x.cpu().numpy() - with original
+                            sequences=sample_tokens.cpu().numpy(),
                             input_ids_mask_ori=input_ids_mask_ori.cpu().numpy(),
                             output_dir=out_path,
                             batch_index=batch_index,
@@ -204,7 +197,7 @@ def main(args: "ModificationSettings|GenerationSettings"):
                             )
                         )
                         total_valid_count += valid_count
-                        print(total_valid_count.item())  # TODO: remove
+                        print(total_valid_count.item())
                 finally:
                     logs_per_batch = out.getvalue()
                     # Print logs sequentially
@@ -230,4 +223,5 @@ def main(args: "ModificationSettings|GenerationSettings"):
 
 
 if __name__ == "__main__":
-    main(parse_args())
+    from MuseDiffusion.utils.dist_run import parse_and_autorun
+    main(parse_and_autorun(create_parser(), module_name="MuseDiffusion.run.sample"))
