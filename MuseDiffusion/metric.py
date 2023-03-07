@@ -27,15 +27,18 @@ def get_vectors(midi, note_len=128):
             if prev_startp != startp and prev_highest_pitch >= 0:
                 progression_vec[(cur_highest_pitch - prev_highest_pitch) % 12] += 1
             break
+        has_pos = (432 <= midi[i] <= 559)
+        if not has_pos:
+            i -= 1
         if 195 <= midi[i+1] <= 303:
             i += 2
             continue
         pitch = midi[i+2]
-        startp = midi[i] - 432
+        startp = (midi[i] - 432) if has_pos else prev_startp
         endp = startp + midi[i+3] - 303
         chroma_vec[pitch % 12] += 1
         for t in range(0, min(128, endp), 4):
-            if t < midi[i] - 432:
+            if t < startp:
                 continue
             max_amplitude = (0.00542676376 * (midi[i+1] - 130) * 2 + 0.310801) ** 2
             tmp_groove_vec[t // 4] = max(tmp_groove_vec[t // 4],
