@@ -75,6 +75,14 @@ _ = Item = item  # Alias
 Validator = validator  # Alias
 
 
+__all__ = (
+    'ArgparseCompatibleBaseModel', 'Setting', 'S',
+    'choice', 'Choice', 'C',
+    'item', 'Item', '_',
+    'validator', 'Validator',
+)
+
+
 if __name__ == '__main__':
 
     import yaml

@@ -1,5 +1,36 @@
-<img src="https://i.ibb.co/z66nz7q/1.png">
+<!-- HEADER START -->
+<!-- src: https://github.com/kyechan99/capsule-render -->
+<p align="center"><a href="#">
+    <img width="100%" height="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:B993D6,100:8CA6DB&height=220&section=header&fontSize=40&fontColor=ffffff&animation=fadeIn&fontAlignY=40&text=%E2%97%A6%20%CB%9A%20%EF%BC%B9%EF%BC%A1%EF%BC%A9%20%C3%97%20%EF%BC%B0%EF%BD%8F%EF%BD%9A%EF%BD%81%EF%BD%8C%EF%BD%81%EF%BD%82%EF%BD%93%20%CB%9A%20%E2%97%A6" alt="header" />
+</a></p>
+<h3 align="center">Midi-data Modification based on Diffusion Model</h3>
+<p align="center"><a href="https://github.com/YAIxPOZAlabs"><img src="assets/logo.png" width="50%" height="50%" alt="logo"></a></p>
+<p align="center">This project was carried out by <b><a href="https://github.com/yonsei-YAI">YAI 11th</a></b>, in cooperation with <b><a href="https://github.com/POZAlabs">POZAlabs</a></b>.</p>
+<p align="center">
 <br>
+<a href="mailto:dhakim@yonsei.ac.kr">
+    <img src="https://img.shields.io/badge/-Gmail-D14836?style=flat-square&logo=gmail&logoColor=white" alt="Gmail"/>
+</a> 
+<a href="https://www.notion.so/dhakim/1e7dc19fd1064e698a389f75404883c7?pvs=4">
+    <img src="https://img.shields.io/badge/-Notion-000000?style=flat-square&logo=notion&logoColor=white" alt="NOTION"/>
+</a> 
+</p>
+<br>
+
+---
+
+<!-- HEADER END -->
+
+<h3 align="center"><br>✨&nbsp; Contributors&nbsp; ✨<br><br></h3>
+<p align="center">
+<b>🛠️ <a href="https://github.com/kdha0727">KIM DONGHA</a></b>&nbsp; :&nbsp; YAI 8th&nbsp; /&nbsp; AI Dev Lead &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
+<b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🚀 <a href="https://github.com/ta3h30nk1m">KIM TAEHEON</a></b>&nbsp; :&nbsp; YAI 10th&nbsp; /&nbsp; AI Research & Dev <br>
+<b>👑 <a href="https://github.com/san9min">LEE SANGMIN</a></b>&nbsp; :&nbsp; YAI 9th&nbsp; /&nbsp; Team Leader&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
+&nbsp;<b>🐋 <a href="https://github.com/Tim3s">LEE SEUNGJAE</a></b>&nbsp; :&nbsp; YAI 9th&nbsp; /&nbsp; AI Research Lead <br>
+<b>🌈 <a href="https://github.com/jeongwoo1213">CHOI JEONGWOO</a></b>&nbsp; :&nbsp; YAI 10th&nbsp; /&nbsp; AI Research & Dev <br>
+<b>🌟 <a href="https://github.com/starwh03">CHOI WOOHYEON</a></b>&nbsp; :&nbsp; YAI 10th&nbsp; /&nbsp; AI Research & Dev <br>
+<br><br>
+<hr>
 <h2> How to run</h2>
 
 <h3>0. Clone repository and cd</h3>
@@ -39,12 +70,12 @@ conda activate MuseDiffusion
 pip3 install -r requirements.txt
 ```
 
-<h3>2. Preprocess dataset</h3>
+<h3>2. Download and Preprocess dataset</h3>
 
 ```bash
-python3 -m MuseDiffusion.data --num_proc <num-proc>
+python3 -m MuseDiffusion.data [--num_proc {NUM_PROC}]
 ```
-* where `<num-proc>` can be optimized, according to your node spec.
+* where `{NUM_PROC}` can be optimized, according to your node spec.
 
 <h4>Directory Structure</h4>
 
@@ -120,37 +151,123 @@ vi train_cfg.json
 # Run training script
 python3 -m MuseDiffusion.run.train --distributed --config_json train_cfg.json
 ```
-* Note: required arguments will be automatically loaded from `train_cfg.json`. \
-  if you want not to use json config, you could manually type arguments, \
+* Note: required arguments will be automatically loaded from `train_cfg.json`.
+  if you want not to use json config, you could manually type arguments,
   refer to signatures in `python3 -m MuseDiffusion.run.train --help`.
-* Note: argument `--distributed` will run `MuseDiffusion.run.train` \
-  **with torch.distributed runner**. (you can omit this argument.) \
-* Note: you can customize distributed options e.g. `--nproc_per_node`, `--master_port`, \
-  or environs e.g. `OPT_NUM_THREADS`, `CUDA_VISIBLE_DEVICES`. \
-  (`OPT_NUM_THREADS` will be set to `$CPU_CORE` / / `$TOTAL_GPU` in default.)
-* Note: In windows, torch.distributed is disabled in default. \
-  to enable, set `MuseDiffusion.utils.dist_util.USE_DIST_IN_WINDOWS` to `True`.
-* Note: After training, weights and configs will be saved into `./diffusion_models/<name>/`. \
-  **<u>do not move or delete ANY FILE ENDS WITH .PT OR .JSON in this directory</u>**.
+* Note: argument `--distributed` will run `MuseDiffusion.run.train` 
+  **with torch.distributed runner**, and you can customize options, or environs.
+  * commandline option `--nproc_per_node` - number of training node (GPU) to use. \
+    (default: number of GPU in `CUDA_VISIBLE_DEVICES` environ.)
+  * commandline option `--master_port` - master port for distributed learning. \
+    (you should specify it for multiple runs.)
+  * environ `CUDA_VISIBLE_DEVICES` - specific GPU index. e.g: `CUDA_VISIBLE_DEVICES=4,5,6,7` \
+    (default: not set - in this case, trainer will use all available GPUs.)
+  * environ `OPT_NUM_THREADS` - number of threads for each node. \
+    (default: `$CPU_CORE` / / `$TOTAL_GPU`)
+* Note: In windows, torch.distributed is disabled in default. 
+  to enable, edit `MuseDiffusion.utils.dist_util.USE_DIST_IN_WINDOWS`.
+* Note: After training, weights and configs will be saved into `./diffusion_models/{name-of-model-folder}/`. \
+  <u>**do not move or delete ANY FILE ENDS WITH .PT OR .JSON in this directory**</u>.
 
-<h3>4. Sample with model!</h3>
+
+<h3>4. Sample with model - Modify or Generate Midi!</h3>
 
 <h4>From corrupted samples</h4>
 
 ```bash
-$ TBD
+python3 -m MuseDiffusion.run.sample modification --distributed \
+--use_corruption True \
+--corr_available mt,mn,rn,rr \
+--corr_max 4 \
+--corr_p 0.5 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file} \
+--step 1000 \
+--top_p 1 \
+--clamp_step 0 \
+--clip_denoised true \
+--sample_seed 123
 ```
+* Note: You can use arguments for `torch.distributed`, which is same as training script.
+* Note: Type `python3 -m MuseDiffusion.run.sample modification --help` for detailed usage.
 
 <h4>From metadata</h4>
 
 ```bash
-$ TBD
+python3 -m MuseDiffusion.run.sample generation --distributed \
+--bpm {BPM} \
+--audio_key {AUDIO_KEY} \
+--time_signature {TIME_SIGNATURE} \
+--pitch_range {PITCH_RANGE} \
+--num_measures {NUM_MEASURES} \
+--inst {INST} \
+--genre {GENRE} \
+--min_velocity {MIN_VELOCITY} \
+--max_velocity {MAX_VELOCITY} \
+--track_role {TRACK_ROLE} \
+--rhythm {RHYTHM} \
+--chord_progression {CHORD_PROGRESSION} \
+--num_samples 1000 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file} \
+--step 1000 \
+--top_p 1 \
+--clamp_step 0 \
+--clip_denoised true \
+--sample_seed 123
 ```
-<br>
-<hr>
-<h2> Datasets</h2>
 
+or
+
+```bash
+python3 -m MuseDiffusion.run.sample generation --distributed \
+--meta_json {META_JSON_FILE_PATH} \
+--num_samples 1000 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file} \
+--step 1000 \
+--top_p 1 \
+--clamp_step 0 \
+--clip_denoised true \
+--sample_seed 123
+```
+
+* Note: **In generation, MidiMeta arguments** (bpm, audio_key, ..., chord_progression)
+  **are essential to run script.**
+* Note: You can use arguments for `torch.distributed`, which is same as training script.
+* Note: Type `python3 -m MuseDiffusion.run.sample generation --help` for detailed usage.
+
+> Example
+```bash
+python3 -m MuseDiffusion.run.sample generation --distributed \
+--num_samples 1000 \
+--bpm 70 --audio_key aminor --time_signature 4/4 --pitch_range mid_high \
+--num_measures 8 --inst acoustic_piano --genre newage \
+--min_velocity 60 --max_velocity 80 --track_role main_melody --rhythm standard \
+--chord_progression Am-Am-Am-Am-Am-Am-Am-Am-G-G-G-G-G-G-G-G-F-F-F-F-F-F-F-F-E-E-E-E-E-E-E-E-Am-Am-Am-Am-Am-Am-Am-Am-G-G-G-G-G-G-G-G-F-F-F-F-F-F-F-F-E-E-E-E-E-E-E-E
+```
 
 <br>
-<br>
-<img src="https://i.ibb.co/8c9Scmt/2.png">
+
+---
+
+## Datasets
+
+<h3 align="center">ComMU: Dataset for Combinatorial Music Generation</h3>
+
+> Combinatorial music generation creates short samples of music with rich musical metadata, 
+> and combines them to produce a complete music. 
+> <u>**ComMU**</u> is the first symbolic music dataset consisting of short music samples 
+> and their corresponding 12 musical metadata for combinatorial music generation. 
+> 
+> Notable properties of ComMU are that (1) dataset is manually constructed by professional composers 
+> with an objective guideline that induces regularity, 
+> and (2) it has 12 musical metadata that embraces composers' intentions. 
+> 
+> ComMU's results show that we can generate diverse high-quality music only with metadata, and that 
+> our unique metadata such as track-role and extended chord quality improves the capacity of the automatic composition.
+
+---
+
+<!-- FOOTER START -->
+<p align="center"><a href="#">
+    <img width="100%" height="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:8CA6DB,100:B993D6&height=180&section=footer&animation=fadeIn&fontAlignY=40" alt="header" />
+</a></p>
+<!-- FOOTER END -->

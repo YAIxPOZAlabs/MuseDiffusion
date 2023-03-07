@@ -1,3 +1,4 @@
+import copy
 import torch
 import datasets
 
@@ -125,4 +126,14 @@ def collate_batches(
     return result
 
 
-__all__ = ('wrap_dataset', )
+def infinite_loader_from_single(single):
+    while True:
+        yield copy.deepcopy(single)
+
+
+def infinite_loader_from_iterable(iterable):
+    while True:
+        yield from iterable
+
+
+__all__ = ('wrap_dataset', 'infinite_loader_from_single', 'infinite_loader_from_iterable')

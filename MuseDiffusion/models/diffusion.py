@@ -427,7 +427,8 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
-        eta=0.0
+        eta=0.0,
+        only_last=False,
     ):
         """
         Generate samples from the model.
@@ -449,6 +450,7 @@ class GaussianDiffusion:
         :param progress: if True, show a tqdm progress bar.
         :return: a non-differentiable batch of samples.
         """
+        sample = None
         final = []
         for sample in self.p_sample_loop_progressive(
             model,
@@ -466,9 +468,12 @@ class GaussianDiffusion:
             x_start=x_start,
             eta=eta
         ):
-            # final.append(sample['sample'])  # TODO
-            pass
-        final.append(sample['sample'])
+            if not only_last:
+                final.append(sample['sample'])
+        if only_last:
+            if sample is None:
+                return []
+            final.append(sample['sample'])
         return final
 
     def p_sample_loop_progressive(
@@ -814,7 +819,8 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
-        eta = 0.0
+        eta = 0.0,
+        only_last=False,
     ):
         """
         Generate samples from the model using DDIM.
@@ -822,6 +828,7 @@ class GaussianDiffusion:
 
         Same usage as p_sample_loop().
         """
+        sample = None
         final = []
         for sample in self.ddim_sample_loop_progressive(
             model,
@@ -837,6 +844,11 @@ class GaussianDiffusion:
             gap=gap,
             eta=eta
         ):
+            if not only_last:
+                final.append(sample['sample'])
+        if only_last:
+            if sample is None:
+                return []
             final.append(sample['sample'])
         return final
 

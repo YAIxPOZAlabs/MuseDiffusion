@@ -1,15 +1,20 @@
 from . import corruption, download, preprocess, wrapper
+from .corruption import Corruptions
+from .preprocess import tokenize_with_caching
+from .wrapper import wrap_dataset, infinite_loader_from_iterable, infinite_loader_from_single
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
-    import os
+    from os import PathLike
+del TYPE_CHECKING
 
 
 # usage: from data import load_data_text
 def load_data_music(
         split: "str|list|tuple" = 'train',
         batch_size: "Optional[int]" = 1,
-        data_dir: "Union[str, os.PathLike]" = None,
+        data_dir: "Union[str, PathLike]" = None,
         use_corruption: bool = False,
         corr_available: "str|list|tuple" = None,
         corr_max: "str|int" = None,
@@ -19,7 +24,7 @@ def load_data_music(
         seq_len: "Optional[int]" = None,
         deterministic: bool = False,
         loop: bool = True,
-        num_preprocess_proc: int = 4,
+        num_preprocess_proc: int = 1,
         num_loader_proc: int = 0,
 ):
     """
@@ -54,10 +59,6 @@ The kwargs dict can be used for some meta information.
 
     import itertools
 
-    from .preprocess import tokenize_with_caching
-    from .wrapper import wrap_dataset
-    from .corruption import Corruptions
-
     if use_corruption:
         corruption_fn = Corruptions.from_config(
             corr_available=corr_available,
@@ -82,18 +83,13 @@ The kwargs dict can be used for some meta information.
         num_loader_proc=num_loader_proc
     )
     if loop:
-        data_loader = _infinite_loader(data_loader)
+        data_loader = infinite_loader_from_iterable(data_loader)
         return itertools.chain([next(data_loader)], data_loader)  # initialize iteration
     else:
         return data_loader
 
 
-def _infinite_loader(iterable):
-    while True:
-        yield from iterable
-
-
-def __guarantee_clean_log_in_distributed(func):  # since datasets.Dataset logs progress with tqdm
+def __log_only_first_node__(func):  # since datasets.Dataset logs progress with tqdm
     def decorator(*args, **kwargs):
         import os
         if int(os.getenv("LOCAL_RANK", "0")) == 0:
@@ -110,5 +106,5 @@ def __guarantee_clean_log_in_distributed(func):  # since datasets.Dataset logs p
     return functools.update_wrapper(decorator, func)
 
 
-globals().update(load_data_music=__guarantee_clean_log_in_distributed(load_data_music))
-del __guarantee_clean_log_in_distributed
+globals().update(load_data_music=__log_only_first_node__(load_data_music))
+del __log_only_first_node__
