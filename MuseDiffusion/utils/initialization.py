@@ -112,9 +112,9 @@ def create_model_and_diffusion(
         use_kl,
         **_,
 ):
-    from MuseDiffusion.models.gaussian_diffusion \
+    from MuseDiffusion.models.diffusion \
         import SpacedDiffusion, space_timesteps, get_named_beta_schedule
-    from MuseDiffusion.models.transformer_model import TransformerNetModel
+    from MuseDiffusion.models.network import TransformerNetModel
 
     model = TransformerNetModel(
         input_dims=hidden_dim,

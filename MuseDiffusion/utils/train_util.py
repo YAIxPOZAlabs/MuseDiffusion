@@ -3,12 +3,11 @@ import functools
 import os
 
 import blobfile as bf
-import numpy as np
-import torch as th
+import math
+import torch
 from torch.nn.parallel.distributed import DistributedDataParallel
 from torch.optim import AdamW
 
-from MuseDiffusion.models.nn import update_ema
 from MuseDiffusion.models.step_sample import LossAwareSampler, UniformSampler
 from . import dist_util, logger
 from .fp16_util import (
@@ -21,6 +20,19 @@ from .fp16_util import (
 
 
 INITIAL_LOG_LOSS_SCALE = 2e1
+
+
+def update_ema(target_params, source_params, rate=0.99):
+    """
+    Update target parameters to be closer to those of source parameters using
+    an exponential moving average.
+
+    :param target_params: the target parameter sequence.
+    :param source_params: the source parameter sequence.
+    :param rate: the EMA rate (closer to 1 means slower).
+    """
+    for trg, src in zip(target_params, source_params):
+        trg.detach().mul_(rate).add_(src, alpha=1 - rate)
 
 
 class TrainLoop:
@@ -88,12 +100,12 @@ class TrainLoop:
 
         self.opt = AdamW(self.master_params, lr=self.lr, weight_decay=self.weight_decay)
         if self.resume_step:
+            # Model was resumed, either due to a restart or a checkpoint
+            # being specified at the command line.
             self._load_optimizer_state()
             # frac_done = (self.step + self.resume_step) / self.learning_steps
             # lr = self.lr * (1 - frac_done)
             # self.opt = AdamW(self.master_params, lr=lr, weight_decay=self.weight_decay)
-            # Model was resumed, either due to a restart or a checkpoint
-            # being specified at the command line.
             self.ema_params = [
                 self._load_ema_parameters(rate) for rate in self.ema_rate
             ]
@@ -103,78 +115,64 @@ class TrainLoop:
             ]
 
         if dist_util.is_initialized():
-            if th.cuda.is_available():  # DEBUG **
-                self.use_ddp = True
-                print(dist_util.dev())
-                self.ddp_model = DistributedDataParallel(
-                    self.model,
-                    device_ids=[dist_util.dev()],
-                    output_device=dist_util.dev(),
-                    broadcast_buffers=False,
-                    bucket_cap_mb=128,
-                    find_unused_parameters=False,
-                )
-            else:
-                if dist_util.get_world_size() > 1:
-                    logger.warn(
-                        "Distributed training requires CUDA. "
-                        "Gradients will not be synchronized properly!"
-                    )
-                self.use_ddp = False
-                self.ddp_model = self.model
+            self.use_ddp = True
+            print(dist_util.dev())
+            self.ddp_model = DistributedDataParallel(
+                self.model,
+                device_ids=[dist_util.dev()],
+                output_device=dist_util.dev(),
+                broadcast_buffers=False,
+                bucket_cap_mb=128,
+                find_unused_parameters=False,
+            )
         else:
             self.use_ddp = False
             self.ddp_model = self.model
 
+        torch.cuda.empty_cache()
+
     def _load_and_sync_parameters(self):
-        resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
+        resume_checkpoint = self.find_resume_checkpoint() or self.resume_checkpoint
         if not resume_checkpoint:
             return
 
-        self.resume_step = parse_resume_step_from_filename(resume_checkpoint)
+        self.resume_step = self.parse_resume_step_from_filename(resume_checkpoint)
         if dist_util.get_rank() == 0:
             logger.log(f"loading model from checkpoint: {resume_checkpoint}...")
             self.model.load_state_dict(
-                dist_util.load_state_dict(
-                    actual_model_path(resume_checkpoint), map_location=dist_util.dev()
-                )
+                dist_util.load_state_dict(resume_checkpoint, map_location=dist_util.dev())
             )
 
         dist_util.sync_params(self.model.parameters())
 
     def _load_ema_parameters(self, rate):
         ema_params = copy.deepcopy(self.master_params)
-
-        main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
+        main_checkpoint = self.find_resume_checkpoint() or self.resume_checkpoint
         if not main_checkpoint:
             return
-        ema_checkpoint = find_ema_checkpoint(main_checkpoint, self.resume_step, rate)
+        ema_checkpoint = self.find_ema_checkpoint(main_checkpoint, self.resume_step, rate)
         if ema_checkpoint:
             if dist_util.get_rank() == 0:
                 logger.log(f"loading EMA from checkpoint: {ema_checkpoint}...")
-                state_dict = dist_util.load_state_dict(
-                    actual_model_path(ema_checkpoint), map_location=dist_util.dev()
-                )
+                state_dict = dist_util.load_state_dict(ema_checkpoint, map_location=dist_util.dev())
                 ema_params = self._state_dict_to_master_params(state_dict)
 
         dist_util.sync_params(ema_params)
         return ema_params
 
     def _load_optimizer_state(self):
-        main_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
+        main_checkpoint = self.find_resume_checkpoint() or self.resume_checkpoint
         if not main_checkpoint:
             return
-        opt_checkpoint = find_opt_checkpoint(main_checkpoint, self.resume_step)
+        opt_checkpoint = self.find_opt_checkpoint(main_checkpoint, self.resume_step)
         if bf.exists(opt_checkpoint):
             logger.log(f"loading optimizer state from checkpoint: {opt_checkpoint}")
-            state_dict = dist_util.load_state_dict(
-                actual_model_path(opt_checkpoint), map_location=dist_util.dev()
-            )
+            state_dict = dist_util.load_state_dict(opt_checkpoint, map_location=dist_util.dev())
             self.opt.load_state_dict(state_dict)
 
     def _setup_fp16(self):
         self.master_params = make_master_params(self.model_params)
-        self.model: th.nn.Module
+        self.model: torch.nn.Module
         self.model.apply(convert_module_to_f16)
 
     def run_loop(self):
@@ -196,11 +194,7 @@ class TrainLoop:
                         callback(self)
             if self.step > 0 and self.step % self.save_interval == 0:
                 self.save()
-                # Run for a finite amount of time in integration tests.
-                if os.environ.get("DIFFUSION_TRAINING_TEST", "") and self.step > 0:
-                    return
             self.step += 1
-        # Save the last checkpoint if it wasn't already saved.
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
@@ -214,7 +208,6 @@ class TrainLoop:
 
     def _zero_grad(self):
         for param in self.model_params:
-            # Taken from https://pytorch.org/docs/stable/_modules/torch/optim/optimizer.html#Optimizer.add_param_group
             if param.grad is not None:
                 param.grad.detach_()
                 param.grad.zero_()
@@ -227,7 +220,6 @@ class TrainLoop:
         }
         last_batch = (i + self.microbatch) >= cond['input_ids'].shape[0]
         t, weights = self.schedule_sampler.sample(micro_cond['input_ids'].shape[0], dist_util.dev())
-        # print(micro_cond.keys())
 
         compute_losses = functools.partial(
             self.diffusion.training_losses,
@@ -244,13 +236,13 @@ class TrainLoop:
 
         return losses, t, weights
 
-    @th.no_grad()
+    @torch.no_grad()
     def forward_only(self, cond):
         self._zero_grad()
         for i in range(0, cond['input_ids'].shape[0], self.microbatch):
             losses, t, weights = self._microbatch_common_forward(cond, i)
 
-            log_loss_dict(
+            self.log_loss_dict(
                 self.diffusion, t, {f"eval_{k}": v * weights for k, v in losses.items()}
             )
 
@@ -265,7 +257,7 @@ class TrainLoop:
                 )
 
             loss = (losses["loss"] * weights).mean()
-            log_loss_dict(
+            self.log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
             if self.use_fp16:
@@ -275,7 +267,7 @@ class TrainLoop:
                 loss.backward()
 
     def optimize_fp16(self):
-        if any(not th.isfinite(p.grad).all() for p in self.model_params):
+        if any(not torch.isfinite(p.grad).all() for p in self.model_params):
             self.lg_loss_scale -= 1
             logger.log(f"Found NaN, decreased lg_loss_scale to {self.lg_loss_scale}")
             return
@@ -290,24 +282,6 @@ class TrainLoop:
         master_params_to_model_params(self.model_params, self.master_params)
         self.lg_loss_scale += self.fp16_scale_growth
 
-    def grad_clip(self):
-        # print('doing gradient clipping')
-        max_grad_norm = self.gradient_clipping  # 3.0
-        if hasattr(self.opt, "clip_grad_norm"):
-            # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
-            self.opt.clip_grad_norm(max_grad_norm)
-        # else:
-        #     assert False
-        # elif hasattr(self.model, "clip_grad_norm_"):
-        #     # Some models (like FullyShardedDDP) have a specific way to do gradient clipping
-        #     self.model.clip_grad_norm_(args.max_grad_norm)
-        else:
-            # Revert to normal clipping otherwise, handling Apex or full precision
-            th.nn.utils.clip_grad_norm_(
-                self.model.parameters(),  # amp.master_params(self.opt) if self.use_apex else
-                max_grad_norm,
-            )
-
     def optimize_normal(self):
         if self.gradient_clipping > 0:
             self.grad_clip()
@@ -317,16 +291,16 @@ class TrainLoop:
         for rate, params in zip(self.ema_rate, self.ema_params):
             update_ema(params, self.master_params, rate=rate)
 
-    def _log_grad_norm(self):
-        sqsum = 0.0
-        # cnt = 0
-        for p in self.master_params:
-            # print(cnt, p) ## DEBUG
-            # print(cnt, p.grad)
-            # cnt += 1
-            if p.grad is not None:
-                sqsum += (p.grad ** 2).sum().item()
-        logger.logkv_mean("grad_norm", np.sqrt(sqsum))
+    def grad_clip(self):
+        max_grad_norm = self.gradient_clipping
+        if hasattr(self.opt, "clip_grad_norm"):
+            # Some optimizers (like the sharded optimizer) have a specific way to do gradient clipping
+            self.opt.clip_grad_norm(max_grad_norm)
+        else:
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(),
+                max_grad_norm,
+            )
 
     def _anneal_lr(self):
         if not self.learning_steps:
@@ -336,11 +310,28 @@ class TrainLoop:
         for param_group in self.opt.param_groups:
             param_group["lr"] = lr
 
+    def _log_grad_norm(self):
+        sqsum = 0.0
+        # cnt = 0
+        for p in self.master_params:
+            if p.grad is not None:
+                sqsum += (p.grad ** 2).sum().item()
+        logger.logkv_mean("grad_norm", math.sqrt(sqsum))
+
     def log_step(self):
         logger.logkv("step", self.step + self.resume_step)
         logger.logkv("samples", (self.step + self.resume_step + 1) * self.global_batch)
         if self.use_fp16:
             logger.logkv("lg_loss_scale", self.lg_loss_scale)
+
+    @staticmethod
+    def log_loss_dict(diffusion, ts, losses):
+        for key, values in losses.items():
+            logger.logkv_mean(key, values.mean().item())
+            # Log the quantiles (four quartiles, in particular).
+            for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
+                quartile = int(4 * sub_t / diffusion.num_timesteps)
+                logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
 
     def save(self):
         self._save_checkpoint(0, self.master_params)
@@ -357,22 +348,17 @@ class TrainLoop:
                 filename = f"model_{(self.step+self.resume_step):06d}.pt"
             else:
                 filename = f"ema_{rate}_{(self.step+self.resume_step):06d}.pt"
-            # print('writing to', bf.join(get_blob_logdir(), filename))
-            # with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
-            #     th.save(state_dict, f)
             print('writing to', bf.join(self.checkpoint_path, filename))
-            with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:  # DEBUG **
-                th.save(state_dict, f)  # save locally
-                # pass # save empty
+            with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:
+                torch.save(state_dict, f)
 
     def _save_opt(self):
         if dist_util.get_rank() == 0:
             logger.log(f"saving optimizer...")
             filename = f"opt_{(self.step+self.resume_step):06d}.pt"
             print('writing to', bf.join(self.checkpoint_path, filename))
-            with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:  # DEBUG **
-                th.save(self.opt.state_dict(), f)  # save locally
-                # pass # save empty
+            with bf.BlobFile(bf.join(self.checkpoint_path, filename), "wb") as f:
+                torch.save(self.opt.state_dict(), f)
 
     def _master_params_to_state_dict(self, master_params, key=None):
         if self.use_fp16:
@@ -396,59 +382,42 @@ class TrainLoop:
         else:
             return params
 
+    @staticmethod
+    def parse_resume_step_from_filename(filename):
+        """
+        Parse filenames of the form path/to/modelNNNNNN.pt, where NNNNNN is the
+        checkpoint's number of steps.
+        """
+        filename: str = os.path.basename(filename)
+        assert filename.startswith('model') and filename[-3:] == '.pt', "Invalid model name"
+        return int(filename[-9:-3])
+
+    @staticmethod
+    def find_resume_checkpoint():
+        log_dir = logger.get_current().dir
+        model_weights = sorted(filter(lambda s: s.endswith(".pt") and s.startswith("model"), os.listdir(log_dir)))
+        if model_weights:
+            path = os.path.join(log_dir, model_weights[-1])
+            return path
+
+    @staticmethod
+    def find_ema_checkpoint(main_checkpoint, step, rate):
+        if not main_checkpoint:
+            return None
+        filename = f"ema_{rate}_{step:06d}.pt"
+        path = bf.join(bf.dirname(main_checkpoint), filename)
+        if bf.exists(path):
+            return path
+        return None
+
+    @staticmethod
+    def find_opt_checkpoint(main_checkpoint, step):
+        if not main_checkpoint:
+            return None
+        filename = f"opt_{step:06d}.pt"
+        path = bf.join(bf.dirname(main_checkpoint), filename)
+        if bf.exists(path):
+            return path
+        return None
+
     __call__ = run_loop
-
-
-def parse_resume_step_from_filename(filename):
-    """
-    Parse filenames of the form path/to/modelNNNNNN.pt, where NNNNNN is the
-    checkpoint's number of steps.
-    """
-    filename: str = os.path.basename(filename)
-    assert filename.startswith('model') and filename[-3:] == '.pt', "Invalid model name"
-    return int(filename[-9:-3])
-
-
-def get_blob_logdir():
-    return os.environ.get("DIFFUSION_BLOB_LOGDIR", logger.get_dir())
-
-
-def find_resume_checkpoint():
-    log_dir = logger.get_current().dir
-    model_weights = sorted(filter(lambda s: s.endswith(".pt") and s.startswith("model"), os.listdir(log_dir)))
-    if model_weights:
-        path = os.path.join(log_dir, model_weights[-1])
-        return path
-
-
-def find_ema_checkpoint(main_checkpoint, step, rate):
-    if not main_checkpoint:
-        return None
-    filename = f"ema_{rate}_{step:06d}.pt"
-    path = bf.join(bf.dirname(main_checkpoint), filename)
-    if bf.exists(path):
-        return path
-    return None
-
-
-def find_opt_checkpoint(main_checkpoint, step):
-    if not main_checkpoint:
-        return None
-    filename = f"opt_{step:06d}.pt"
-    path = bf.join(bf.dirname(main_checkpoint), filename)
-    if bf.exists(path):
-        return path
-    return None
-
-
-def log_loss_dict(diffusion, ts, losses):
-    for key, values in losses.items():
-        logger.logkv_mean(key, values.mean().item())
-        # Log the quantiles (four quartiles, in particular).
-        for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
-            quartile = int(4 * sub_t / diffusion.num_timesteps)
-            logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
-
-
-def actual_model_path(model_path):
-    return model_path

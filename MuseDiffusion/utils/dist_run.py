@@ -16,7 +16,7 @@ def run_argv_as_distributed(program, args, nproc_per_node=None, master_port=None
         distributed_run = 'torch.distributed.run'
         use_env = ''
     else:
-        distributed_run = 'torch.distributed.launch'
+        distributed_run = 'torch.distributed.launch'  # Backward Compatibility
         use_env = '--use_env'
 
     if master_port is None:
