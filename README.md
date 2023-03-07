@@ -60,8 +60,6 @@ source venv/bin/activate
 pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 \
     -f https://download.pytorch.org/whl/torch_stable.html
 pip3 install -r requirements.txt
-# You should install ComMU code to run sampling
-pip3 install git+https://github.com/YAIxPOZAlabs/ComMU-package
 ```
 
 <h4>With Anaconda</h4>
@@ -70,8 +68,6 @@ pip3 install git+https://github.com/YAIxPOZAlabs/ComMU-package
 conda env create -n python=3.8 MuseDiffusion pip
 conda activate MuseDiffusion
 pip3 install -r requirements.txt
-# You should install ComMU code to run sampling
-pip3 install git+https://github.com/YAIxPOZAlabs/ComMU-package
 ```
 
 <h3>2. Download and Preprocess dataset</h3>
