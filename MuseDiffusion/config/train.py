@@ -1,3 +1,5 @@
+from typing import final
+from argparse import ArgumentParser as Ap, ArgumentDefaultsHelpFormatter as Df
 from .base import S, Choice, Item as _
 
 
@@ -66,15 +68,15 @@ class DataSettings(S):
 
 class CorruptionSettings(S):
     use_corruption: bool \
-        = _(False, "Switch to use corruption.")
+        = _(True, "Switch to use corruption.")
     corr_available: str \
         = _("mt,mn,rn,rr", "Available corruptions: see data.corruptions module.")
     corr_max: int \
-        = _(0, "Max number of corruptions.")
+        = _(4, "Max number of corruptions.")
     corr_p: float \
         = _(0.5, "Probability to choice each corruption.")
     corr_kwargs: str \
-        = _("dict(p=0.4)", "Probability to choice each corruption.")
+        = _("dict(p=0.4)", "Default arguments for each corruption input.")
 
 
 class ModelSettings(S):
@@ -100,6 +102,7 @@ class OtherSettings(S):
     emb_scale_factor = 1.0
 
 
+@final
 class TrainSettings(
         OtherSettings,
         ModelSettings,
@@ -109,4 +112,28 @@ class TrainSettings(
         DiffusionSettings,
         GeneralSettings
 ):
-    pass
+
+    @classmethod
+    def to_argparse(cls, parser_or_group=None, add_json=False):
+        if not add_json:
+            return super(TrainSettings, cls).to_argparse(parser_or_group)
+        if parser_or_group is None:
+            parser_or_group = Ap(formatter_class=Df)
+        setting_group = parser_or_group.add_argument_group(title="settings")
+        setting_group.add_mutually_exclusive_group().add_argument(
+            "--config_json", type=str, required=False,
+            help="You can alter arguments all below by config_json file.")
+        super(TrainSettings, cls).to_argparse(setting_group.add_mutually_exclusive_group())
+        return parser_or_group
+
+    @classmethod
+    def from_argparse(cls, namespace, __top=True):
+        if namespace.config_json:
+            return cls.parse_file(namespace.config_json)
+        else:
+            if hasattr(namespace, "config_json"):
+                delattr(namespace, "config_json")
+            return super(TrainSettings, cls).from_argparse(namespace)
+
+
+__all__ = ('TrainSettings', )
