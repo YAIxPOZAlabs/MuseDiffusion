@@ -16,7 +16,7 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
             corr_available: "str",
             corr_max: "int|str",
             corr_p: "float|str",
-            corr_kwargs: "str|None" = "dict(p=0.4)"
+            corr_kwargs: "str|None" = None
     ):
         return cls(
             corr_available=tuple(corr_available.split(',')),
@@ -167,14 +167,13 @@ def randomize_note(seq: _torch.Tensor, p: float, inplace: bool = False):
     return corrupted
 
 
-@Corruptions.register('at', required_kwargs=['p'], p=0.5)
-def adding_token(seq: _torch.Tensor, mask: _torch.Tensor, p: float, inplace: bool = False):
-    """
-    단일토큰 추가하는 함수...인데 추가해버리면 input_mask에도 약간의 변화가 필요함
-    """
-    corrupted = seq if inplace else seq.clone()
-    ...  # TODO
-    raise NotImplementedError
+# @Corruptions.register('at', required_kwargs=['p'], p=0.5)
+# def adding_token(seq: _torch.Tensor, mask: _torch.Tensor, p: float, inplace: bool = False):
+#     """
+#     단일 토큰 추가 하는 함수 - input_mask 역시 약간의 변화 필요
+#     """
+#     ...
+#     raise NotImplementedError
 
 
 @Corruptions.register('rr', required_kwargs=['count'], count=3)
@@ -199,7 +198,7 @@ def random_rotating(seq: _torch.Tensor, count: int, inplace: bool = False):
         bar1_end = bar_idx[first_idx+1]
         bar2_end = bar_idx[second_idx+1] if second_idx < len(bar_idx)-1 else eos_idx
 
-        # sequence에서 bar 2개를 잘라내고 순서를 바꿔서 concat
+        # sequence 에서 bar 2개를 잘라 내고 순서를 바꿔서 concat
         start_to_bar1 = rotated[:bar1_start]
         bar1_array = rotated[bar1_start:bar1_end]
         bar1_to_bar2 = rotated[bar1_end:bar2_start]

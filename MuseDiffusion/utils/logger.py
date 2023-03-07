@@ -3,10 +3,9 @@ Logger copied from OpenAI baselines to avoid extra RL-based dependencies:
 https://github.com/openai/baselines/blob/ea25b9e8b234e6ee1bca43083f8f3cf974143998/baselines/logger.py
 """
 
+from abc import abstractmethod, ABC
 import os
 import sys
-import shutil
-import os.path as osp
 import json
 import time
 import datetime
@@ -24,12 +23,14 @@ ERROR = 40
 DISABLED = 50
 
 
-class KVWriter(object):
+class KVWriter(ABC):
+    @abstractmethod
     def writekvs(self, kvs):
         raise NotImplementedError
 
 
-class SeqWriter(object):
+class SeqWriter(ABC):
+    @abstractmethod
     def writeseq(self, seq):
         raise NotImplementedError
 
@@ -78,7 +79,8 @@ class HumanOutputFormat(KVWriter, SeqWriter):
         # Flush the output to the file
         self.file.flush()
 
-    def _truncate(self, s):
+    @staticmethod
+    def _truncate(s):
         maxlen = 30
         return s[: maxlen - 3] + "..." if len(s) > maxlen else s
 
@@ -158,7 +160,7 @@ class TensorBoardOutputFormat(KVWriter):
         self.dir = dir
         self.step = 1
         prefix = "events"
-        path = osp.join(osp.abspath(dir), prefix)
+        path = os.path.join(os.path.abspath(dir), prefix)
         import tensorflow as tf
         from tensorflow.python import pywrap_tensorflow
         from tensorflow.core.util import event_pb2
@@ -194,13 +196,13 @@ def make_output_format(format, ev_dir, log_suffix=""):
     if format == "stdout":
         return HumanOutputFormat(sys.stdout)
     elif format == "log":
-        return HumanOutputFormat(osp.join(ev_dir, "log%s.txt" % log_suffix))
+        return HumanOutputFormat(os.path.join(ev_dir, "log%s.txt" % log_suffix))
     elif format == "json":
-        return JSONOutputFormat(osp.join(ev_dir, "progress%s.json" % log_suffix))
+        return JSONOutputFormat(os.path.join(ev_dir, "progress%s.json" % log_suffix))
     elif format == "csv":
-        return CSVOutputFormat(osp.join(ev_dir, "progress%s.csv" % log_suffix))
+        return CSVOutputFormat(os.path.join(ev_dir, "progress%s.csv" % log_suffix))
     elif format == "tensorboard":
-        return TensorBoardOutputFormat(osp.join(ev_dir, "tb%s" % log_suffix))
+        return TensorBoardOutputFormat(os.path.join(ev_dir, "tb%s" % log_suffix))
     else:
         raise ValueError("Unknown format specified: %s" % (format,))
 
@@ -353,7 +355,7 @@ class Logger(object):
         self.name2val[key] = oldval * cnt / (cnt + 1) + val / (cnt + 1)
         self.name2cnt[key] = cnt + 1
 
-    def dumpkvs(self, prefix=None):
+    def dumpkvs(self):
         if self.comm is None:
             d = self.name2val
         else:
@@ -450,7 +452,7 @@ def configure(dir=None, format_strs=None, comm=None, log_suffix=""):
     if dir is None:
         dir = os.getenv("OPENAI_LOGDIR")
     if dir is None:
-        dir = osp.join(
+        dir = os.path.join(
             tempfile.gettempdir(),
             datetime.datetime.now().strftime("openai-%Y-%m-%d-%H-%M-%S-%f"),
         )
@@ -496,4 +498,3 @@ def scoped_configure(dir=None, format_strs=None, comm=None):
     finally:
         Logger.CURRENT.close()
         Logger.CURRENT = prevlogger
-

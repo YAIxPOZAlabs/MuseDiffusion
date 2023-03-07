@@ -21,12 +21,6 @@ def wrap_dataset(
 
     dataset = MidiSequenceDataset(processed_data, corruption=corruption)
 
-    # processed_data = processed_data.sort("length")
-    # batch_sampler = []
-    # for i in range(0, len(processed_data), batch_size):
-    #     batch_sampler.append(list(range(i, min(i + batch_size, len(processed_data))))
-    # random.shuffle(batch_sampler)
-
     if use_bucketing:
         collate_fn = collate_batches
     else:
@@ -40,7 +34,6 @@ def wrap_dataset(
         batch_size=batch_size,
         shuffle=not deterministic,
         persistent_workers=num_loader_proc > 0,
-        # batch_sampler=batch_sampler,
     )
     return data_loader
 
@@ -93,8 +86,11 @@ class MidiSequenceDataset(torch.utils.data.Dataset[datasets.Dataset], datasets.D
         return result
 
 
-def collate_batches(batch_samples, seq_len=None, dtype=None):
-    # type: (List[Union[int, torch.Tensor]], int, torch.dtype) -> ...
+def collate_batches(
+        batch_samples: "List[Union[int, torch.Tensor]]",
+        seq_len: "Optional[int]" = None,
+        dtype: "torch.dtype" = None
+):
 
     seq_len = seq_len or max(sample['length'] for sample in batch_samples)
     batch_len = len(batch_samples)

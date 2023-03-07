@@ -96,11 +96,9 @@ def main(args):
 
     # Set up forward and sample functions
     if args.step == args.diffusion_steps:
-        args.use_ddim = False
         step_gap = 1
         sample_fn = diffusion.p_sample_loop
     else:
-        args.use_ddim = True
         step_gap = args.diffusion_steps // args.step
         sample_fn = diffusion.ddim_sample_loop
 

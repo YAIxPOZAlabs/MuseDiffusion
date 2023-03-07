@@ -9,7 +9,7 @@ import functools
 
 import blobfile as bf
 
-import torch as th
+import torch
 import torch.distributed as dist
 from torch.cuda import is_available as _cuda_available
 
@@ -56,6 +56,9 @@ def setup_dist(backend=None, hostname=None):
 
         try:
             _setup_dist(backend=backend, hostname=hostname)
+            if _cuda_available():
+                torch.cuda.set_device(dev())
+                torch.cuda.empty_cache()
             if os.environ["LOCAL_RANK"] == str(0):
                 print("<INFO> torch.distributed setup success, using distributed setting..")
             return True
@@ -120,8 +123,8 @@ def dev():
     Get the device to use for torch.distributed.
     """
     if _cuda_available():
-        return th.device(f"cuda:{os.environ.get('LOCAL_RANK', '0')}")
-    return th.device("cpu")
+        return torch.device(f"cuda:{os.environ.get('LOCAL_RANK', '0')}")
+    return torch.device("cpu")
 
 
 def load_state_dict(path, **kwargs):
@@ -131,7 +134,7 @@ def load_state_dict(path, **kwargs):
     # if int(os.environ['LOCAL_RANK']) == 0:
     with bf.BlobFile(path, "rb") as f:
         data = f.read()
-    return th.load(io.BytesIO(data), **kwargs)
+    return torch.load(io.BytesIO(data), **kwargs)
 
 
 def sync_params(params):
@@ -141,7 +144,7 @@ def sync_params(params):
     if not is_initialized():
         return
     for p in params:
-        with th.no_grad():
+        with torch.no_grad():
             dist.broadcast(p, 0)
 
 

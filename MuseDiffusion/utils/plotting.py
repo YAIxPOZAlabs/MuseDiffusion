@@ -45,12 +45,3 @@ def embedding_tsne_trainer_wandb_callback(self):
         fig = plot_embedding_tsne(w, title=key)
         logs[key] = wandb.Image(fig)
     wandb.log(logs)
-
-
-try:
-    from sklearn.manifold import TSNE
-    import seaborn as sns
-except ImportError:
-    import warnings
-    warnings.warn("scikit-learn or seaborn is not installed, so you won't be able to log plots.")
-    embedding_tsne_trainer_wandb_callback = bool  # dummy function
