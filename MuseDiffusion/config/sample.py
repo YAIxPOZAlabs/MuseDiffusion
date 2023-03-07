@@ -129,7 +129,7 @@ class SamplingCommonSettings(S):
             if not model_path:
                 model_path = cls.validate_model_path(model_path)
             value = os.path.join(os.path.split(model_path)[0], "training_args.json")
-        if os.path.isfile(value):
+        if not os.path.isfile(value):
             raise ValueError("--model_config_json={} not exists!".format(value))
         return value
 
@@ -149,7 +149,6 @@ class ModificationExtraSettingsMixin(S):
         = _(None, "default arguments for each corruption input (default: same as train config)")
 
 
-@final
 class MidiMeta(S):
 
     bpm: int
@@ -192,11 +191,14 @@ class ModificationSettings(SamplingCommonSettings, ModificationExtraSettingsMixi
 
 
 @final
-class GenerationSettings(SamplingCommonSettings):
+class GenerationSettings(SamplingCommonSettings, MidiMeta):
     __GENERATE__ = True
 
     num_samples: int = _(1000, "number of midi samples to generate from metadata")
-    midi_meta: MidiMeta
+
+    @property
+    def midi_meta(self) -> MidiMeta:
+        return MidiMeta(**{k: getattr(self, k) for k in MidiMeta.__fields__})
 
     @classmethod
     def to_argparse(cls, parser_or_group=None):
@@ -206,7 +208,7 @@ class GenerationSettings(SamplingCommonSettings):
         meta_group.add_mutually_exclusive_group().add_argument(
             "--meta_json", type=str, required=False,
             help="you can alter meta arguments all below by meta_json file.")
-        MidiMeta.to_argparse(meta_group.add_mutually_exclusive_group())
+        MidiMeta.to_argparse(meta_group.add_mutually_exclusive_group().add_argument_group())
         num_samples = parser_or_group.add_argument_group(title="num_samples")
         num_samples.add_argument("--num_samples", type=int, default=cls.__fields__["num_samples"].default,
                                  help="number of midi samples to generate from metadata")
@@ -229,7 +231,7 @@ class GenerationSettings(SamplingCommonSettings):
                 if v is None:
                     namespace.pop(k)
             midi_meta = MidiMeta(**namespace)
-        return cls(**sample_commons, midi_meta=midi_meta, num_samples=num_samples)
+        return cls(num_samples=num_samples, **sample_commons, **midi_meta.dict())
 
 
 __all__ = ('ModificationSettings', 'GenerationSettings')

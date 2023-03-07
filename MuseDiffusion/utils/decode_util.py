@@ -128,7 +128,7 @@ class SequenceToMidi:
         elif len(bar_idx) < len(np.where(chord_info == 432)[0]):
             diff = len(np.where(chord_info == 432)[0]) - len(bar_idx)
             for _ in range(diff):
-                seq = np.insert(seq, -2, 2)
+                seq = np.insert(seq, -1, 2)
             bar_idx = np.where(seq == 2)[0]
             new_seq = np.concatenate((seq[:bar_idx[0] + 1], chord_info[:2]), axis=0)
             bar_count = 0
@@ -327,15 +327,16 @@ def batch_decode_generate(
         if log:
             print(f"<Warning> Index {valid_index} "
                   f"- {' '.join(log.splitlines())}")
-        output_file_path = output_file_format.format(valid_index)
+        output_file_path = output_file_format.format(valid_index=valid_index)
         decoded_midi.dump(os.path.join(output_dir, output_file_path))
         valid_index += 1
 
     log = (
         "\n"
         f"{f' Summary of Trial {batch_index} ':=^60}\n"
-        f" * {valid_index} valid sequences are converted to midi into path:\n"
+        f" * {valid_index - previous_count} valid sequences are converted to midi into path:\n"
         f"     {os.path.abspath(output_dir)}\n"
+        f" * Totally {valid_index} sequences are converted."
     ) + ("=" * 60) + "\n"
     print(log)
 

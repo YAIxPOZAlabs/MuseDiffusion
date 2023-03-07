@@ -39,6 +39,10 @@ def main(args: "ModificationSettings|GenerationSettings"):
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
     from MuseDiffusion.utils.decode_util import batch_decode_seq2seq, batch_decode_generate, MetaToBatch
 
+    # Credit
+    try: from MuseDiffusion.utils.credit_printer import credit; credit()  # NOQA
+    except ImportError: pass  # NOQA
+
     # Setup distributed
     dist_util.setup_dist()
     world_size = dist_util.get_world_size()
@@ -130,7 +134,7 @@ def main(args: "ModificationSettings|GenerationSettings"):
     dist_util.barrier()  # Sync
 
     # Run sample loop
-    logger.log(f"### Sampling on {args.split if args.__GENERATE__ else 'META'} ... ")
+    logger.log(f"### Sampling on {'META' if args.__GENERATE__ else args.split} ... ")
     total_valid_count = torch.tensor(0, device=dev)
     generation_done = False  # for generation mode
     start_t = time.time()
@@ -226,7 +230,4 @@ def main(args: "ModificationSettings|GenerationSettings"):
 
 
 if __name__ == "__main__":
-    arg = parse_args()
-    from MuseDiffusion.run.credit import credit
-    credit()
-    main(arg)
+    main(parse_args())

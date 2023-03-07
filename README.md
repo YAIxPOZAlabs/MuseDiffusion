@@ -25,7 +25,7 @@
 <p align="center">
 <b>🛠️ <a href="https://github.com/kdha0727">KIM DONGHA</a></b>&nbsp; :&nbsp; YAI 8th&nbsp; /&nbsp; AI Dev Lead &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>
 <b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🚀 <a href="https://github.com/ta3h30nk1m">KIM TAEHEON</a></b>&nbsp; :&nbsp; YAI 10th&nbsp; /&nbsp; AI Research & Dev <br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>👑 <a href="https://github.com/san9min">LEE SANGMIN</a></b>&nbsp; :&nbsp; YAI 9th&nbsp; /&nbsp; Executive Director <br>
+<b>👑 <a href="https://github.com/san9min">LEE SANGMIN</a></b>&nbsp; :&nbsp; YAI 9th&nbsp; /&nbsp; Team Leader&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <br>
 &nbsp;<b>🐋 <a href="https://github.com/Tim3s">LEE SEUNGJAE</a></b>&nbsp; :&nbsp; YAI 9th&nbsp; /&nbsp; AI Research Lead <br>
 <b>🌈 <a href="https://github.com/jeongwoo1213">CHOI JEONGWOO</a></b>&nbsp; :&nbsp; YAI 10th&nbsp; /&nbsp; AI Research & Dev <br>
 <b>🌟 <a href="https://github.com/starwh03">CHOI WOOHYEON</a></b>&nbsp; :&nbsp; YAI 10th&nbsp; /&nbsp; AI Research & Dev <br>
@@ -214,8 +214,35 @@ python3 -m MuseDiffusion.run.sample generation --distributed \
 --clip_denoised true \
 --sample_seed 123
 ```
+
+or
+
+```bash
+python3 -m MuseDiffusion.run.sample generation --distributed \
+--meta_json {META_JSON_FILE_PATH} \
+--num_samples 1000 \
+--model_path diffusion_models/{name-of-model-folder}/{weight-file} \
+--step 1000 \
+--top_p 1 \
+--clamp_step 0 \
+--clip_denoised true \
+--sample_seed 123
+```
+
+* Note: **In generation, MidiMeta arguments** (bpm, audio_key, ..., chord_progression)
+  **are essential to run script.**
 * Note: You can use arguments for `torch.distributed`, which is same as training script.
 * Note: Type `python3 -m MuseDiffusion.run.sample generation --help` for detailed usage.
+
+> Example
+```bash
+python3 -m MuseDiffusion.run.sample generation --distributed \
+--num_samples 1000 \
+--bpm 70 --audio_key aminor --time_signature 4/4 --pitch_range mid_high \
+--num_measures 8 --inst acoustic_piano --genre newage \
+--min_velocity 60 --max_velocity 80 --track_role main_melody --rhythm standard \
+--chord_progression Am-Am-Am-Am-Am-Am-Am-Am-G-G-G-G-G-G-G-G-F-F-F-F-F-F-F-F-E-E-E-E-E-E-E-E-Am-Am-Am-Am-Am-Am-Am-Am-G-G-G-G-G-G-G-G-F-F-F-F-F-F-F-F-E-E-E-E-E-E-E-E
+```
 
 <br>
 

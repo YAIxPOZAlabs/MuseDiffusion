@@ -25,6 +25,10 @@ def main(args: TrainSettings):
     from MuseDiffusion.utils.train_util import TrainLoop
     from MuseDiffusion.utils.plotting import embedding_tsne_trainer_wandb_callback
 
+    # Credit
+    try: from MuseDiffusion.utils.credit_printer import credit; credit()  # NOQA
+    except ImportError: pass  # NOQA
+
     # Setup distributed
     dist_util.setup_dist()
     rank = dist_util.get_rank()
@@ -150,7 +154,4 @@ def main(args: TrainSettings):
 
 
 if __name__ == "__main__":
-    arg = parse_args()
-    from MuseDiffusion.run.credit import credit
-    credit()
-    main(arg)
+    main(parse_args())
