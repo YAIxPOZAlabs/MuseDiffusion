@@ -370,7 +370,7 @@ With the partial noising in forward process,
 meta data is intact and can work as condition information on every denoising step. 
 With reparameterization trick, we force the model to explicitly predict $z_0$ for each denoising time step t, 
 rather than mean $\mu$ like conventional diffusion models. 
-Then sampling $z_{t-1} = \sqrt{\bar \alpha}f_\theta(z_t,t) + \sqrt{1-\bar\alpha}\epsilon 
+Then sampling $z_{t-1} = \sqrt{\bar \alpha} f_\theta (z_t,t) + \sqrt{1-\bar\alpha} \epsilon$ 
 where $\bar \alpha_t = \Pi_{s=0}^t (1-\beta_s)$ and $\epsilon \sim \mathcal{N}(0,I)$ . 
 We use transformer and thu we can give condition and can effectively handle sequence data through the attention mechanism in transformer.  
 
@@ -388,7 +388,7 @@ $$\large{L(w) = \mathbb E _{q_{\phi}} \[\sum_{t=2}^T||y_0-\tilde f_\theta(z_t,t)
 
 ### Generation
 
-To generate midi using only meta data, we randomly sample gaussian noised note sequence $y_T \sim \mathcal{N}(0,I)$ and concatenate it with $EMB(W^{meta})$ to obtain $z_T$ . Then, MUSE-Diffusion gradually denoises $z_T$ until arriving at $z_0$ . Since $f_\theta(z_t,t)$ is the model’s output, there is no guarantee that the meta part of $f_\theta(z_t,t)$ will always be the same as the original $x_0$ . So like DiffuSeq, we use an anchoring function. The anchoring function executes rounding on $z_t$ to map it back to word embedding space and replaces the part of recovered $z_{t-1}$ corresponding to $w^{meta}$ with the original $x_0$ . In other words, to sample $z_{t-1}$ with the equations $z_{t-1} = \sqrt{\bar \alpha}f_\theta(z_t,t) + \sqrt{1-\bar\alpha}\epsilon$, $f_\theta(z_t,t)$ is updated by concatenate (original $x_0$,  $\tilde f_\theta(z_t,t)$ ) before getting $z_{t-1}$ . 
+To generate midi using only meta data, we randomly sample gaussian noised note sequence $y_T \sim \mathcal{N}(0,I)$ and concatenate it with $EMB(W^{meta})$ to obtain $z_T$ . Then, MUSE-Diffusion gradually denoises $z_T$ until arriving at $z_0$ . Since $f_\theta(z_t,t)$ is the model’s output, there is no guarantee that the meta part of $f_\theta(z_t,t)$ will always be the same as the original $x_0$ . So like DiffuSeq, we use an anchoring function. The anchoring function executes rounding on $z_t$ to map it back to word embedding space and replaces the part of recovered $z_{t-1}$ corresponding to $w^{meta}$ with the original $x_0$ . In other words, to sample $z_{t-1}$ with the equations $z_{t-1} = \sqrt{ \bar \alpha } f_\theta (z_t,t) + \sqrt{1- \bar \alpha} \epsilon$, $f_\theta(z_t,t)$ is updated by concatenate (original $x_0$,  $\tilde f_\theta(z_t,t)$ ) before getting $z_{t-1}$ . 
 
 ### Modification
 
