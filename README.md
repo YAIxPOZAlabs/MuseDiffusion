@@ -35,7 +35,7 @@
 
 <h3 align="center"><br>🎼 Generated Samples 🎵<br><br></h3>
 
-<div align="center">Will be appeared in here</div>
+<div align="center">Will be appeared here</div>
 
 <br><br>
 <hr>
@@ -49,14 +49,23 @@ git clone https://github.com/YAIxPOZAlabs/MuseDiffusion.git
 cd MuseDiffusion
 ```
 
+<br>
 <h2>1. Prepare environment and data</h2>
 
-<h3>Set environment with python 3.8</h3>
+<h3>Set environment with python 3.8 and install pytorch</h3>
+
+```bash
+python3 -m pip install virtualenv
+python3 -m virtualenv venv --python=python3.8
+source venv/bin/activate
+pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 \
+    -f https://download.pytorch.org/whl/torch_stable.html
+pip3 install -r requirements.txt
+```
 
 <details>
-<summary>With Virtualenv</summary>
-
-<h4>&nbsp; - (Optional) Install python 3.8 for <i>Virtualenv usage</i></h4>
+<summary>(Optional) If required, install python 3.8 for Virtualenv usage.</summary>
+&nbsp;
 
 ```bash
 sudo apt update && \
@@ -65,39 +74,22 @@ sudo add-apt-repository -y ppa:deadsnakes/ppa && \
 sudo apt install -y python3.8 python3.8-distutils
 ```
 
-<h4>&nbsp; - Create new virtual environment</h4>
-
-```bash
-python3 -m pip install virtualenv
-python3 -m virtualenv venv --python=python3.8
-source venv/bin/activate
-pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 \
-    -f https://download.pytorch.org/whl/torch_stable.html
-```
-
-<br>
-
 </details>
 
 <details>
-<summary>With Anaconda</summary>
-
-<h4>&nbsp; - Create new conda env</h4>
+<summary>(Optional) If anaconda is available, set up environments by anaconda instead of given code.</summary>
+&nbsp;
 
 ```bash
 conda env create -n python=3.8 MuseDiffusion pip
 conda activate MuseDiffusion
+conda install pytorch==1.9.1 torchvision==0.10.1 torchaudio==0.9.1 cudatoolkit=10.2 -c pytorch
+pip3 install -r requirements.txt
 ```
 
 </details>
 
-<h3>Install requirements by pip</h3>
-
-```bash
-pip3 install -r requirements.txt
-```
-
-
+<br>
 <h2>2. Download and Preprocess dataset</h2>
 
 ```bash
@@ -106,6 +98,7 @@ python3 -m MuseDiffusion dataprep
 
 <details>
 <summary>After this step, your directory structure would be like:</summary>
+&nbsp;
 
 ```
 MuseDiffusion
@@ -154,6 +147,7 @@ MuseDiffusion
 
 </details>
 
+<br>
 <h2>3. Prepare model weight and configuration</h2>
 
 <h3>With downloading pretrained one</h3>
@@ -194,8 +188,8 @@ python3 -m MuseDiffusion train --distributed --config_json train_cfg.json
 <h4>&nbsp; Method 2:  Using Arguments</h4>
 
 * Add your arguments refer to `python3 -m MuseDiffusion.run.train --help`.
-* Refer to example below:
 
+> Refer to example below:
 ```bash
 python3 -m MuseDiffusion train --distributed \
 --lr 0.0001 \
@@ -230,9 +224,8 @@ python3 -m MuseDiffusion train --distributed \
 --gradient_clipping -1.0
 ```
 
-</details>
-
 <br>
+</details>
 
 <details>
 <summary>With regard to <b><u>--distributed</u></b> argument (torch.distributed runner)</summary>
@@ -252,16 +245,18 @@ python3 -m MuseDiffusion train --distributed \
   * default: will automatically be set to `$CPU_CORE` / / `$TOTAL_GPU`
 * In windows, torch.distributed is disabled in default. 
   to enable, edit `USE_DIST_IN_WINDOWS` flag in `MuseDiffusion/utils/dist_util.py`.
-* Refer to example below:
 
+> Refer to example below:
 ```bash
 CUDA_VISIBLE_DEVICES=4,5,6,7 python3 -m MuseDiffusion train --distributed --master_port 12233
 ```
 
+<br>
 </details>
 
 After training, weights and configs will be saved into `./diffusion_models/{name-of-model-folder}/`.
 
+<br>
 <h2>4. Sample with model - Modify or Generate Midi!</h2>
 
 <h3>From corrupted samples</h3>
@@ -300,7 +295,13 @@ python3 -m MuseDiffusion generation --distributed \
 --model_path diffusion_models/{name-of-model-folder}/{weight-file}
 ```
 
-or
+* **In generation, MidiMeta arguments** (bpm, audio_key, ..., chord_progression) **are essential.**
+* You can use arguments for `torch.distributed`, which is same as training script.
+* Type `python3 -m MuseDiffusion.run.sample generation --help` for detailed usage.
+
+<details>
+<summary>Using MidiMeta JSON file, instead of arguments</summary>
+&nbsp;
 
 ```bash
 python3 -m MuseDiffusion.run.sample generation --distributed \
@@ -310,11 +311,14 @@ python3 -m MuseDiffusion.run.sample generation --distributed \
 --model_path diffusion_models/{name-of-model-folder}/{weight-file}
 ```
 
-* **In generation, MidiMeta arguments** (bpm, audio_key, ..., chord_progression) **are essential.**
-* You can use arguments for `torch.distributed`, which is same as training script.
-* Type `python3 -m MuseDiffusion.run.sample generation --help` for detailed usage.
+<br>
+</details>
 
-> Example
+<details>
+<summary>Example Commandline</summary>
+&nbsp;
+
+> Refer to example below:
 ```bash
 python3 -m MuseDiffusion.run.sample generation --distributed \
 --num_samples 1000 \
@@ -323,6 +327,8 @@ python3 -m MuseDiffusion.run.sample generation --distributed \
 --min_velocity 60 --max_velocity 80 --track_role main_melody --rhythm standard \
 --chord_progression Am-Am-Am-Am-Am-Am-Am-Am-G-G-G-G-G-G-G-G-F-F-F-F-F-F-F-F-E-E-E-E-E-E-E-E-Am-Am-Am-Am-Am-Am-Am-Am-G-G-G-G-G-G-G-G-F-F-F-F-F-F-F-F-E-E-E-E-E-E-E-E
 ```
+
+</details>
 
 <br>
 
