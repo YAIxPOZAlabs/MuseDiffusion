@@ -184,7 +184,7 @@ python3 -m MuseDiffusion train --distributed
 python3 -c "from MuseDiffusion.config import TrainSettings as T; print(T.json(indent=2))" \
 >> train_cfg.json
 
-# Optional: customize config on your own
+# Customize config on your own
 vi train_cfg.json
 
 # Run training script
@@ -332,7 +332,7 @@ python3 -m MuseDiffusion.run.sample generation --distributed \
 ## Muse Diffusion
 
 <div align="center">
-  <img src="assets/figure01_model_overview.png" height=60% width=60% alt="model_overview"/>
+  <img src="assets/figure01_model_overview.png" height=75% width=75% alt="model_overview"/>
 </div>
 
 **Muse Diffusion**  
