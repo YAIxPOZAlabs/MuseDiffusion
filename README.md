@@ -187,7 +187,7 @@ python3 -m MuseDiffusion train --distributed --config_json train_cfg.json
 
 <h5>&nbsp; Method 2:  Using Arguments</h5>
 
-* Add your arguments refer to `python3 -m MuseDiffusion.run.train --help`.
+* Add your arguments refer to `python3 -m MuseDiffusion train --help`.
 
 > Refer to example below:
 ```bash
@@ -231,7 +231,7 @@ python3 -m MuseDiffusion train --distributed \
 
 <h5>&nbsp; Arguments related with torch.distributed:</h5>
 
-* Argument `--distributed` will run `MuseDiffusion.run.train` 
+* Argument `--distributed` will run `python -m MuseDiffusion train` 
   **with torch.distributed runner**
   * you can customize options, or environs.
 * commandline option `--nproc_per_node` - number of training node (GPU) to use.
@@ -270,7 +270,7 @@ python3 -m MuseDiffusion modification --distributed \
 --model_path ./diffusion_models/{name-of-model-folder}/{weight-file}
 ```
 * You can use arguments for `torch.distributed`, which is same as training script.
-* Type `python3 -m MuseDiffusion.run.sample modification --help` for detailed usage.
+* Type `python3 -m MuseDiffusion modification --help` for detailed usage.
 
 <h4>From metadata</h4>
 
@@ -295,14 +295,14 @@ python3 -m MuseDiffusion generation --distributed \
 
 * **In generation, MidiMeta arguments** (bpm, audio_key, ..., chord_progression) **are essential.**
 * You can use arguments for `torch.distributed`, which is same as training script.
-* Type `python3 -m MuseDiffusion.run.sample generation --help` for detailed usage.
+* Type `python3 -m MuseDiffusion generation --help` for detailed usage.
 
 <details>
 <summary>Using MidiMeta JSON file, instead of arguments</summary>
 &nbsp;
 
 ```bash
-python3 -m MuseDiffusion.run.sample generation --distributed \
+python3 -m MuseDiffusion generation --distributed \
 --meta_json {META_JSON_FILE_PATH} \
 --num_samples 1000 \
 --step 100 \
@@ -317,7 +317,7 @@ python3 -m MuseDiffusion.run.sample generation --distributed \
 
 > Refer to example below:
 ```bash
-python3 -m MuseDiffusion.run.sample generation --distributed \
+python3 -m MuseDiffusion generation --distributed \
 --num_samples 1000 \
 --bpm 70 --audio_key aminor --time_signature 4/4 --pitch_range mid_high \
 --num_measures 8 --inst acoustic_piano --genre newage \
