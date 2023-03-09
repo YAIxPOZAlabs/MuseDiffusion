@@ -37,11 +37,7 @@
 
 <div align="center">
 
-https://user-images.githubusercontent.com/61076953/223916097-257c7795-2973-4504-aefb-5f64eaa18867.mp4
-
 https://user-images.githubusercontent.com/61076953/223916377-c4c317b5-66dc-49a0-b42a-20132f638128.mp4
-
-</details>
 
 </div>
 
