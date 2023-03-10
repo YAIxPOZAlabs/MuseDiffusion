@@ -1,5 +1,19 @@
-def run_argv_as_distributed(program_or_module, argv, dist_namespace, *, run_as_module=False):
+"""
+Running utils of torch.distributed.run.
+All you have to do is wrap ArgumentParser with `parse_and_autorun` function.
 
+usage in main module
+========================================================
+original:   parser.parse_args(args, namespace)
+new:        parse_and_autorun(parser, args, namespace)
+
+"""
+
+
+def run_argv_as_distributed(program_or_module, argv, dist_namespace, *, run_as_module=False):
+    """
+    runs torch.distributed.run, and prints same command line to commandline.
+    """
     import os
     import psutil
 
@@ -41,6 +55,10 @@ def run_argv_as_distributed(program_or_module, argv, dist_namespace, *, run_as_m
 
 
 def create_distributed_parser(parser=None):
+    """
+    Almost same as argument parser of torch.distributed.run, but with some tricks...
+    """
+
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, SUPPRESS
     from torch.distributed.argparse_util import env, check_env
     from torch.cuda import is_available
@@ -197,6 +215,9 @@ def create_distributed_parser(parser=None):
 
 
 def parse_distributed_args(parser, args=None, parse_all=True):
+    """
+    this function makes ArgumentParser available to receive arguments of torch.distributed.run.
+    """
 
     dist_parser = create_distributed_parser()
     dist_parser.prog = len(parser.prog)
@@ -234,6 +255,9 @@ def parse_distributed_args(parser, args=None, parse_all=True):
 
 
 def get_main_modname():
+    """
+    get main module(__name__=='__main__')'s run-name (to make running from runpy available.)
+    """
     import os
     import sys
     depth = 1
@@ -259,9 +283,13 @@ def get_main_modname():
 
 def parse_and_autorun(parser, args=None, namespace=None, *, module_name=None, parse_all=True):
     """
-    usage
-    original: parser.parse_args()
-    new:      parse_and_autorun(parser)
+    this function makes ArgumentParser available to receive arguments and run torch.distributed.run built-in.
+
+    usage in main module
+    ========================================================
+    original:   parser.parse_args(args, namespace)
+    new:        parse_and_autorun(parser, args, namespace)
+
     """
 
     import os
@@ -269,31 +297,30 @@ def parse_and_autorun(parser, args=None, namespace=None, *, module_name=None, pa
 
     if args is None:
         args = sys.argv[1:]
-    if module_name is None:  # try to run as module
-        module_name = get_main_modname()
-    if module_name is None:
-        run_as_module = False
-        program_or_module = sys.argv[0]
-    else:
-        run_as_module = True
-        program_or_module = module_name
-
     dist_namespace, args = parse_distributed_args(parser, args=args, parse_all=False)
-    if parse_all:
-        result = parser.parse_args(args, namespace)
-    else:
-        result = args
 
     if dist_namespace.__dict__.pop('distributed'):
+        if module_name is None:  # try to run as module
+            module_name = get_main_modname()
+        if module_name is None:
+            run_as_module = False
+            program_or_module = sys.argv[0]
+        else:
+            run_as_module = True
+            program_or_module = module_name
         os.environ["DIST_UTIL_AUTORUN_FLAG"] = "1"
-        sys.exit(run_argv_as_distributed(program_or_module, args, dist_namespace, run_as_module=run_as_module))
-
-    if int(os.getenv("DIST_UTIL_AUTORUN_FLAG", "0")) == 1:  # subprocess called by this function
-        from .dist_util import is_available
-        is_available.cache = True
-        try:  # If available, set process title with node name.
-            import setproctitle  # NOQA
-            setproctitle.setproctitle(f"[DISTRIBUTED NODE {os.getenv('LOCAL_RANK', '0')}]")
-        except ImportError:
-            pass
-    return result
+        run_argv_as_distributed(program_or_module, args, dist_namespace, run_as_module=run_as_module)
+        sys.exit(0)
+    else:
+        if int(os.getenv("DIST_UTIL_AUTORUN_FLAG", "0")) == 1:  # subprocess called by this function
+            from .dist_util import is_available
+            is_available.cache = True
+            try:  # If available, set process title with node name.
+                import setproctitle  # NOQA
+                setproctitle.setproctitle(f"[DISTRIBUTED NODE {os.getenv('LOCAL_RANK', '0')}]")
+            except ImportError:
+                pass
+        if parse_all:
+            return parser.parse_args(args, namespace)
+        else:
+            return args
