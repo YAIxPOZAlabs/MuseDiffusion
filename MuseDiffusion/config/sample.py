@@ -240,7 +240,8 @@ class GenerationSettings(SamplingCommonSettings, MidiMeta):
         else:
             if 'meta_json' in namespace:
                 namespace.pop('meta_json')
-            for k, v in namespace.items():
+            items = [*namespace.items()]
+            for k, v in items:
                 if v is None:
                     namespace.pop(k)
             midi_meta = MidiMeta(**namespace)

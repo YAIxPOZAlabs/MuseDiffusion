@@ -128,7 +128,7 @@ class TrainSettings(
 
     @classmethod
     def from_argparse(cls, namespace, __top=True):
-        if namespace.config_json:
+        if getattr(namespace, "config_json", None):
             return cls.parse_file(namespace.config_json)
         else:
             if hasattr(namespace, "config_json"):

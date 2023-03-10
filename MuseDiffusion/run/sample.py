@@ -40,7 +40,7 @@ def main(namespace):
 
     # Credit
     try: from MuseDiffusion.utils.credit_printer import credit; credit()  # NOQA
-    except ImportError: pass  # NOQA
+    except Exception: pass  # NOQA
 
     # Setup distributed
     dist_util.setup_dist()
@@ -224,4 +224,4 @@ def main(namespace):
 
 if __name__ == "__main__":
     from MuseDiffusion.utils.dist_run import parse_and_autorun
-    main(parse_and_autorun(create_parser(), module_name="MuseDiffusion.run.sample"))
+    main(parse_and_autorun(create_parser()))
