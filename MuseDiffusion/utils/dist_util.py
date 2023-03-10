@@ -1,5 +1,7 @@
 """
 Helpers for distributed training.
+This module's function is compatible even though script is not running in torch.distributed.run environment.
+Write code as though you are using torch.distributed.run - if you directly run scripts, it works!
 """
 
 import io
@@ -22,28 +24,37 @@ USE_DIST_IN_WINDOWS = False  # Change this to enable torch.distributed in window
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 def is_available():
+    # cached function. in other functions we will explicitly set cache, so we don't use lru_cache.
+    """
+    Returns if torch is compiled with c10d (distributed) runtime.
+    """
     if hasattr(is_available, 'cache'):
         return is_available.cache
     if os.name == 'nt' and not USE_DIST_IN_WINDOWS:
-        if os.environ.get("LOCAL_RANK", str(0)) == str(0):
-            import warnings
-            warnings.warn(
-                "In Windows, Distributed is unavailable by default settings.\n"
+        if os.environ.get("LOCAL_RANK", str(0)) != str(0):
+            raise RuntimeError(
+                "In Windows, Distributed is unavailable by default settings, "
+                "since gradients will not synchronized properly.\n"
                 "To enable Distributed, edit MuseDiffusion.utils.dist_util.USE_DIST_IN_WINDOWS to True."
             )
     elif dist.is_available():  # All condition passed
         is_available.cache = True
         return True
-    os.environ.setdefault("LOCAL_RANK", str(0))  # make legacy-rank-getter compatible
+    os.environ.setdefault("LOCAL_RANK", str(0))
     is_available.cache = False
     return False
 
 
 def is_initialized():
+    # if pytorch isn't compiled with c10d, is_initialized is omitted from namespace.
+    # this function wraps
+    """
+    Returns c10d (distributed) runtime is initialized.
+    """
     return is_available() and getattr(dist, "is_initialized", lambda: False)()
 
 
-@functools.lru_cache(maxsize=None)
+@functools.lru_cache(maxsize=None)  # this makes function to work only once
 def setup_dist(backend=None, silent=False):
     """
     Setup a distributed process group.
@@ -81,13 +92,13 @@ def setup_dist(backend=None, silent=False):
 def get_rank(group=None):
     if is_initialized():
         return dist.get_rank(group=group)
-    return int(os.getenv("LOCAL_RANK", "0"))
+    return 0
 
 
 def get_world_size(group=None):
     if is_initialized():
         return dist.get_world_size(group=group)
-    return 1
+    return 1  # if not available - treat as single proc
 
 
 def barrier(*args, **kwargs):
@@ -104,45 +115,53 @@ def dev():
     return torch.device("cpu")
 
 
-def load_state_dict(path, **kwargs):
+def load_state_dict(local_or_remote_path, **kwargs):
     """
     Load a PyTorch file.
     """
-    # if int(os.environ['LOCAL_RANK']) == 0:
-    with bf.BlobFile(path, "rb") as f:
+    with bf.BlobFile(local_or_remote_path, "rb") as f:
         data = f.read()
     return torch.load(io.BytesIO(data), **kwargs)
 
 
-def sync_params(params, src=0):
+def broadcast(tensor, src=0, group=None, async_op=False):
     """
-    Synchronize a sequence of Tensors across ranks from rank 0.
+    Synchronize a Tensor across ranks from {src} rank. (default=0)
+    :param tensor: torch.Tensor.
+    :param src: source rank to sync params from. default is 0.
+    :param group:
+    :param async_op:
+    """
+    if not is_initialized():
+        return
+    with torch.no_grad():
+        dist.broadcast(tensor, src, group=group, async_op=async_op)
+
+
+def sync_params(params, src=0, group=None, async_op=False):
+    """
+    Synchronize a sequence of Tensors across ranks from {src} rank. (default=0)
+    :param params: Sequence of torch.Tensor.
+    :param src: source rank to sync params from. default is 0.
+    :param group:
+    :param async_op:
     """
     if not is_initialized():
         return
     for p in params:
-        with torch.no_grad():
-            dist.broadcast(p, src)
+        broadcast(params, src, group=group, async_op=async_op)
 
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#                                    Internal Function                                    #
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-try:
-    import nt  # NOQA
-    os.sync = nt.sync = lambda: None  # signature: () -> None
-except ImportError:
-    pass
-
-
-def _find_free_port():
+def find_free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
 
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-#                                                                                         #
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+try:
+    # patch some os module functions - since file io uses os.sync
+    import nt  # NOQA
+    os.sync = nt.sync = lambda: None  # signature: () -> None
+except ImportError:
+    pass
