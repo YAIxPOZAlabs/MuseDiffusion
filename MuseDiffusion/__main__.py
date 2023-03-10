@@ -34,4 +34,4 @@ def main(namespace):
 
 if __name__ == "__main__":
     from MuseDiffusion.utils.dist_run import parse_and_autorun
-    main(parse_and_autorun(create_parser(), module_name="MuseDiffusion"))
+    main(parse_and_autorun(create_parser()))
