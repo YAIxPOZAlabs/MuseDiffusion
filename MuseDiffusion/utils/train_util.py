@@ -129,6 +129,8 @@ class TrainLoop:
             self.use_ddp = False
             self.ddp_model = self.model
 
+        # In checkpoint-loading process, sometimes GPU 0 is used and allocated.
+        # After all process is done,
         torch.cuda.empty_cache()
 
     def _load_and_sync_parameters(self):

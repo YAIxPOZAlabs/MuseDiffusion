@@ -29,7 +29,7 @@ def is_available():
             import warnings
             warnings.warn(
                 "In Windows, Distributed is unavailable by default settings.\n"
-                "To enable Distributed, edit utils.dist_util.USE_DIST_IN_WINDOWS to True."
+                "To enable Distributed, edit MuseDiffusion.utils.dist_util.USE_DIST_IN_WINDOWS to True."
             )
     elif dist.is_available():  # All condition passed
         is_available.cache = True
@@ -44,17 +44,19 @@ def is_initialized():
 
 
 @functools.lru_cache(maxsize=None)
-def setup_dist(backend=None, hostname=None, silent=False):
+def setup_dist(backend=None, silent=False):
     """
     Setup a distributed process group.
     """
 
-    if is_available():
-        if os.name == 'nt':
-            hostname = "localhost"
+    if is_initialized():
+        return True
 
+    if is_available() and os.environ.get("LOCAL_RANK") is not None:
         try:
-            _setup_dist(backend=backend, hostname=hostname)
+            if backend is None:
+                backend = "gloo" if not _cuda_available() else "nccl"
+            dist.init_process_group(backend=backend, init_method="env://")
             if _cuda_available():
                 torch.cuda.set_device(dev())
                 torch.cuda.empty_cache()
@@ -66,35 +68,10 @@ def setup_dist(backend=None, hostname=None, silent=False):
                 print(f"<INFO> {exc.__class__.__qualname__}: {exc}")
             is_available.cache = False
 
-    os.environ.setdefault("LOCAL_RANK", str(0))  # make legacy-rank-getter compatible
+    os.environ.setdefault("LOCAL_RANK", str(0))
     if int(os.getenv("LOCAL_RANK")) == 0 and not silent:
         print("<INFO> torch.distributed is not available, skipping distributed setting..")
     return False
-
-
-def _setup_dist(backend=None, hostname=None):
-
-    if is_initialized():
-        return
-
-    if backend is None:
-        backend = "gloo" if not _cuda_available() else "nccl"
-
-    if hostname is None:
-        if backend == "gloo":
-            hostname = "localhost"
-        else:
-            hostname = socket.gethostbyname(socket.getfqdn())
-
-    if os.environ.get("LOCAL_RANK") is None:
-        os.environ["MASTER_ADDR"] = hostname
-        os.environ["RANK"] = str(0)
-        os.environ["WORLD_SIZE"] = str(1)
-        port = _find_free_port()
-        os.environ["MASTER_PORT"] = str(port)
-        os.environ['LOCAL_RANK'] = str(0)
-
-    dist.init_process_group(backend=backend, init_method="env://")
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
