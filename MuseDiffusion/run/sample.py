@@ -36,7 +36,7 @@ def main(namespace):
     from MuseDiffusion.models.rounding import denoised_fn_round
     from MuseDiffusion.utils import dist_util, logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
-    from MuseDiffusion.utils.decode_util import batch_decode_seq2seq, batch_decode_generate, MetaToBatch
+    from MuseDiffusion.utils.decode_util import batch_decode_seq2seq, batch_decode_generate, meta_to_batch
 
     # Credit
     try: from MuseDiffusion.utils.credit_printer import credit; credit()  # NOQA
@@ -53,26 +53,24 @@ def main(namespace):
     model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
     out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
     log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".log")
+
+    # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
     if rank == 0:
         logger.configure(out_path, format_strs=["stdout"])
         os.makedirs(out_path, exist_ok=True)
     else:
         logger.configure(out_path, format_strs=[])
         logger.set_level(logger.DISABLED)
-    dist_util.barrier()  # Sync
 
     # Reload train configurations from model folder
     logger.log(f"### Loading training config from {args.model_config_json} ... ")
     training_args = TrainSettings.parse_file(args.model_config_json)
     dist_util.barrier()  # Sync
 
-    # Initialize model and diffusion
+    # Initialize model and diffusion, and reload model weight from model folder
     logger.log("### Creating model and diffusion... ")
     model, diffusion = create_model_and_diffusion(**training_args.dict())
-
-    # Reload model weight from model folder
     model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
-    dist_util.barrier()  # Sync
 
     # Count and log total params
     pytorch_total_params = sum(p.numel() for p in model.parameters())
@@ -86,15 +84,16 @@ def main(namespace):
         _weight=model.word_embedding.weight.clone().cpu()
     )
 
-    # Freeze weight and set
+    # Freeze weight and set eval mode
     model.eval().requires_grad_(False).to(dev)
     model_emb.eval().requires_grad_(False).to(dev)
+    torch.cuda.empty_cache()
     dist_util.barrier()  # Sync
 
     # Make cudnn deterministic
     seed_all(args.sample_seed, deterministic=True)
 
-    # Set up forward and sample functions
+    # Set up sample function from step gap
     if args.step == training_args.diffusion_steps:
         step_gap = 1
         sample_fn = diffusion.p_sample_loop
@@ -102,12 +101,16 @@ def main(namespace):
         step_gap = training_args.diffusion_steps // args.step
         sample_fn = diffusion.ddim_sample_loop
 
-    # Prepare dataloader and fn
-    if args.__GENERATE__:
-        batch = MetaToBatch.execute(args.midi_meta.dict(), args.batch_size, training_args.seq_len)
-        data_loader = infinite_loader_from_single(batch)
+    # Prepare dataloader and decoding function
+    if args.__GENERATE__:  # this indicates generation mode
+        data_loader = infinite_loader_from_single(meta_to_batch(
+            midi_meta_dict=args.midi_meta_dict,
+            batch_size=args.batch_size,
+            seq_len=training_args.seq_len
+        ))
+        tqdm_total = float('inf')
         midi_decode_fn = batch_decode_generate
-    else:
+    else:  # this indicates modification mode
         for name in ['use_corruption', 'corr_available', 'corr_max', 'corr_p', 'corr_kwargs']:
             if getattr(args, name) is None:
                 setattr(args, name, getattr(training_args, name))
@@ -126,40 +129,50 @@ def main(namespace):
             loop=False,
             num_preprocess_proc=1,
         )
+        tqdm_total = len(data_loader)
         midi_decode_fn = batch_decode_seq2seq
+
+    # Convert dataloader to enumerated-progress-bar form
     iterator = enumerate(data_loader)
     if rank == 0:
-        iterator = tqdm(iterator, total=float('inf') if args.__GENERATE__ else len(data_loader))
+        iterator = tqdm(iterator, total=tqdm_total)
     dist_util.barrier()  # Sync
 
-    # Run sample loop
+    # Initialize sampling state variables
     logger.log(f"### Sampling on {'META' if args.__GENERATE__ else args.split} ... ")
-    total_valid_count = torch.tensor(0, device=dev)
-    generation_done = False  # for generation mode
+    total_valid_count = torch.tensor(0, device=dev)  # define it as tensor for synchronization
+    generation_done = False  # for generation - indicates if generation is done
     start_t = time.time()
 
+    # Run sample loop
     for batch_index, cond in iterator:
         if batch_index % world_size != rank:
+            # This makes sampling with multi node available.
+            # Each node decodes batch number of which modular is same with node rank.
             continue
         if args.__GENERATE__ and generation_done:
+            # In generation mode, this flag means generation is done, so we can stop infinite loop.
             break
 
-        input_ids_x = cond['input_ids'].to(dev)
-        input_ids_mask_ori = cond['input_mask'].to(dev)
+        input_ids_x = cond['input_ids']
+        input_ids_mask_ori = cond['input_mask']
 
-        x_start = model.get_embeds(input_ids_x)
-        input_ids_mask = torch.broadcast_to(input_ids_mask_ori.unsqueeze(dim=-1), x_start.shape)
+        # Prepare variables for noising and sampling
+        x_start = model.get_embeds(input_ids_x.to(dev))
+        input_ids_mask = torch.broadcast_to(input_ids_mask_ori.to(dev).unsqueeze(dim=-1), x_start.shape)
         model_kwargs = cond
 
+        # Noising - Generation: Random Noise, Modification: Q-Sample (forward step)
         if args.__GENERATE__:
             noising_t = None
-            noise = torch.randn_like(x_start)  # randn_like: device will be same as x_start
-            x_noised = torch.where(input_ids_mask == 0, x_start, noise)
+            noise = torch.randn_like(x_start)  # device will be same as x_start
+            x_noised = torch.where(torch.eq(input_ids_mask, 0), x_start, noise)
         else:
             noising_t = int(args.step * args.strength)
             timestep = torch.full((args.batch_size, 1), noising_t - 1, device=dev)
             x_noised = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask).squeeze(-1)
 
+        # Run diffusion reverse step
         samples = sample_fn(
             model=model,
             shape=(x_start.shape[0], training_args.seq_len, training_args.hidden_dim),
@@ -177,13 +190,14 @@ def main(namespace):
             only_last=True  # Use only last step (returns length-1 list)
         )
 
+        # Convert continuous sample to discrete token
         sample = samples[-1]
-        logits = model.get_logits(sample)  # bsz, seqlen, vocab
+        logits = model.get_logits(sample)  # bsz, seq_len, vocab
         sample_tokens = torch.argmax(logits, dim=-1)
 
-        # Decode sequentially
-        for i in range(world_size):
+        for i in range(world_size):  # Decode sequentially
             if i == rank and not generation_done:
+                # We use redirecting context manager again: to log into both stdout and log file.
                 out = StringIO()
                 try:
                     with redirect_stdout(out):
@@ -197,19 +211,19 @@ def main(namespace):
                             )
                         )
                         total_valid_count += valid_count
-                        print(total_valid_count.item())
                 finally:
                     logs_per_batch = out.getvalue()
-                    # Print logs sequentially
                     with open(log_path, "a") as fp:
                         fp.write(logs_per_batch)
-                    print(logs_per_batch)
+                    logger.log(logs_per_batch)
+            # We can get 'exact' total_valid_count, due to sequential decoding.
             dist_util.sync_params([total_valid_count], src=i)
             dist_util.barrier()
             if args.__GENERATE__ and total_valid_count.item() >= args.num_samples:
+                # We have made enough midis, so we can stop generation loop.
                 generation_done = True
 
-    # Sync each distributed node with dummy barrier() call
+    # In modification mode, you must sync remaining distributed nodes with dummy barrier() call
     if not args.__GENERATE__:
         rem = len(data_loader) % world_size
         if rem and rank >= rem:
