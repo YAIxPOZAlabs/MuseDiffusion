@@ -8,7 +8,7 @@ Docstrings have been added, as well as DDIM sampling and a new collection of bet
 import math
 
 import numpy as np
-import torch as th
+import torch
 
 
 def mean_flat(tensor):
@@ -248,7 +248,7 @@ class GaussianDiffusion:
         :return: A noisy version of x_start.
         """
         if noise is None:
-            noise = th.randn_like(x_start)
+            noise = torch.randn_like(x_start)
 
         assert noise.shape == x_start.shape
         x_t = (
@@ -260,8 +260,8 @@ class GaussianDiffusion:
         if mask == None:
             return x_t
         else:
-            mask = th.broadcast_to(mask.unsqueeze(dim=-1), x_start.shape)
-            return th.where(mask == 0, x_start, x_t)
+            mask = torch.broadcast_to(mask.unsqueeze(dim=-1), x_start.shape)
+            return torch.where(mask == 0, x_start, x_t)
 
     def q_posterior_mean_variance(self, x_start, x_t, t):
         """
@@ -385,24 +385,24 @@ class GaussianDiffusion:
         )
         if top_p is not None and top_p > 0:
             # print('top_p sampling')
-            noise = th.randn_like(x)
-            replace_mask = th.abs(noise) > top_p
+            noise = torch.randn_like(x)
+            replace_mask = torch.abs(noise) > top_p
             while replace_mask.any():
-                noise[replace_mask] = th.randn_like(noise[replace_mask])
-                replace_mask = th.abs(noise) > top_p
-            assert (th.abs(noise) <= top_p).all()
+                noise[replace_mask] = torch.randn_like(noise[replace_mask])
+                replace_mask = torch.abs(noise) > top_p
+            assert (torch.abs(noise) <= top_p).all()
 
         else:
-            noise = th.randn_like(x)
+            noise = torch.randn_like(x)
 
         nonzero_mask = (
             (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
         )  # no noise when t == 0
-        sample = out["mean"] + nonzero_mask * th.exp(0.5 * out["log_variance"]) * noise
+        sample = out["mean"] + nonzero_mask * torch.exp(0.5 * out["log_variance"]) * noise
         if mask == None:
             pass
         else:
-            sample = th.where(mask==0, x_start, sample)
+            sample = torch.where(mask==0, x_start, sample)
 
         return {
             "sample": sample, 
@@ -512,7 +512,7 @@ class GaussianDiffusion:
         if noise is not None: # custom your the start point of x_0
             sample_x = noise
         else:
-            sample_x = th.randn(*shape, device=device)
+            sample_x = torch.randn(*shape, device=device)
         indices = list(range(self.num_timesteps))[::-1][slice(t_enc)]
 
         if progress:
@@ -521,7 +521,7 @@ class GaussianDiffusion:
             indices = tqdm(indices)
 
         for i in indices: # from T to 0
-            t = th.tensor([i] * shape[0], device=device)
+            t = torch.tensor([i] * shape[0], device=device)
             if not clamp_first:
                 if i > clamp_step:
                     denoised_fn_cur = None
@@ -532,7 +532,7 @@ class GaussianDiffusion:
                     denoised_fn_cur = denoised_fn
                 else:
                     denoised_fn_cur = None
-            with th.no_grad():
+            with torch.no_grad():
                 out = self.p_sample(
                     model,
                     sample_x,
@@ -554,7 +554,7 @@ class GaussianDiffusion:
         :param x_start_mean: word embedding
         :return: x_0
         '''
-        noise = th.randn_like(x_start_mean)
+        noise = torch.randn_like(x_start_mean)
         assert noise.shape == x_start_mean.shape
         # print(x_start_mean.device, noise.device)
         return (
@@ -569,7 +569,7 @@ class GaussianDiffusion:
         reshaped_x_t = x_t
         logits = get_logits(reshaped_x_t)  # bsz, seqlen, vocab
         # print(logits.shape)
-        loss_fct = th.nn.CrossEntropyLoss(reduction='none')
+        loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
         decoder_nll = loss_fct(logits.view(-1, logits.size(-1)), input_ids.view(-1)).view(input_ids.shape)
         if mask != None:
             decoder_nll *= mask
@@ -617,14 +617,14 @@ class GaussianDiffusion:
         x_start_mean = model.model.module.get_embeds(input_ids_x)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
-                                   th.tensor([0], device=x_start_mean.device),
+                                   torch.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
         # print(std.shape, )
-        # x_start_log_var = 2 * th.log(std)
+        # x_start_log_var = 2 * torch.log(std)
         x_start = self._get_x_start(x_start_mean, std)
         # print(x_start_mean.shape, x_start.shape)
         if noise is None:
-            noise = th.randn_like(x_start)
+            noise = torch.randn_like(x_start)
 
         x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask)  # reparametrization trick.
 
@@ -640,11 +640,14 @@ class GaussianDiffusion:
         model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
         t0_mask = (t == 0)
         t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
-        terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
+        terms["mse"] = torch.where(t0_mask, t0_loss, terms["mse"])
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
-                                              th.tensor([self.num_timesteps - 1], dtype=th.long, device=x_start.device))
+                                              torch.tensor([self.num_timesteps - 1],
+                                                           dtype=torch.long,
+                                                           device=x_start.device)
+                                              )
         tT_loss = mean_flat(out_mean ** 2)
 
         decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x)  # embedding regularization
@@ -669,15 +672,15 @@ class GaussianDiffusion:
         correct_x_start_mean = model.model.module.get_embeds(correct_ids_x)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
-                                   th.tensor([0], device=x_start_mean.device),
+                                   torch.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
         # print(std.shape, )
-        # x_start_log_var = 2 * th.log(std)
+        # x_start_log_var = 2 * torch.log(std)
         x_start = self._get_x_start(x_start_mean, std)
         correct_x_start = self._get_x_start(correct_x_start_mean, std)
         # print(x_start_mean.shape, x_start.shape)
         if noise is None:
-            noise = th.randn_like(x_start)
+            noise = torch.randn_like(x_start)
 
         x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask)  # reparametrization trick.
 
@@ -694,11 +697,11 @@ class GaussianDiffusion:
         t0_mask = (t == 0)
         # t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
         t0_loss = mean_flat((correct_x_start_mean - model_out_x_start) ** 2)
-        terms["mse"] = th.where(t0_mask, t0_loss, terms["mse"])
+        terms["mse"] = torch.where(t0_mask, t0_loss, terms["mse"])
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
-                                              th.tensor([self.num_timesteps - 1], dtype=th.long, device=x_start.device))
+                                              torch.tensor([self.num_timesteps - 1], dtype=torch.long, device=x_start.device))
         tT_loss = mean_flat(out_mean ** 2)
 
         decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x)  # embedding regularization
@@ -745,14 +748,14 @@ class GaussianDiffusion:
         alpha_bar_prev = _extract_into_tensor(self.alphas_cumprod_prev, t, x.shape)
         sigma = (
             eta
-            * th.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
-            * th.sqrt(1 - alpha_bar / alpha_bar_prev)
+            * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar))
+            * torch.sqrt(1 - alpha_bar / alpha_bar_prev)
         )
         # Equation 12.
-        noise = th.randn_like(x)
+        noise = torch.randn_like(x)
         mean_pred = (
-            out["pred_xstart"] * th.sqrt(alpha_bar_prev)
-            + th.sqrt(1 - alpha_bar_prev - sigma ** 2) * eps
+            out["pred_xstart"] * torch.sqrt(alpha_bar_prev)
+            + torch.sqrt(1 - alpha_bar_prev - sigma ** 2) * eps
         )
         nonzero_mask = (
             (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
@@ -766,7 +769,7 @@ class GaussianDiffusion:
         if mask == None:
             pass
         else:
-            sample = th.where(mask==0, x_start, sample)
+            sample = torch.where(mask==0, x_start, sample)
         
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
 
@@ -802,8 +805,8 @@ class GaussianDiffusion:
 
         # Equation 12. reversed
         mean_pred = (
-            out["pred_xstart"] * th.sqrt(alpha_bar_next)
-            + th.sqrt(1 - alpha_bar_next) * eps
+            out["pred_xstart"] * torch.sqrt(alpha_bar_next)
+            + torch.sqrt(1 - alpha_bar_next) * eps
         )
 
         return {"sample": mean_pred, "pred_xstart": out["pred_xstart"]}
@@ -888,7 +891,7 @@ class GaussianDiffusion:
         if noise is not None:
             sample_x = noise
         else:
-            sample_x = th.randn(*shape, device=device)
+            sample_x = torch.randn(*shape, device=device)
         indices = list(range(self.num_timesteps))[::-1][::gap][slice(t_enc)]
 
         if progress:
@@ -898,8 +901,8 @@ class GaussianDiffusion:
             indices = tqdm(indices)
 
         for i in indices:
-            t = th.tensor([i] * shape[0], device=device)
-            with th.no_grad():
+            t = torch.tensor([i] * shape[0], device=device)
+            with torch.no_grad():
                 out = self.ddim_sample(
                     model,
                     sample_x,
@@ -925,7 +928,7 @@ def _extract_into_tensor(arr, timesteps, broadcast_shape):
                             dimension equal to the length of timesteps.
     :return: a tensor of shape [batch_size, 1, ...] where the shape has K dims.
     """
-    res = th.tensor(arr, device=timesteps.device, dtype=th.float)[timesteps]
+    res = torch.tensor(arr, device=timesteps.device, dtype=torch.float)[timesteps]
     while len(res.shape) < len(broadcast_shape):
         res = res[..., None]
     return res.expand(broadcast_shape)
@@ -1046,7 +1049,7 @@ class _WrappedModel:
 
     def __call__(self, x, ts, **kwargs):
         # print(ts)
-        map_tensor = th.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
+        map_tensor = torch.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         new_ts = map_tensor[ts]
         # print(new_ts)
         if self.rescale_timesteps:

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-import torch as th
+import torch
 import torch.distributed as dist
 
 
@@ -56,9 +56,9 @@ class ScheduleSampler(ABC):
         w = self.weights()
         p = w / np.sum(w)
         indices_np = np.random.choice(len(p), size=(batch_size,), p=p)
-        indices = th.as_tensor(indices_np, device=device, dtype=th.long)
+        indices = torch.as_tensor(indices_np, device=device, dtype=torch.long)
         weights_np = 1 / (len(p) * p[indices_np])
-        weights = th.as_tensor(weights_np, device=device, dtype=th.float)
+        weights = torch.as_tensor(weights_np, device=device, dtype=torch.float)
         return indices, weights
 
 
@@ -97,20 +97,20 @@ class LossAwareSampler(ScheduleSampler):
         :param local_losses: a 1D Tensor of losses.
         """
         batch_sizes = [
-            th.tensor([0], dtype=th.int32, device=local_ts.device)
+            torch.tensor([0], dtype=torch.int32, device=local_ts.device)
             for _ in range(dist.get_world_size())
         ]
         dist.all_gather(
             batch_sizes,
-            th.tensor([len(local_ts)], dtype=th.int32, device=local_ts.device),
+            torch.tensor([len(local_ts)], dtype=torch.int32, device=local_ts.device),
         )
 
         # Pad all_gather batches to be the maximum batch size.
         batch_sizes = [x.item() for x in batch_sizes]
         max_bs = max(batch_sizes)
 
-        timestep_batches = [th.zeros(max_bs, dtype=local_ts.dtype, device=local_ts.device) for bs in batch_sizes]
-        loss_batches = [th.zeros(max_bs, dtype=local_losses.dtype, device=local_losses.device) for bs in batch_sizes]
+        timestep_batches = [torch.zeros(max_bs, dtype=local_ts.dtype, device=local_ts.device) for bs in batch_sizes]
+        loss_batches = [torch.zeros(max_bs, dtype=local_losses.dtype, device=local_losses.device) for bs in batch_sizes]
         dist.all_gather(timestep_batches, local_ts)
         dist.all_gather(loss_batches, local_losses)
         timesteps = [

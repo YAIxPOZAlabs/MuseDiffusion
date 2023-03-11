@@ -19,22 +19,21 @@ except ModuleNotFoundError as e:
 
 class MetaToSequence:
 
-    meta_encoder = MetaEncoder()
+    def __init__(self):
+        self.meta_encoder = MetaEncoder()
+        self.chord_map = {
+            i[0].upper() + i[1:]: j for j, i in
+            enumerate([k[6:] for k in base_event if k.startswith("Chord_")], start=TOKEN_OFFSET.CHORD_START.value)
+        }
 
-    CHORD_MAP = {
-        i[0].upper() + i[1:]: j for j, i in
-        enumerate([k[6:] for k in base_event if k.startswith("Chord_")], start=TOKEN_OFFSET.CHORD_START.value)
-    }
-
-    @classmethod
-    def encode_chord(cls, chord_progression):
+    def encode_chord(self, chord_progression):
         encoded_chord = []
         chord_progression = chord_progression
         assert len(chord_progression) % 8 == 0
 
         for idx in range(0, len(chord_progression), 8):
             encoded_chord.append(432)
-            chord_token = cls.CHORD_MAP[chord_progression[idx]]
+            chord_token = self.chord_map[chord_progression[idx]]
             encoded_chord.append(chord_token)
             recent_chord = chord_progression[idx]
             for i in range(1, 8):
@@ -43,33 +42,16 @@ class MetaToSequence:
                     recent_chord = chord_progression[idx + i]
         return encoded_chord
 
-    @classmethod
-    def encode_meta(cls, midi_meta):
-        return cls.meta_encoder.encode(midi_meta)
+    def encode_meta(self, midi_meta):
+        return self.meta_encoder.encode(midi_meta)
 
-    @classmethod
-    def execute(cls, input_data: dict) -> "list[int]":
+    def execute(self, input_data: dict) -> "list[int]":
         midi_meta = MidiMeta(**input_data)
         chord_progression = input_data["chord_progression"].split("-")
-        return cls.encode_meta(midi_meta) + cls.encode_chord(chord_progression)
+        return self.encode_meta(midi_meta) + self.encode_chord(chord_progression)
 
     def __call__(self, *args, **kwargs):
         return self.execute(*args, **kwargs)
-
-
-class MetaToBatch(MetaToSequence):
-
-    @classmethod
-    def execute(cls, input_data, batch_size, seq_len):  # NOQA
-        import torch
-        encoded_meta = super(MetaToBatch, cls).execute(input_data)
-        encoded_meta = torch.tensor(encoded_meta)
-        input_ids = torch.zeros(batch_size, seq_len, dtype=torch.int)
-        input_ids[:, :len(encoded_meta)] = encoded_meta
-        input_mask = torch.ones(batch_size, seq_len, dtype=torch.int)
-        input_mask[:, :len(encoded_meta) + 1] = 0
-        batch = {'input_ids': input_ids, 'input_mask': input_mask}
-        return batch
 
 
 class SequenceToMidiError(Exception):
@@ -78,7 +60,15 @@ class SequenceToMidiError(Exception):
 
 class SequenceToMidi:
 
-    decoder = EventSequenceEncoder()
+    _decoder: EventSequenceEncoder
+
+    @property
+    def decoder(self) -> EventSequenceEncoder:  # Lazy getter (since decoding is repeated process)
+        try:
+            decoder = SequenceToMidi._decoder
+        except AttributeError:
+            decoder = SequenceToMidi._decoder = EventSequenceEncoder()
+        return decoder
 
     @staticmethod
     def remove_padding(generation_result):
@@ -166,64 +156,42 @@ class SequenceToMidi:
                 return
         raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
 
-    @classmethod
     def decode_event_sequence(
-            cls,
+            self,
             encoded_meta,
             note_seq
     ) -> "MidiFile":
-        decoded_midi = cls.decoder.decode(
+        decoded_midi = self.decoder.decode(
             midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),
         )
         return decoded_midi
 
-    @classmethod
-    def extract_note_seq(cls, seq, input_mask):
-        len_meta = len(seq) - int((input_mask.sum()))
-        note_seq = seq[len_meta:]
-        try:
-            note_seq = cls.remove_padding(note_seq)
-            return note_seq[np.where(note_seq < 559)]
-        except SequenceToMidiError:
-            return
-
-    @classmethod
-    def _decode(cls, seq, input_mask):  # Output: Midi, Errcode
+    def decode(self, seq, input_mask, output_file_path=None):
         len_meta = len(seq) - int((input_mask.sum()))
         encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
         note_seq = seq[len_meta:]
-        note_seq = cls.remove_padding(note_seq)
-        note_seq, encoded_meta = cls.restore_chord(note_seq, encoded_meta)
-        cls.validate_generated_sequence(note_seq)
-        decoded_midi = cls.decode_event_sequence(encoded_meta, note_seq)
-        return decoded_midi
-
-    @classmethod
-    def decode(cls, seq, input_mask, output_file_path=None):
-        decoded_midi = cls._decode(seq, input_mask)
+        note_seq = self.remove_padding(note_seq)
+        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
+        self.validate_generated_sequence(note_seq)
+        decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
         if output_file_path:
             decoded_midi.dump(output_file_path)
         return decoded_midi
-
-    execute = decode
 
     def __call__(self, *args, **kwargs):
         return self.decode(*args, **kwargs)
 
 
-def save_tokens(input_tokens, output_tokens, output_dir, batch_index):
-    out_list = []
-    len_meta = 12
-    for (in_seq, out_seq) in zip(input_tokens, output_tokens):
-        encoded_meta = in_seq[:len_meta - 1]
-        in_note_seq = in_seq[len_meta:]
-        in_note_seq = SequenceToMidi.remove_padding(in_note_seq)
-        out_note_seq = out_seq[len_meta:]
-        out_note_seq = SequenceToMidi.remove_padding(out_note_seq)
-        # output_file_path = self.set_output_file_path(idx=idx, output_dir=output_dir)
-        out_list.append(np.concatenate((encoded_meta, in_note_seq, [0], out_note_seq)))
-    path = os.path.join(output_dir, f'token_batch{batch_index}.npy')
-    np.save(path, out_list)
+def meta_to_batch(midi_meta_dict, batch_size, seq_len):
+    import torch
+    encoded_meta = MetaToSequence().execute(midi_meta_dict)
+    encoded_meta = torch.tensor(encoded_meta)
+    input_ids = torch.zeros(batch_size, seq_len, dtype=torch.int)
+    input_ids[:, :len(encoded_meta)] = encoded_meta
+    input_mask = torch.ones(batch_size, seq_len, dtype=torch.int)
+    input_mask[:, :len(encoded_meta) + 1] = 0
+    batch = {'input_ids': input_ids, 'input_mask': input_mask}
+    return batch
 
 
 def batch_decode_seq2seq(
@@ -234,16 +202,18 @@ def batch_decode_seq2seq(
         output_dir,
         output_file_format="{original_index}_batch{batch_index}_{index}.midi"
 ):
-
+    decoder = SequenceToMidi()
     invalid_idxes = set()
 
     for index, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
         original_index = previous_count + index
         logger = io.StringIO()
         try:
+            # we can't handle OOV error - since OOV is only logged into stdout
+            # so we need stdout redirection
             with contextlib.redirect_stdout(logger):
-                decoded_midi = SequenceToMidi.decode(seq, input_mask)
-        except SequenceToMidiError as exc:
+                decoded_midi = decoder(seq, input_mask)
+        except SequenceToMidiError as exc:  # exception that indicates decoding failure
             log = logger.getvalue()
             print(f"<Warning> Batch {batch_index} Index {index} "
                   f"(Original: {original_index}) "
@@ -251,17 +221,17 @@ def batch_decode_seq2seq(
             if log:
                 print(log)
             invalid_idxes.add(index)
-        except Exception as exc:
+        except Exception as exc:  # normal exceptions - assure redirected stdout logs and print extra information
             print(logger.getvalue())
             print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
                   f"  occurred while generating midi of Batch {batch_index} Index {index} "
                   f"(Original: {original_index}).")
             raise
-        except BaseException:
+        except BaseException:  # special exceptions (KeyboardInterrupt, SystemExit...) - assure redirected stdout logs
             print(logger.getvalue())
             raise
         else:
-            log = logger.getvalue()
+            log = logger.getvalue()  # to check OOV
             if log:
                 print(f"<Warning> Batch {batch_index} Index {index} "
                       f"(Original: {original_index}) "
@@ -302,17 +272,19 @@ def batch_decode_generate(
         output_dir,
         output_file_format="generated_{valid_index}.midi"
 ):
-
+    decoder = SequenceToMidi()
     valid_index = previous_count
 
     for seq, input_mask in zip(sequences, input_ids_mask_ori):
         logger = io.StringIO()
         try:
+            # we can't handle OOV error - since OOV is only logged into stdout
+            # so we need stdout redirection
             with contextlib.redirect_stdout(logger):
-                decoded_midi = SequenceToMidi.decode(seq, input_mask)
+                decoded_midi = decoder(seq, input_mask)
         except SequenceToMidiError:
-            continue
-        log = logger.getvalue()
+            continue  # in generation, we can skip decoding failures
+        log = logger.getvalue()  # to check OOV
         if log:
             print(f"<Warning> Index {valid_index} "
                   f"- {' '.join(log.splitlines())}")

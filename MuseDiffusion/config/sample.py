@@ -150,12 +150,13 @@ class ModificationExtraSettingsMixin(S):
 
 
 class MidiMeta(S):
+    # Refer to signatures of `commu.preprocessor.utils.container.MidiMeta`
 
     bpm: int
     audio_key: Choice(*KEY_MAP)
     time_signature: Choice(*TIME_SIG_MAP)
     pitch_range: Choice(*PITCH_RANGE_MAP)
-    num_measures: int
+    num_measures: float
     inst: Choice(*INST_MAP)
     genre: Choice(*GENRE_MAP)
     min_velocity: int
@@ -210,8 +211,8 @@ class GenerationSettings(SamplingCommonSettings, MidiMeta):
     num_samples: int = _(1000, "number of midi samples to generate from metadata")
 
     @property
-    def midi_meta(self) -> MidiMeta:
-        return MidiMeta(**{k: getattr(self, k) for k in MidiMeta.__fields__})
+    def midi_meta_dict(self) -> dict:
+        return MidiMeta(**{k: getattr(self, k) for k in MidiMeta.__fields__}).dict()
 
     @classmethod
     def to_argparse(cls, parser_or_group=None):
