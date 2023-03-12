@@ -55,6 +55,8 @@ def main(namespace):
     log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".log")
 
     # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
+    # logger.log() - equal to print(), but only in master process
+    # print() - all process
     if rank == 0:
         logger.configure(out_path, format_strs=["stdout"])
         os.makedirs(out_path, exist_ok=True)
@@ -178,7 +180,7 @@ def main(namespace):
             shape=(x_start.shape[0], training_args.seq_len, training_args.hidden_dim),
             noise=x_noised,
             clip_denoised=args.clip_denoised,
-            denoised_fn=partial(denoised_fn_round, args, model_emb),
+            denoised_fn=partial(denoised_fn_round, model_emb, dist=None),  # sig: (model_emb, x, t, dist) -> (x, t)
             model_kwargs=model_kwargs,
             top_p=args.top_p,
             clamp_step=args.clamp_step,
@@ -215,7 +217,7 @@ def main(namespace):
                     logs_per_batch = out.getvalue()
                     with open(log_path, "a") as fp:
                         fp.write(logs_per_batch)
-                    logger.log(logs_per_batch)
+                    print(logs_per_batch)
             # We can get 'exact' total_valid_count, due to sequential decoding.
             dist_util.sync_params([total_valid_count], src=i)
             dist_util.barrier()

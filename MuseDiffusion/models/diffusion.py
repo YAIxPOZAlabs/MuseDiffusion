@@ -1,5 +1,5 @@
 """
-This code started out as a PyTorch port of Ho et al's diffusion models:
+This code started out as a PyTorch port of Ho et al.'s diffusion models:
 https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils_2.py
 
 Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules.
@@ -28,7 +28,7 @@ def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     they are committed to maintain backwards compatibility.
     """
     if schedule_name == "linear":
-        # Linear schedule from Ho et al, extended to work for any number of
+        # Linear schedule from Ho et al., extended to work for any number of
         # diffusion steps.
         scale = 1000 / num_diffusion_timesteps
         beta_start = scale * 0.0001
@@ -61,24 +61,25 @@ def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     elif schedule_name == 'pw_lin':
         scale = 1000 / num_diffusion_timesteps
         beta_start = scale * 0.0001 + 0.01
-        beta_mid = scale * 0.0001  #scale * 0.02
+        beta_mid = scale * 0.0001  # scale * 0.02
         beta_end = scale * 0.02
         first_part = np.linspace(
             beta_start, beta_mid, 10, dtype=np.float64
         )
         second_part = np.linspace(
-            beta_mid, beta_end, num_diffusion_timesteps - 10 , dtype=np.float64
+            beta_mid, beta_end, num_diffusion_timesteps - 10, dtype=np.float64
         )
         return np.concatenate(
             [first_part, second_part]
         )
     else:
-        raise NotImplementedError(f"unknown beta schedule: {schedule_name}")
+        raise NotImplementedError("unknown beta schedule: {}".format(schedule_name))
 
 
 def betas_for_alpha_bar_left(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     """
-    Create a beta schedule that discretizes the given alpha_t_bar function, but shifts towards left interval starting from 0
+    Create a beta schedule that discretizes the given alpha_t_bar function,
+    but shifts towards left interval starting from 0
     which defines the cumulative product of (1-beta) over time from t = [0,1].
 
     :param num_diffusion_timesteps: the number of betas to produce.
@@ -88,8 +89,7 @@ def betas_for_alpha_bar_left(num_diffusion_timesteps, alpha_bar, max_beta=0.999)
     :param max_beta: the maximum beta to use; use values lower than 1 to
                      prevent singularities.
     """
-    betas = []
-    betas.append(min(1-alpha_bar(0), max_beta))
+    betas = [min(1 - alpha_bar(0), max_beta)]
     for i in range(num_diffusion_timesteps-1):
         t1 = i / num_diffusion_timesteps
         t2 = (i + 1) / num_diffusion_timesteps
@@ -257,7 +257,7 @@ class GaussianDiffusion:
             * noise
         )
 
-        if mask == None:
+        if mask is None:
             return x_t
         else:
             mask = torch.broadcast_to(mask.unsqueeze(dim=-1), x_start.shape)
@@ -336,7 +336,7 @@ class GaussianDiffusion:
         if self.predict_xstart:
             pred_xstart = process_xstart(model_output)
         else:
-            ### model is used to predict eps
+            # model is used to predict eps
             pred_xstart = process_xstart(
                 self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
             )
@@ -356,7 +356,8 @@ class GaussianDiffusion:
         }
 
     def p_sample(
-        self, model, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None,
+            self,
+            model, x, t, clip_denoised=True, denoised_fn=None, model_kwargs=None,
             top_p=None, mask=None, x_start=None,
     ):
         """
@@ -399,10 +400,10 @@ class GaussianDiffusion:
             (t != 0).float().view(-1, *([1] * (len(x.shape) - 1)))
         )  # no noise when t == 0
         sample = out["mean"] + nonzero_mask * torch.exp(0.5 * out["log_variance"]) * noise
-        if mask == None:
+        if mask is None:
             pass
         else:
-            sample = torch.where(mask==0, x_start, sample)
+            sample = torch.where(mask == 0, x_start, sample)
 
         return {
             "sample": sample, 
@@ -509,7 +510,7 @@ class GaussianDiffusion:
         if device is None:
             device = next(model.parameters()).device
         assert isinstance(shape, (tuple, list))
-        if noise is not None: # custom your the start point of x_0
+        if noise is not None:  # custom your start point of x_0
             sample_x = noise
         else:
             sample_x = torch.randn(*shape, device=device)
@@ -520,7 +521,7 @@ class GaussianDiffusion:
             from tqdm.auto import tqdm
             indices = tqdm(indices)
 
-        for i in indices: # from T to 0
+        for i in indices:  # from T to 0
             t = torch.tensor([i] * shape[0], device=device)
             if not clamp_first:
                 if i > clamp_step:
@@ -547,13 +548,13 @@ class GaussianDiffusion:
                 yield out
                 sample_x = out["sample"]
 
-
-    def _get_x_start(self, x_start_mean, std):
-        '''
+    @staticmethod
+    def _get_x_start(x_start_mean, std):
+        """
         Word embedding projection from {Emb(w)} to {x_0}
         :param x_start_mean: word embedding
         :return: x_0
-        '''
+        """
         noise = torch.randn_like(x_start_mean)
         assert noise.shape == x_start_mean.shape
         # print(x_start_mean.device, noise.device)
@@ -561,20 +562,21 @@ class GaussianDiffusion:
              x_start_mean + std * noise
         )
 
-    def _token_discrete_loss(self, x_t, get_logits, input_ids, mask=None, truncate=False, t=None):
-        '''
+    @staticmethod
+    def _token_discrete_loss(x_t, get_logits, input_ids, mask=None):
+        """
         the loss of -log p(w|z_0)
         :return: x_0
-        '''
+        """
         reshaped_x_t = x_t
         logits = get_logits(reshaped_x_t)  # bsz, seqlen, vocab
         # print(logits.shape)
         loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
         decoder_nll = loss_fct(logits.view(-1, logits.size(-1)), input_ids.view(-1)).view(input_ids.shape)
-        if mask != None:
+        if mask is not None:
             decoder_nll *= mask
         # print(decoder_nll.shape)
-        if mask != None:
+        if mask is not None:
             decoder_nll = decoder_nll.sum(dim=-1)/mask.sum(dim=-1)
         else:
             decoder_nll = decoder_nll.mean(dim=-1)
@@ -589,14 +591,14 @@ class GaussianDiffusion:
                 x_start=pred_xstart, x_t=x, t=t
             )
 
-        else: # predict eps
+        else:  # predict eps
             pred_xstart = self._predict_xstart_from_eps(x_t=x, t=t, eps=model_output)
         
             pred_prev, _, _ = self.q_posterior_mean_variance(
                 x_start=pred_xstart, x_t=x, t=t
             )
 
-        return {'pred_xprev':pred_prev, 'pred_xstart':pred_xstart}
+        return {'pred_xprev': pred_prev, 'pred_xstart': pred_xstart}
 
     def training_losses_seq2seq(self, model, t, model_kwargs, noise=None):
         """
@@ -612,35 +614,30 @@ class GaussianDiffusion:
         assert 'input_ids' in model_kwargs
         input_ids_x = model_kwargs['input_ids'].to(t.device)
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
-        # input_label = model_kwargs['label'].to(t.device)
-
-        x_start_mean = model.model.module.get_embeds(input_ids_x)
+        x_start_mean = unwrap_model(model).get_embeds(input_ids_x)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
                                    torch.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
-        # print(std.shape, )
         # x_start_log_var = 2 * torch.log(std)
         x_start = self._get_x_start(x_start_mean, std)
-        # print(x_start_mean.shape, x_start.shape)
         if noise is None:
             noise = torch.randn_like(x_start)
 
         x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask)  # reparametrization trick.
 
-        get_logits = model.model.module.get_logits
+        get_logits = unwrap_model(model).get_logits
 
         terms = {}
 
-        target = x_start
-        model_output = model(x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)
-        assert model_output.shape == target.shape == x_start.shape
-        terms["mse"] = mean_flat((target - model_output) ** 2)
+        model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
+        assert model_output.shape == x_start.shape
 
-        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
+        t_loss = mean_flat((x_start - model_output) ** 2)
         t0_mask = (t == 0)
+        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
         t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
-        terms["mse"] = torch.where(t0_mask, t0_loss, terms["mse"])
+        terms["mse"] = torch.where(t0_mask, t0_loss, t_loss)
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
@@ -651,8 +648,7 @@ class GaussianDiffusion:
         tT_loss = mean_flat(out_mean ** 2)
 
         decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x)  # embedding regularization
-        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask,
-                                                 truncate=True, t=t)  # x_0->model_out_x_start
+        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask)
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
         terms["loss"] = terms["mse"] + decoder_nll + tT_loss
@@ -666,52 +662,48 @@ class GaussianDiffusion:
         assert 'input_ids' in model_kwargs
         input_ids_x = model_kwargs['input_ids'].to(t.device)
         input_ids_mask = model_kwargs['input_mask'].to(t.device)
-        x_start_mean = model.model.module.get_embeds(input_ids_x)
+        x_start_mean = unwrap_model(model).get_embeds(input_ids_x)
 
         correct_ids_x = model_kwargs['correct_ids'].to(t.device)
-        correct_x_start_mean = model.model.module.get_embeds(correct_ids_x)
+        correct_x_start_mean = unwrap_model(model).get_embeds(correct_ids_x)
 
         std = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod,
                                    torch.tensor([0], device=x_start_mean.device),
                                    x_start_mean.shape)
-        # print(std.shape, )
         # x_start_log_var = 2 * torch.log(std)
         x_start = self._get_x_start(x_start_mean, std)
         correct_x_start = self._get_x_start(correct_x_start_mean, std)
-        # print(x_start_mean.shape, x_start.shape)
         if noise is None:
             noise = torch.randn_like(x_start)
 
         x_t = self.q_sample(x_start, t, noise=noise, mask=input_ids_mask)  # reparametrization trick.
 
-        get_logits = model.model.module.get_logits
+        get_logits = unwrap_model(model).get_logits
 
         terms = {}
 
-        target = correct_x_start  # x_start
-        model_output = model(x_t, self._scale_timesteps(t), model_kwargs=model_kwargs)
-        assert model_output.shape == target.shape == x_start.shape
-        terms["mse"] = mean_flat((target - model_output) ** 2)
+        model_output = model(x_t, self._scale_timesteps(t), **model_kwargs)
+        assert model_output.shape == correct_x_start.shape == x_start.shape
 
-        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
+        t_loss = mean_flat((correct_x_start - model_output) ** 2)
         t0_mask = (t == 0)
-        # t0_loss = mean_flat((x_start_mean - model_out_x_start) ** 2)
+        model_out_x_start = self._x0_helper(model_output, x_t, t)['pred_xstart']  # predicted_xstart = model_output
         t0_loss = mean_flat((correct_x_start_mean - model_out_x_start) ** 2)
-        terms["mse"] = torch.where(t0_mask, t0_loss, terms["mse"])
+        terms["mse"] = torch.where(t0_mask, t0_loss, t_loss)
 
         # tT_mask = (t == self.num_timesteps - 1)
         out_mean, _, _ = self.q_mean_variance(x_start,
-                                              torch.tensor([self.num_timesteps - 1], dtype=torch.long, device=x_start.device))
+                                              torch.tensor([self.num_timesteps - 1],
+                                                           dtype=torch.long,
+                                                           device=x_start.device)
+                                              )
         tT_loss = mean_flat(out_mean ** 2)
 
         decoder_nll = self._token_discrete_loss(x_start, get_logits, input_ids_x)  # embedding regularization
-        decoder_nll2 = self._token_discrete_loss(correct_x_start, get_logits, correct_ids_x)  # 이거를 추가하는게 좋을까 안좋을까
-        # terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, input_ids_x, mask=input_ids_mask, truncate=True, t=t) # x_0->model_out_x_start
-        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, correct_ids_x, mask=input_ids_mask,
-                                                 truncate=True, t=t)  # x_0->model_out_x_start
+        terms["nll"] = self._token_discrete_loss(model_out_x_start, get_logits, correct_ids_x, mask=input_ids_mask)
         # assert (model.lm_head.weight == model.word_embedding.weight).all()
 
-        terms["loss"] = terms["mse"] + decoder_nll + tT_loss  # + decoder_nll2
+        terms["loss"] = terms["mse"] + decoder_nll + tT_loss
 
         return terms
 
@@ -764,12 +756,12 @@ class GaussianDiffusion:
         sample = mean_pred + nonzero_mask * sigma * noise
         if langevin_fn:
             print(t.shape)
-            sample=langevin_fn(sample, mean_pred, sigma, self.alphas_cumprod_prev[t[0]], t, x)
+            sample = langevin_fn(sample, mean_pred, sigma, self.alphas_cumprod_prev[t[0]], t, x)
         
-        if mask == None:
+        if mask is None:
             pass
         else:
-            sample = torch.where(mask==0, x_start, sample)
+            sample = torch.where(mask == 0, x_start, sample)
         
         return {"sample": sample, "pred_xstart": out["pred_xstart"]}
 
@@ -827,7 +819,7 @@ class GaussianDiffusion:
         mask=None,
         x_start=None,
         gap=1,
-        eta = 0.0,
+        eta=0.0,
         t_enc=None,
         only_last=False,
     ):
@@ -958,13 +950,11 @@ def space_timesteps(num_timesteps, section_counts):
     """
     if isinstance(section_counts, str):
         if section_counts.startswith("ddim"):
-            desired_count = int(section_counts[len("ddim") :])
+            desired_count = int(section_counts[len("ddim"):])
             for i in range(1, num_timesteps):
                 if len(range(0, num_timesteps, i)) == desired_count:
                     return set(range(0, num_timesteps, i))
-            raise ValueError(
-                f"cannot create exactly {num_timesteps} steps with an integer stride"
-            )
+            raise ValueError("cannot create exactly {} steps with an integer stride".format(num_timesteps))
         section_counts = [int(x) for x in section_counts.split(",")]
     size_per = num_timesteps // len(section_counts)
     extra = num_timesteps % len(section_counts)
@@ -973,9 +963,7 @@ def space_timesteps(num_timesteps, section_counts):
     for i, section_count in enumerate(section_counts):
         size = size_per + (1 if i < extra else 0)
         if size < section_count:
-            raise ValueError(
-                f"cannot divide section of {size} steps into {section_count}"
-            )
+            raise ValueError("cannot divide section of {0} steps into {1}".format(size, section_count))
         if section_count <= 1:
             frac_stride = 1
         else:
@@ -1019,13 +1007,11 @@ class SpacedDiffusion(GaussianDiffusion):
     def p_mean_variance(
         self, model, *args, **kwargs
     ):  # pylint: disable=signature-differs
-        # print('called p_mean_var')
         return super().p_mean_variance(self._wrap_model(model), *args, **kwargs)
 
     def training_losses(
         self, model, t, model_kwargs, noise=None
     ):  # pylint: disable=signature-differs
-        # print('called training_losses')
         return super().training_losses(self._wrap_model(model), t, model_kwargs, noise)
 
     def _wrap_model(self, model):
@@ -1048,14 +1034,17 @@ class _WrappedModel:
         self.original_num_steps = original_num_steps
 
     def __call__(self, x, ts, **kwargs):
-        # print(ts)
         map_tensor = torch.tensor(self.timestep_map, device=ts.device, dtype=ts.dtype)
         new_ts = map_tensor[ts]
-        # print(new_ts)
         if self.rescale_timesteps:
             new_ts = new_ts.float() * (1000.0 / self.original_num_steps)
-        # temp = self.model(x, new_ts, **kwargs)
-        # print(temp.shape)
-        # return temp
-        # print(new_ts)
         return self.model(x, new_ts, **kwargs)
+
+
+def unwrap_model(model: "torch.nn.Module|_WrappedModel", unwrap_parallel=True) -> "torch.nn.Module":
+    if isinstance(model, _WrappedModel):
+        return unwrap_model(model.model)
+    elif isinstance(model, (torch.nn.parallel.DistributedDataParallel, torch.nn.parallel.DataParallel)):
+        if unwrap_parallel:
+            return unwrap_model(model.module)
+    return model
