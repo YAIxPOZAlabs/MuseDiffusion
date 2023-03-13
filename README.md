@@ -59,8 +59,7 @@ cd MuseDiffusion
 <h4>Set environment with python 3.8 and install pytorch</h4>
 
 ```bash
-python3 -m pip install virtualenv
-python3 -m virtualenv venv --python=python3.8
+python3 -m venv venv --python=python3.8
 source venv/bin/activate
 pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 \
     -f https://download.pytorch.org/whl/torch_stable.html
@@ -68,7 +67,7 @@ pip3 install -r requirements.txt
 ```
 
 <details>
-<summary>(Optional) If required, install python 3.8 for Virtualenv usage.</summary>
+<summary>(Optional) If required, install python 3.8 for venv usage.</summary>
 &nbsp;
 
 ```bash
