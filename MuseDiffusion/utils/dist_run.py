@@ -18,10 +18,11 @@ def run_argv_as_distributed(program_or_module, argv, dist_namespace, *, run_as_m
     import psutil
 
     import torch
-    assert torch.__version__ >= (1, 9), "Requires torch version greater than or equal to 1.9!"
-
+    try:
+        from torch.distributed.run import run
+    except ImportError as exc:
+        raise ImportError("Requires torch version greater than or equal to 1.9!") from exc
     from torch.cuda import device_count
-    from torch.distributed.run import run
     from torch.distributed.elastic.multiprocessing.errors import record
 
     from .dist_util import is_available
