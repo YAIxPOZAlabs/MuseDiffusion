@@ -190,7 +190,7 @@ def batch_decode_seq2seq(
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="{original_index}_batch{batch_index}_{index}.midi"
+        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi"
 ):
     import os
     import io
@@ -261,7 +261,7 @@ def batch_decode_generate(
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="generated_{valid_index}.midi"
+        output_file_format="generated_{valid_index:0>7}.midi"
 ):
     import os
     import io
