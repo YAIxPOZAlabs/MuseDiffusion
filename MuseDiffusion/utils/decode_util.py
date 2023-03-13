@@ -292,7 +292,7 @@ def batch_decode_generate(
             f"{f' Summary of Trial {batch_index} ':=^60}\n"
             f" * {valid_index - previous_count} valid sequences are converted to midi into path:\n"
             f"     {os.path.abspath(output_dir)}\n"
-            f" * Totally {valid_index} sequences are converted."
+            f" * Totally {valid_index} sequences are converted.\n"
         ) + ("=" * 60) + "\n"
     )
 
