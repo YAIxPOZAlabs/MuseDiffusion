@@ -148,6 +148,11 @@ class ModificationExtraSettingsMixin(S):
     corr_kwargs: str \
         = _(None, "default arguments for each corruption input (default: same as train config)")
 
+    def overload_corruption_settings_from(self, train_settings):
+        for name in ['use_corruption', 'corr_available', 'corr_max', 'corr_p', 'corr_kwargs']:
+            if getattr(self, name) is None:
+                setattr(self, name, getattr(train_settings, name))
+
 
 class MidiMeta(S):
     # Refer to signatures of `commu.preprocessor.utils.container.MidiMeta`
