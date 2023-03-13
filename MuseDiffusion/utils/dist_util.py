@@ -57,7 +57,7 @@ def is_initialized():
 @functools.lru_cache(maxsize=None)  # this makes function to work only once
 def setup_dist(backend=None, silent=False):
     """
-    Setup a distributed process group.
+    Set up a distributed process group.
     """
 
     if is_initialized():
@@ -149,7 +149,7 @@ def sync_params(params, src=0, group=None, async_op=False):
     if not is_initialized():
         return
     for p in params:
-        broadcast(params, src, group=group, async_op=async_op)
+        broadcast(p, src, group=group, async_op=async_op)
 
 
 def find_free_port():

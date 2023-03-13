@@ -1,8 +1,4 @@
-import os
-import io
-import contextlib
 import numpy as np
-from miditoolkit import MidiFile
 
 try:
     np.int
@@ -62,8 +58,8 @@ class SequenceToMidi:
 
     _decoder: EventSequenceEncoder
 
-    @property
-    def decoder(self) -> EventSequenceEncoder:  # Lazy getter (since decoding is repeated process)
+    @property  # Lazy getter - equal as: decoder = EventSequenceEncoder()
+    def decoder(self) -> EventSequenceEncoder:
         try:
             decoder = SequenceToMidi._decoder
         except AttributeError:
@@ -156,19 +152,13 @@ class SequenceToMidi:
                 return
         raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
 
-    def decode_event_sequence(
-            self,
-            encoded_meta,
-            note_seq
-    ) -> "MidiFile":
-        decoded_midi = self.decoder.decode(
-            midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),
-        )
+    def decode_event_sequence(self, encoded_meta, note_seq):
+        decoded_midi = self.decoder.decode(midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),)
         return decoded_midi
 
     def decode(self, seq, input_mask, output_file_path=None):
         len_meta = len(seq) - int((input_mask.sum()))
-        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
+        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외한 개수 만큼만 사용
         note_seq = seq[len_meta:]
         note_seq = self.remove_padding(note_seq)
         note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
@@ -202,6 +192,10 @@ def batch_decode_seq2seq(
         output_dir,
         output_file_format="{original_index}_batch{batch_index}_{index}.midi"
 ):
+    import os
+    import io
+    import contextlib
+
     decoder = SequenceToMidi()
     invalid_idxes = set()
 
@@ -209,7 +203,7 @@ def batch_decode_seq2seq(
         original_index = previous_count + index
         logger = io.StringIO()
         try:
-            # we can't handle OOV error - since OOV is only logged into stdout
+            # we can't handle OOV error - since OOV is only logged into stdout -
             # so we need stdout redirection
             with contextlib.redirect_stdout(logger):
                 decoded_midi = decoder(seq, input_mask)
@@ -221,14 +215,13 @@ def batch_decode_seq2seq(
             if log:
                 print(log)
             invalid_idxes.add(index)
-        except Exception as exc:  # normal exceptions - assure redirected stdout logs and print extra information
-            print(logger.getvalue())
-            print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
-                  f"  occurred while generating midi of Batch {batch_index} Index {index} "
-                  f"(Original: {original_index}).")
-            raise
-        except BaseException:  # special exceptions (KeyboardInterrupt, SystemExit...) - assure redirected stdout logs
-            print(logger.getvalue())
+            continue
+        except BaseException as exc:  # includes special exceptions (KeyboardInterrupt, SystemExit...)
+            print(logger.getvalue())  # assure redirected logs
+            if isinstance(exc, Exception):  # normal exceptions - print extra information
+                print(f"<Error> {exc.__class__.__qualname__}: {exc} \n"
+                      f"  occurred while generating midi of Batch {batch_index} Index {index} "
+                      f"(Original: {original_index}).")
             raise
         else:
             log = logger.getvalue()  # to check OOV
@@ -245,21 +238,19 @@ def batch_decode_seq2seq(
 
     valid_count = len(sequences) - len(invalid_idxes)
     invalid_idxes = sorted(invalid_idxes)
-    log = (
-        "\n"
-        f"{f' Summary of Batch {batch_index} ':=^60}\n"
-        f" * Original index: from {previous_count} to {previous_count + len(sequences)}\n"
-        f" * {valid_count} valid sequences are converted to midi into path:\n"
-        f"     {os.path.abspath(output_dir)}\n"
-        f" * {len(invalid_idxes)} sequences are invalid.\n"
-    )
-    if invalid_idxes:
-        log += (
+    print(
+        (
+            "\n"
+            f"{f' Summary of Batch {batch_index} ':=^60}\n"
+            f" * Original index: from {previous_count} to {previous_count + len(sequences)}\n"
+            f" * {valid_count} valid sequences are converted to midi into path:\n"
+            f"     {os.path.abspath(output_dir)}\n"
+            f" * {len(invalid_idxes)} sequences are invalid.\n"
+        ) + ((
             f" * Index (in batch {batch_index}) of invalid sequence:\n"
             f"    {invalid_idxes}\n"
-        )
-    log += ("=" * 60) + "\n"
-    print(log)
+        ) if invalid_idxes else "") + ("=" * 60) + "\n"
+    )
 
     return valid_count
 
@@ -272,13 +263,17 @@ def batch_decode_generate(
         output_dir,
         output_file_format="generated_{valid_index}.midi"
 ):
+    import os
+    import io
+    import contextlib
+
     decoder = SequenceToMidi()
     valid_index = previous_count
 
     for seq, input_mask in zip(sequences, input_ids_mask_ori):
         logger = io.StringIO()
         try:
-            # we can't handle OOV error - since OOV is only logged into stdout
+            # we can't handle OOV error - since OOV is only logged into stdout -
             # so we need stdout redirection
             with contextlib.redirect_stdout(logger):
                 decoded_midi = decoder(seq, input_mask)
@@ -286,19 +281,19 @@ def batch_decode_generate(
             continue  # in generation, we can skip decoding failures
         log = logger.getvalue()  # to check OOV
         if log:
-            print(f"<Warning> Index {valid_index} "
-                  f"- {' '.join(log.splitlines())}")
+            print(f"<Warning> Index {valid_index} - {' '.join(log.splitlines())}")
         output_file_path = output_file_format.format(valid_index=valid_index)
         decoded_midi.dump(os.path.join(output_dir, output_file_path))
         valid_index += 1
 
-    log = (
-        "\n"
-        f"{f' Summary of Trial {batch_index} ':=^60}\n"
-        f" * {valid_index - previous_count} valid sequences are converted to midi into path:\n"
-        f"     {os.path.abspath(output_dir)}\n"
-        f" * Totally {valid_index} sequences are converted."
-    ) + ("=" * 60) + "\n"
-    print(log)
+    print(
+        (
+            "\n"
+            f"{f' Summary of Trial {batch_index} ':=^60}\n"
+            f" * {valid_index - previous_count} valid sequences are converted to midi into path:\n"
+            f"     {os.path.abspath(output_dir)}\n"
+            f" * Totally {valid_index} sequences are converted."
+        ) + ("=" * 60) + "\n"
+    )
 
     return valid_index

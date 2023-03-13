@@ -13,7 +13,13 @@ import tempfile
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
-import wandb
+
+try:
+    import wandb
+except ModuleNotFoundError:
+    class wandb:
+        def log(self, *args, **kwargs): pass
+
 
 DEBUG = 10
 INFO = 20
