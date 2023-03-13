@@ -177,18 +177,18 @@ class MidiMeta(S):
         return ''.join(mapping.get(c, c) for c in value)
 
     @classmethod
-    def to_argparse(cls, parser_or_group=None):
+    def to_argparse(cls, parser=None):
         if cls is not MidiMeta:
-            return super(MidiMeta, cls).to_argparse(parser_or_group)
-        parser_or_group = parser_or_group or Ap(formatter_class=Df)
+            return super(MidiMeta, cls).to_argparse(parser)
+        parser = parser or Ap(formatter_class=Df)
         for name, field in cls.__fields__.items():
             kw = dict(dest=name, type=field.type_, default=field.default,
                       help=field.field_info.description, required=False)
             if getattr(field.type_, '__origin__', None) is Literal:
                 choices = tuple(get_args(field.outer_type_))
                 kw.update(type=str, choices=choices, metavar="{"+", ".join(map(str, choices))+"}")
-            parser_or_group.add_argument("--" + name, **kw)
-        return parser_or_group
+            parser.add_argument("--" + name, **kw)
+        return parser
 
 
 @final
@@ -220,20 +220,20 @@ class GenerationSettings(SamplingCommonSettings, MidiMeta):
         return MidiMeta(**{k: getattr(self, k) for k in MidiMeta.__fields__}).dict()
 
     @classmethod
-    def to_argparse(cls, parser_or_group=None):
-        if parser_or_group is None:
-            parser_or_group = Ap(formatter_class=Df)
-        meta_group = parser_or_group.add_argument_group(title="meta")
-        meta_group.add_mutually_exclusive_group().add_argument(
+    def to_argparse(cls, parser=None):
+        if parser is None:
+            parser = Ap(formatter_class=Df)
+        meta_group = parser.add_argument_group(title="meta")
+        meta_group.add_argument(
             "--meta_json", type=str, required=False,
             help="you can alter meta arguments all below by meta_json file.")
-        MidiMeta.to_argparse(meta_group.add_mutually_exclusive_group())
-        num_samples = parser_or_group.add_argument_group(title="num_samples")
+        MidiMeta.to_argparse(meta_group)
+        num_samples = parser.add_argument_group(title="num_samples")
         num_samples.add_argument("--num_samples", type=int, default=cls.__fields__["num_samples"].default,
                                  help="number of midi samples to generate from metadata")
-        setting_group = parser_or_group.add_argument_group(title="settings")
+        setting_group = parser.add_argument_group(title="settings")
         SamplingCommonSettings.to_argparse(setting_group)
-        return parser_or_group
+        return parser
 
     @classmethod
     def from_argparse(cls, namespace, __top=True):

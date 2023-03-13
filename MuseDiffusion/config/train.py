@@ -114,17 +114,17 @@ class TrainSettings(
 ):
 
     @classmethod
-    def to_argparse(cls, parser_or_group=None, add_json=False):
+    def to_argparse(cls, parser=None, add_json=False):
         if not add_json:
-            return super(TrainSettings, cls).to_argparse(parser_or_group)
-        if parser_or_group is None:
-            parser_or_group = Ap(formatter_class=Df)
-        setting_group = parser_or_group.add_argument_group(title="settings")
-        setting_group.add_mutually_exclusive_group().add_argument(
+            return super(TrainSettings, cls).to_argparse(parser)
+        if parser is None:
+            parser = Ap(formatter_class=Df)
+        setting_group = parser.add_argument_group(title="settings")
+        setting_group.add_argument(
             "--config_json", type=str, required=False,
             help="You can alter arguments all below by config_json file.")
-        super(TrainSettings, cls).to_argparse(setting_group.add_mutually_exclusive_group())
-        return parser_or_group
+        super(TrainSettings, cls).to_argparse(setting_group)
+        return parser
 
     @classmethod
     def from_argparse(cls, namespace, __top=True):
