@@ -19,7 +19,8 @@ def create_parser():
 def main(namespace):
 
     # Create config from parsed argument namespace
-    klass = {"generation": GenerationSettings, "modification": ModificationSettings}[namespace.__dict__.pop("mode")]
+    mode = namespace.__dict__.pop("mode")
+    klass = {"generation": GenerationSettings, "modification": ModificationSettings}[mode]
     args: "ModificationSettings|GenerationSettings" = klass.from_argparse(namespace)
 
     # Import dependencies
@@ -51,8 +52,8 @@ def main(namespace):
     # Prepare output directory
     model_base_name = os.path.basename(os.path.split(args.model_path)[0])
     model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
-    out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
-    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".log")
+    out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + "." + mode + ".samples")
+    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + "." + mode + ".log")
 
     # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
     # logger.log() - equal to print(), but only in master process

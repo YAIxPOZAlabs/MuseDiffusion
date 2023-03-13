@@ -296,4 +296,4 @@ def batch_decode_generate(
         ) + ("=" * 60) + "\n"
     )
 
-    return valid_index
+    return valid_index - previous_count
