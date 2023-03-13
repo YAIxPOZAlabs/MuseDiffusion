@@ -457,11 +457,19 @@ Notable properties of ComMU are that (1) dataset is manually constructed by prof
 objective guideline that induces regularity, and (2) it has 12 musical metadata that embraces composers' intentions. 
 
 <p align="center">
-  <img src="assets/figure04_dataset.png" alt="Token Map of ComMU" width=50%>
+  <img src="assets/figure04_commu_tokens.png" alt="Token Map of ComMU" width=45%>
 </p>
 
 <p align="center"><b>
   Token Map of Midi data and Metadata in ComMU Dataset
+</b></p>
+
+<p align="center">
+  <img src="assets/figure05_commu_dataset_structure.png" alt="Dataset Structure of ComMU" width=80%>
+</p>
+
+<p align="center"><b>
+  Dataset Structure
 </b></p>
 &nbsp;
 
