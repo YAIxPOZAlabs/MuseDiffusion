@@ -178,7 +178,7 @@ python3 -m MuseDiffusion train --distributed
 
 ```bash
 # Copy config file to root directory
-python3 -c "from MuseDiffusion.config import TrainSettings as T; print(T.json(indent=2))" \
+python3 -c "from MuseDiffusion.config import TrainSettings as T; print(T().json(indent=2))" \
 >> train_cfg.json
 
 # Customize config on your own
