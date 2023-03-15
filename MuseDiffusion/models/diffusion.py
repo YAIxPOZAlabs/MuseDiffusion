@@ -1,9 +1,10 @@
-"""
-This code started out as a PyTorch port of Ho et al.'s diffusion models:
-https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils_2.py
-
-Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules.
-"""
+# This code started out as a PyTorch port of Ho et al.'s diffusion models:
+# https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils_2.py
+#
+# [DiffuSeq by Gong et al.] Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules:
+# https://github.com/Shark-NLP/DiffuSeq/blob/20a7ab1e7db3656bf83ac5bbd5bfa3b7ccd5670a/diffuseq/gaussian_diffusion.py
+#
+# [MuseDiffusion] Loss method which reflects Corruptions of Midi Sequence (see MuseDiffusion.data.corruptions).
 
 import math
 

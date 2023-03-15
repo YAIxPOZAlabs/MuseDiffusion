@@ -1,3 +1,9 @@
+# This code started out as Gong et al.'s diffuseq models:
+# https://github.com/Shark-NLP/DiffuSeq/blob/20a7ab1e7db3656bf83ac5bbd5bfa3b7ccd5670a/train_util.py
+#
+# [MuseDiffusion] Added and modified some training logics, which reflects Corruptions of Midi Sequence
+#     (see MuseDiffusion.data.corruptions).
+
 import copy
 import functools
 import os
