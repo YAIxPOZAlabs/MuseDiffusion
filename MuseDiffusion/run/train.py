@@ -85,7 +85,7 @@ def main(namespace):
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    model, diffusion = create_model_and_diffusion(**args.dict())
+    model, diffusion = create_model_and_diffusion(args)
 
     # Load Pretrained Embedding Layer
     pretrained_emb_weight = fetch_pretrained_embedding(args)
@@ -139,8 +139,6 @@ def main(namespace):
         log_interval=args.log_interval,
         save_interval=args.save_interval,
         resume_checkpoint=args.resume_checkpoint,
-        use_fp16=args.use_fp16,
-        fp16_scale_growth=args.fp16_scale_growth,
         schedule_sampler=schedule_sampler,
         weight_decay=args.weight_decay,
         learning_steps=args.learning_steps,

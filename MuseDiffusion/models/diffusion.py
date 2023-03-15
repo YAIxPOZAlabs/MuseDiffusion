@@ -128,8 +128,6 @@ class GaussianDiffusion:
     :param betas: a 1-D numpy array of betas for each diffusion timestep,
                   starting at T and going to 1.
     :param predict_xstart: the model outputs to predict x_0, else to predict eps.
-    :param learn_sigmas: the model outputs to predict sigma or not. Default: False
-    :param rescale_learned_sigmas, sigma_small: details setting of learned sigmas
     :param rescale_timesteps: if True, pass floating point timesteps into the
                               model so that they are always scaled like in the
                               original paper (0 to 1000).
@@ -140,18 +138,10 @@ class GaussianDiffusion:
         *,
         betas,
         predict_xstart,
-        rescale_learned_sigmas,
-        learn_sigmas,
-        sigma_small,
-        use_kl,
         rescale_timesteps=False,
     ):
         self.rescale_timesteps = rescale_timesteps
         self.predict_xstart = predict_xstart
-        self.rescale_learned_sigmas = rescale_learned_sigmas
-        self.learn_sigmas = learn_sigmas
-        self.sigma_small = sigma_small
-        self.use_kl = use_kl
 
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)

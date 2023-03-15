@@ -4,8 +4,6 @@ from .base import S, Choice, Item as _
 
 
 class GeneralSettings(S):
-    lr: float \
-        = _(1e-4, "Learning Rate")
     batch_size: int \
         = _(2048, "Batch size of running step and optimizing")
     microbatch: int \
@@ -19,7 +17,13 @@ class GeneralSettings(S):
     eval_interval: int \
         = _(1000, "Steps per eval")
     ema_rate: str \
-        = "0.5,0.9,0.99"
+        = _("0.5,0.9,0.99", "Rate(s) of Exponential Moving Average Method")
+    lr: float \
+        = _(1e-4, "Learning Rate for Optimizer AdamW")
+    weight_decay: float \
+        = _(0., "Weight Decay for Optimizer AdamW")
+    gradient_clipping: float \
+        = _(-1., "How to do clip_grad_norm_")
     seed: int \
         = _(102, "Seed for train or test.")
     resume_checkpoint: str \
@@ -35,26 +39,33 @@ class DiffusionSettings(S):
         = _("lossaware", "Type of Schedule Sampler for Diffusion")
     noise_schedule: Choice('linear', 'cosine', 'sqrt', 'trunc_cos', 'trunc_lin', 'pw_lin') \
         = _("sqrt", "Type of Beta Schedule for Diffusion")
+    predict_xstart: bool \
+        = _(True, "the model outputs to predict x_0, else to predict eps.")
+    rescale_timesteps: bool \
+        = _(True, "if True, pass floating point timesteps into the model "
+                  "so that they are always scaled like in theoriginal paper (0 to 1000)")
     timestep_respacing: str \
-        = _("", "A string containing comma-separated numbers, "
-                "indicating the step count per section. "
-                "As a special case, use \"ddimN\" where N is a number of steps "
-                "to use the striding from the DDIM paper.")
+        = _("", "A string containing comma-separated numbers, indicating the step count per section. As a special case,"
+                " use \"ddimN\" where N is a number of steps to use the striding from the DDIM paper.")
 
 
-class DataModelCommonSettings(S):
+class ModelSettings(S):
     seq_len: int \
         = _(2096, "Sequence length to be used in model and data filtering. max is 2096.\n")
     vocab_size: int \
         = _(729, "Vocab size for embeddings. Fixed to 729")
+    hidden_t_dim: int \
+        = _(128, "hidden_t_dim for Transformer backbone.")
+    hidden_dim: int \
+        = _(128, "hidden_dim for Embedding and Transformer backbone.")
+    dropout: float \
+        = _(0.1, "Dropout rate.")
     pretrained_denoiser: str \
         = _("", "To use pretrained denoiser, provide full file path of .pt file.")
     pretrained_embedding: str \
         = _("", "To use pretrained embedding, provide full file path of .pt file.")
     freeze_embedding: bool \
         = _(False, "Whether to disable embedding weight's gradient. you MUST use this with pretrained_embedding.")
-    use_bucketing: bool \
-        = _(True, "Whether to enable bucketing in data loader.")
 
 
 class DataSettings(S):
@@ -64,6 +75,8 @@ class DataSettings(S):
         = _("datasets/ComMU-processed", "Path for dataset to be saved.")
     data_loader_workers: int \
         = _(2, "num_workers for DataLoader.")
+    use_bucketing: bool \
+        = _(True, "Whether to enable bucketing in data loader.")
 
 
 class CorruptionSettings(S):
@@ -79,36 +92,23 @@ class CorruptionSettings(S):
         = _("dict(p=0.4)", "Default arguments for each corruption input.")
 
 
-class ModelSettings(S):
-    hidden_t_dim: int \
-        = _(128, "hidden_t_dim for Transformer backbone.")
-    hidden_dim: int \
-        = _(128, "hidden_dim for Embedding and Transformer backbone.")
-    dropout: float \
-        = _(0.1, "Dropout rate.")
-
-
-class OtherSettings(S):
-    use_fp16 = False
-    fp16_scale_growth = 0.001
-    gradient_clipping = -1.0
-    weight_decay = 0.0
-    learn_sigma = False
-    use_kl = False
-    predict_xstart = True
-    rescale_timesteps = True
-    rescale_learned_sigmas = False
-    sigma_small = False
-    emb_scale_factor = 1.0
+DeprecatedSettings = type("deprecated", (S,), dict(
+    use_fp16=False,
+    fp16_scale_growth=0.001,
+    learn_sigma=False,
+    use_kl=False,
+    rescale_learned_sigmas=False,
+    sigma_small=False,
+    emb_scale_factor=1.0,
+))  # For backward compatibility - TODO: remove this
 
 
 @final
 class TrainSettings(
-        OtherSettings,
-        ModelSettings,
+        DeprecatedSettings,
         CorruptionSettings,
         DataSettings,
-        DataModelCommonSettings,
+        ModelSettings,
         DiffusionSettings,
         GeneralSettings
 ):

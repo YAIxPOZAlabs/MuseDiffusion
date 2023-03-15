@@ -72,7 +72,7 @@ def main(namespace):
 
     # Initialize model and diffusion, and reload model weight from model folder
     logger.log("### Creating model and diffusion... ")
-    model, diffusion = create_model_and_diffusion(**training_args.dict())
+    model, diffusion = create_model_and_diffusion(training_args)
     model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
 
     # Count and log total params

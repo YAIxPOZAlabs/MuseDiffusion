@@ -16,16 +16,6 @@ from torch.optim import AdamW
 
 from MuseDiffusion.models.step_sample import LossAwareSampler, UniformSampler
 from . import dist_util, logger
-from .fp16_util import (
-    make_master_params,
-    master_params_to_model_params,
-    model_grads_to_master_grads,
-    unflatten_master_params,
-    convert_module_to_f16
-)
-
-
-INITIAL_LOG_LOSS_SCALE = 2e1
 
 
 def update_ema(target_params, source_params, rate=0.99):
@@ -55,8 +45,6 @@ class TrainLoop:
         log_interval,
         save_interval,
         resume_checkpoint,
-        use_fp16=False,
-        fp16_scale_growth=1e-3,
         schedule_sampler=None,
         weight_decay=0.0,
         learning_steps=0,
@@ -82,8 +70,6 @@ class TrainLoop:
         self.eval_interval = eval_interval
         self.save_interval = save_interval
         self.resume_checkpoint = resume_checkpoint
-        self.use_fp16 = use_fp16
-        self.fp16_scale_growth = fp16_scale_growth
         self.schedule_sampler = schedule_sampler or UniformSampler(diffusion)
         self.weight_decay = weight_decay
         self.learning_steps = learning_steps
@@ -95,14 +81,11 @@ class TrainLoop:
 
         self.model_params = list(self.model.parameters())
         self.master_params = self.model_params
-        self.lg_loss_scale = INITIAL_LOG_LOSS_SCALE
         self.eval_callbacks = list(eval_callbacks)
 
         self.checkpoint_path = checkpoint_path  # DEBUG **
 
         self._load_and_sync_parameters()
-        if self.use_fp16:
-            self._setup_fp16()
 
         self.opt = AdamW(self.master_params, lr=self.lr, weight_decay=self.weight_decay)
         if self.resume_step:
@@ -178,11 +161,6 @@ class TrainLoop:
             state_dict = dist_util.load_state_dict(opt_checkpoint, map_location=dist_util.dev())
             self.opt.load_state_dict(state_dict)
 
-    def _setup_fp16(self):
-        self.master_params = make_master_params(self.model_params)
-        self.model: torch.nn.Module
-        self.model.apply(convert_module_to_f16)
-
     def run_loop(self):
         while (
             not self.learning_steps
@@ -208,10 +186,7 @@ class TrainLoop:
 
     def run_step(self, cond):
         self.forward_backward(cond)
-        if self.use_fp16:
-            self.optimize_fp16()
-        else:
-            self.optimize_normal()
+        self.optimize_normal()
         self.log_step()
 
     def _zero_grad(self):
@@ -268,27 +243,7 @@ class TrainLoop:
             self.log_loss_dict(
                 self.diffusion, t, {k: v * weights for k, v in losses.items()}
             )
-            if self.use_fp16:
-                loss_scale = 2 ** self.lg_loss_scale
-                (loss * loss_scale).backward()
-            else:
-                loss.backward()
-
-    def optimize_fp16(self):
-        if any(not torch.isfinite(p.grad).all() for p in self.model_params):
-            self.lg_loss_scale -= 1
-            logger.log(f"Found NaN, decreased lg_loss_scale to {self.lg_loss_scale}")
-            return
-
-        model_grads_to_master_grads(self.model_params, self.master_params)
-        self.master_params[0].grad.mul_(1.0 / (2 ** self.lg_loss_scale))
-        self._log_grad_norm()
-        self._anneal_lr()
-        self.opt.step()
-        for rate, params in zip(self.ema_rate, self.ema_params):
-            update_ema(params, self.master_params, rate=rate)
-        master_params_to_model_params(self.model_params, self.master_params)
-        self.lg_loss_scale += self.fp16_scale_growth
+            loss.backward()
 
     def optimize_normal(self):
         if self.gradient_clipping > 0:
@@ -329,8 +284,6 @@ class TrainLoop:
     def log_step(self):
         logger.logkv("step", self.step + self.resume_step)
         logger.logkv("samples", (self.step + self.resume_step + 1) * self.global_batch)
-        if self.use_fp16:
-            logger.logkv("lg_loss_scale", self.lg_loss_scale)
 
     @staticmethod
     def log_loss_dict(diffusion, ts, losses):
@@ -369,10 +322,6 @@ class TrainLoop:
                 torch.save(self.opt.state_dict(), f)
 
     def _master_params_to_state_dict(self, master_params, key=None):
-        if self.use_fp16:
-            master_params = unflatten_master_params(
-                list(self.model.parameters()), master_params  # DEBUG **
-            )
         state_dict = self.model.state_dict()
         for i, (name, _value) in enumerate(self.model.named_parameters()):
             assert name in state_dict
@@ -384,11 +333,7 @@ class TrainLoop:
         return state_dict
 
     def _state_dict_to_master_params(self, state_dict):
-        params = [state_dict[name] for name, _ in self.model.named_parameters()]
-        if self.use_fp16:
-            return make_master_params(params)
-        else:
-            return params
+        return [state_dict[name] for name, _ in self.model.named_parameters()]
 
     @staticmethod
     def parse_resume_step_from_filename(filename):
