@@ -1,5 +1,6 @@
 # python3 MuseDiffusion/run/sample.py
 import torch
+from torch.distributed.elastic.multiprocessing.errors import record
 from MuseDiffusion.config import GenerationSettings, ModificationSettings
 
 
@@ -15,6 +16,7 @@ def create_parser():
     return parser
 
 
+@record
 @torch.no_grad()
 def main(namespace):
 
@@ -55,10 +57,11 @@ def main(namespace):
     dev = dist_util.dev()
 
     # Prepare output directory
-    model_base_name = os.path.basename(os.path.split(args.model_path)[0])
-    model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
-    out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + "." + mode + ".samples")
-    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + "." + mode + ".log")
+    base_path = os.path.join(args.out_dir, os.path.basename(os.path.split(args.model_path)[0]))
+    file_or_dir_name = os.path.split(args.model_path)[1].split('.pt')[0] + "." + mode
+    out_path = os.path.join(base_path, file_or_dir_name + ".samples")
+    log_path = os.path.join(base_path, file_or_dir_name + ".log")
+    dist_util.set_error_file_path(base_path, prefix=file_or_dir_name + ".")
 
     # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
     # logger.log() - equal to print(), but only in master process

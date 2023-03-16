@@ -1,4 +1,5 @@
 # python3 MuseDiffusion/run/train.py
+from torch.distributed.elastic.multiprocessing.errors import record
 from MuseDiffusion.config import TrainSettings
 
 
@@ -6,6 +7,7 @@ def create_parser():
     return TrainSettings.to_argparse(add_json=True)
 
 
+@record
 def main(namespace):
 
     # Create config from parsed argument namespace
@@ -44,6 +46,7 @@ def main(namespace):
         args.checkpoint_path = os.path.join(folder_name, model_file)
     if not os.path.isdir(args.checkpoint_path) and rank == 0:
         os.mkdir(args.checkpoint_path)
+    dist_util.set_error_file_path(args.checkpoint_path)
 
     # Configure log and seed
     logger.configure(dir=args.checkpoint_path, format_strs=["log", "csv"] + (["stdout"] if rank == 0 else []))
