@@ -177,6 +177,14 @@ class SequenceToMidi:
         if output_file_path:
             decoded_midi.dump(output_file_path)
         return decoded_midi
+    
+    def split_meta_midi(self, seq, input_mask):
+        len_meta = len(seq) - int((input_mask.sum()))
+        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
+        note_seq = seq[len_meta:]
+        note_seq = self.remove_padding(note_seq)
+        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
+        return encoded_meta, note_seq
 
     def __call__(self, *args, **kwargs):
         return self.decode(*args, **kwargs)

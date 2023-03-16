@@ -117,3 +117,73 @@ def ONNC(midilist, return_vectors=False, return_MSIM=False, return_mostsim=False
     if return_mostsim:
         toreturn.append(most_sim)
     return toreturn
+
+import numpy as np
+
+PITCH_RANGE = {631:[3, 38], 
+               632: [39, 50],
+               633: [51, 62],
+               634: [63, 74],
+               635: [75, 86],
+               636: [87, 98],
+               637: [99, 130],
+               }
+
+def Controllability_Pitch(metas, midis):
+    '''
+    meta: [batch, ]
+    midi: [batch, ]
+    이 때 chord는 어디에 있든지 상관은 없음.
+    '''
+    total = len(metas)
+    num_wrong = 0
+    for i in range(len(metas)):
+        meta = metas[i]
+        midi = midis[i]
+        pitch_range = meta[3]
+
+        if pitch_range != 630:
+            p = PITCH_RANGE[pitch_range]
+            p_low = p[0]
+            p_high = p[1]
+
+            filter_arr = []
+            for element in midi:
+                if 3 <= element <= 130:
+                    filter_arr.append(True)
+                else:
+                    filter_arr.append(False)
+
+            pitch = midi[filter_arr]
+            mean_pitch = np.mean(pitch)
+            if not (p_low <= mean_pitch <= p_high):
+                new_num_wrong += 1
+    return total, num_wrong
+
+def Controllability_Velocity(metas, midis):
+    total = 0
+    num_wrong = 0
+    for i in range(len(metas)):
+        meta = metas[i]
+        midi = midis[i]
+        min_vel = meta[7] - 524
+        max_vel = meta[8] - 524
+        if max_vel != 130:
+            filter_arr = []
+            for element in midi:
+                if 131 <= element <= 194:
+                    filter_arr.append(True)
+                else:
+                    filter_arr.append(False)
+
+            velocity = midi[filter_arr]
+            total += len(velocity)
+            filter_arr = []
+            for element in velocity:
+                if (min_vel == 130 or min_vel <= element) and (max_vel == 195 or element <= max_vel):
+                    filter_arr.append(False)
+                else:
+                    filter_arr.append(True)
+            invalid_vel = velocity[filter_arr]
+            num_wrong += len(invalid_vel)
+    return total, num_wrong
