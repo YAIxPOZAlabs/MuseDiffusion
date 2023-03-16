@@ -124,7 +124,7 @@ def main(namespace):
             corr_max=args.corr_max,
             corr_p=args.corr_p,
             corr_kwargs=args.corr_kwargs,
-            use_bucketing=training_args.use_bucketing,
+            use_bucketing=False,  # for stable sampling
             seq_len=training_args.seq_len,
             deterministic=True,
             loop=False,
