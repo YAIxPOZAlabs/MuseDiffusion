@@ -1,3 +1,6 @@
+# This code started out as Gong et al.'s diffuseq models:
+# https://github.com/Shark-NLP/DiffuSeq/blob/20a7ab1e7db3656bf83ac5bbd5bfa3b7ccd5670a/diffuseq/rounding.py
+
 import torch
 import math
 

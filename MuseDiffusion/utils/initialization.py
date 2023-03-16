@@ -1,22 +1,32 @@
-def seed_all(seed, deterministic=False):
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import Any, Optional, OrderedDict, Union, Tuple
+    from os import PathLike
+    from torch.nn import Parameter
+    from MuseDiffusion.config import TrainSettings
+    from MuseDiffusion.models.network import TransformerNetModel
+    from MuseDiffusion.models.diffusion import GaussianDiffusion
+
+
+def seed_all(seed: "Any", deterministic: "bool" = False) -> "None":
     import random
     import numpy as np
     import torch
     from ..data.corruption import generator
     from .dist_util import get_rank
     if deterministic:
-        seed = int(seed)
+        seed = hash(seed)
         torch.backends.cudnn.deterministic = True  # NOQA
         torch.backends.cudnn.benchmark = False  # NOQA
     else:
-        seed = int(seed) + get_rank()  # Make seed differ by node rank
+        seed = hash(seed) + get_rank()  # Make seed differ by node rank
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)  # contains torch.cuda.manual_seed_all
     generator.seed(seed)
 
 
-def fetch_pretrained_embedding(args):  # Returns single parameter
+def fetch_pretrained_embedding(args: "TrainSettings") -> "Optional[Parameter]":  # Returns single parameter
     import os
     from . import dist_util, logger
     if args.pretrained_embedding:
@@ -41,7 +51,9 @@ def fetch_pretrained_embedding(args):  # Returns single parameter
         return
 
 
-def overload_embedding(model, emb_weight, freeze_embedding):
+def overload_embedding(
+        model: "TransformerNetModel", emb_weight: "Parameter", freeze_embedding: "bool"
+) -> "TransformerNetModel":
     from . import dist_util, logger
     import torch
     from torch.nn import Parameter
@@ -56,7 +68,7 @@ def overload_embedding(model, emb_weight, freeze_embedding):
     return model
 
 
-def fetch_pretrained_denoiser(args):  # Returns state dict
+def fetch_pretrained_denoiser(args: "TrainSettings") -> "Optional[OrderedDict]":  # Returns state dict
     from . import dist_util
     if args.pretrained_denoiser:
         denoiser_state_dict = dist_util.load_state_dict(args.pretrained_denoiser)
@@ -64,7 +76,7 @@ def fetch_pretrained_denoiser(args):  # Returns state dict
     return
 
 
-def overload_denoiser(model, denoiser_state_dict):
+def overload_denoiser(model: "TransformerNetModel", denoiser_state_dict: "OrderedDict") -> "TransformerNetModel":
     from . import dist_util, logger
     model_dict = model.state_dict()
     pretrained_dict = {k: v for k, v in denoiser_state_dict.items() if k in model_dict}
@@ -75,7 +87,7 @@ def overload_denoiser(model, denoiser_state_dict):
     return model
 
 
-def get_latest_model_path(base_path):
+def get_latest_model_path(base_path: "Union[str, PathLike]") -> "Optional[str]":
     try:
         import os
         candidates = filter(os.path.isdir, (os.path.join(base_path, x) for x in os.listdir(base_path)))
@@ -93,51 +105,32 @@ def get_latest_model_path(base_path):
         return
 
 
-def create_model_and_diffusion(
-        *,
-        hidden_t_dim,
-        hidden_dim,
-        vocab_size,
-        dropout,
-        seq_len,  # FNet Kwarg
-        diffusion_steps,
-        noise_schedule,
-        learn_sigma,
-        timestep_respacing,
-        predict_xstart,
-        rescale_timesteps,
-        sigma_small,
-        rescale_learned_sigmas,
-        use_kl,
-        **_,
-):
+def create_model_and_diffusion(args: "TrainSettings") -> "Tuple[TransformerNetModel, GaussianDiffusion]":
+
     from MuseDiffusion.models.diffusion \
         import SpacedDiffusion, space_timesteps, get_named_beta_schedule
     from MuseDiffusion.models.network import TransformerNetModel
 
     model = TransformerNetModel(
-        input_dims=hidden_dim,
-        output_dims=(hidden_dim if not learn_sigma else hidden_dim * 2),
-        hidden_t_dim=hidden_t_dim,
-        vocab_size=vocab_size,
-        seq_len=seq_len,
-        dropout=dropout,
+        input_dims=args.hidden_dim,
+        output_dims=args.hidden_dim,
+        hidden_t_dim=args.hidden_t_dim,
+        vocab_size=args.vocab_size,
+        seq_len=args.seq_len,
+        dropout=args.dropout,
     )
 
-    betas = get_named_beta_schedule(noise_schedule, diffusion_steps)
+    betas = get_named_beta_schedule(args.noise_schedule, args.diffusion_steps)
 
+    timestep_respacing = args.timestep_respacing
     if not timestep_respacing:
-        timestep_respacing = [diffusion_steps]
+        timestep_respacing = [args.diffusion_steps]
 
     diffusion = SpacedDiffusion(
-        use_timesteps=space_timesteps(diffusion_steps, timestep_respacing),
+        use_timesteps=space_timesteps(args.diffusion_steps, timestep_respacing),
         betas=betas,
-        rescale_timesteps=rescale_timesteps,
-        predict_xstart=predict_xstart,
-        learn_sigmas=learn_sigma,
-        sigma_small=sigma_small,
-        use_kl=use_kl,
-        rescale_learned_sigmas=rescale_learned_sigmas
+        rescale_timesteps=args.rescale_timesteps,
+        predict_xstart=args.predict_xstart,
     )
 
     return model, diffusion

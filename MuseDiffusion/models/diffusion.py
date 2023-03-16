@@ -1,9 +1,10 @@
-"""
-This code started out as a PyTorch port of Ho et al.'s diffusion models:
-https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils_2.py
-
-Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules.
-"""
+# This code started out as a PyTorch port of Ho et al.'s diffusion models:
+# https://github.com/hojonathanho/diffusion/blob/1e0dceb3b3495bbe19116a5e1b3596cd0706c543/diffusion_tf/diffusion_utils_2.py
+#
+# [DiffuSeq by Gong et al.] Docstrings have been added, as well as DDIM sampling and a new collection of beta schedules:
+# https://github.com/Shark-NLP/DiffuSeq/blob/20a7ab1e7db3656bf83ac5bbd5bfa3b7ccd5670a/diffuseq/gaussian_diffusion.py
+#
+# [MuseDiffusion] Loss method which reflects Corruptions of Midi Sequence (see MuseDiffusion.data.corruptions).
 
 import math
 
@@ -127,8 +128,6 @@ class GaussianDiffusion:
     :param betas: a 1-D numpy array of betas for each diffusion timestep,
                   starting at T and going to 1.
     :param predict_xstart: the model outputs to predict x_0, else to predict eps.
-    :param learn_sigmas: the model outputs to predict sigma or not. Default: False
-    :param rescale_learned_sigmas, sigma_small: details setting of learned sigmas
     :param rescale_timesteps: if True, pass floating point timesteps into the
                               model so that they are always scaled like in the
                               original paper (0 to 1000).
@@ -139,18 +138,10 @@ class GaussianDiffusion:
         *,
         betas,
         predict_xstart,
-        rescale_learned_sigmas,
-        learn_sigmas,
-        sigma_small,
-        use_kl,
         rescale_timesteps=False,
     ):
         self.rescale_timesteps = rescale_timesteps
         self.predict_xstart = predict_xstart
-        self.rescale_learned_sigmas = rescale_learned_sigmas
-        self.learn_sigmas = learn_sigmas
-        self.sigma_small = sigma_small
-        self.use_kl = use_kl
 
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)

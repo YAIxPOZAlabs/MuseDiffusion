@@ -68,7 +68,7 @@ pip3 install -r requirements.txt
 ```
 
 <details>
-<summary>(Optional) If required, install python 3.8 for Virtualenv usage.</summary>
+<summary>(Optional) If required, install python 3.8 for venv usage.</summary>
 &nbsp;
 
 ```bash
@@ -179,7 +179,7 @@ python3 -m MuseDiffusion train --distributed
 
 ```bash
 # Copy config file to root directory
-python3 -c "from MuseDiffusion.config import TrainSettings as T; print(T.json(indent=2))" \
+python3 -c "from MuseDiffusion.config import TrainSettings as T; print(T().json(indent=2))" \
 >> train_cfg.json
 
 # Customize config on your own
@@ -458,11 +458,19 @@ Notable properties of ComMU are that (1) dataset is manually constructed by prof
 objective guideline that induces regularity, and (2) it has 12 musical metadata that embraces composers' intentions. 
 
 <p align="center">
-  <img src="assets/figure04_dataset.png" alt="Token Map of ComMU" width=50%>
+  <img src="assets/figure04_commu_tokens.png" alt="Token Map of ComMU" width=45%>
 </p>
 
 <p align="center"><b>
   Token Map of Midi data and Metadata in ComMU Dataset
+</b></p>
+
+<p align="center">
+  <img src="assets/figure05_commu_dataset_structure.png" alt="Dataset Structure of ComMU" width=80%>
+</p>
+
+<p align="center"><b>
+  Dataset Structure
 </b></p>
 &nbsp;
 
@@ -472,14 +480,8 @@ objective guideline that induces regularity, and (2) it has 12 musical metadata 
 
 <br><hr>
 
-## Weights
-
-* TBD
-
-<br><hr>
-
-<br>
-<p align="center"><b><u>Losses</u></b></p>
+<h2>Experiments</h2>
+<p><b><u>Losses</u></b></p>
 <p align="center">
   <img src="assets/loss.png" alt="Loss" width=80%>
 </p>
@@ -487,6 +489,49 @@ objective guideline that induces regularity, and (2) it has 12 musical metadata 
 <p align="center">TBD</p>
 
 <br><hr>
+
+## Download Pretrained Weights
+
+* TBD
+
+<br><hr>
+
+## Citations
+
+```bibtex
+@inproceedings{hyun2022commu,
+  title={Com{MU}: Dataset for Combinatorial Music Generation},
+  author={Lee Hyun and Taehyun Kim and Hyolim Kang and Minjoo Ki and Hyeonchan Hwang and Kwanho Park and Sharang Han and Seon Joo Kim},
+  booktitle={Thirty-sixth Conference on Neural Information Processing Systems Datasets and Benchmarks Track},
+  year={2022},
+}
+```
+
+```bibtex
+@inproceedings{gong2022diffuseq,
+  author = {Gong, Shansan and Li, Mukai and Feng, Jiangtao and Wu, Zhiyong and Kong, Lingpeng},
+  booktitle = {International Conference on Learning Representations, ICLR},
+  title = {{DiffuSeq}: Sequence to Sequence Text Generation with Diffusion Models},
+  year = 2023
+}
+```
+
+```bibtex
+@inproceedings{wolf-etal-2020-transformers,
+  title = "Transformers: State-of-the-Art Natural Language Processing",
+  author = "Thomas Wolf and Lysandre Debut and Victor Sanh and Julien Chaumond and Clement Delangue and Anthony Moi and Pierric Cistac and Tim Rault and Rémi Louf and Morgan Funtowicz and Joe Davison and Sam Shleifer and Patrick von Platen and Clara Ma and Yacine Jernite and Julien Plu and Canwen Xu and Teven Le Scao and Sylvain Gugger and Mariama Drame and Quentin Lhoest and Alexander M. Rush",
+  booktitle = "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations",
+  month = oct,
+  year = "2020",
+  address = "Online",
+  publisher = "Association for Computational Linguistics",
+  url = "https://www.aclweb.org/anthology/2020.emnlp-demos.6",
+  pages = "38--45"
+}
+```
+
+<br><hr>
+
 
 <!-- FOOTER START -->
 <p align="center"><a href="#">

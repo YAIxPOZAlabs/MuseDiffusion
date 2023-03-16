@@ -1,7 +1,5 @@
-"""
-Logger copied from OpenAI baselines to avoid extra RL-based dependencies:
-https://github.com/openai/baselines/blob/ea25b9e8b234e6ee1bca43083f8f3cf974143998/baselines/logger.py
-"""
+# Logger copied from OpenAI baselines to avoid extra RL-based dependencies:
+# https://github.com/openai/baselines/blob/ea25b9e8b234e6ee1bca43083f8f3cf974143998/baselines/logger.py
 
 from abc import abstractmethod, ABC
 import os
@@ -13,7 +11,13 @@ import tempfile
 import warnings
 from collections import defaultdict
 from contextlib import contextmanager
-import wandb
+
+try:
+    import wandb
+except ModuleNotFoundError:
+    class wandb:
+        def log(self, *args, **kwargs): pass
+
 
 DEBUG = 10
 INFO = 20

@@ -19,7 +19,8 @@ def create_parser():
 def main(namespace):
 
     # Create config from parsed argument namespace
-    klass = {"generation": GenerationSettings, "modification": ModificationSettings}[namespace.__dict__.pop("mode")]
+    mode = namespace.__dict__.pop("mode")
+    klass = {"generation": GenerationSettings, "modification": ModificationSettings}[mode]
     args: "ModificationSettings|GenerationSettings" = klass.from_argparse(namespace)
 
     # Import dependencies
@@ -56,8 +57,8 @@ def main(namespace):
     # Prepare output directory
     model_base_name = os.path.basename(os.path.split(args.model_path)[0])
     model_detailed_name = os.path.split(args.model_path)[1].split('.pt')[0]
-    out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".samples")
-    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + ".log")
+    out_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + "." + mode + ".samples")
+    log_path = os.path.join(args.out_dir, model_base_name, model_detailed_name + "." + mode + ".log")
 
     # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
     # logger.log() - equal to print(), but only in master process
@@ -76,7 +77,7 @@ def main(namespace):
 
     # Initialize model and diffusion, and reload model weight from model folder
     logger.log("### Creating model and diffusion... ")
-    model, diffusion = create_model_and_diffusion(**training_args.dict())
+    model, diffusion = create_model_and_diffusion(training_args)
     model.load_state_dict(dist_util.load_state_dict(args.model_path, map_location="cpu"))
 
     # Count and log total params
@@ -118,9 +119,7 @@ def main(namespace):
         tqdm_total = float('inf')
         midi_decode_fn = batch_decode_generate
     else:  # this indicates modification mode
-        for name in ['use_corruption', 'corr_available', 'corr_max', 'corr_p', 'corr_kwargs']:
-            if getattr(args, name) is None:
-                setattr(args, name, getattr(training_args, name))
+        args.overload_corruption_settings_from(training_args)
         data_loader = load_data_music(
             split=args.split,
             batch_size=args.batch_size,
@@ -255,7 +254,7 @@ def main(namespace):
                         fp.write(logs_per_batch)
                     print(logs_per_batch)
             # We can get 'exact' total_valid_count, due to sequential decoding.
-            dist_util.sync_params([total_valid_count], src=i)
+            dist_util.broadcast(total_valid_count, src=i)
             dist_util.barrier()
             if args.__GENERATE__ and total_valid_count.item() >= args.num_samples:
                 # We have made enough midis, so we can stop generation loop.
@@ -266,7 +265,7 @@ def main(namespace):
         rem = len(data_loader) % world_size
         if rem and rank >= rem:
             for i in range(world_size):
-                dist_util.sync_params([total_valid_count], src=i)
+                dist_util.broadcast(total_valid_count, src=i)
                 dist_util.barrier()
 
     # Log final result

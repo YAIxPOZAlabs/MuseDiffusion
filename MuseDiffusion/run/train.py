@@ -14,7 +14,6 @@ def main(namespace):
     # Import dependencies
     import os
     import time
-    import json
 
     # Import everything
     from MuseDiffusion.data import load_data_music
@@ -33,7 +32,6 @@ def main(namespace):
     # Setup distributed
     dist_util.setup_dist()
     rank = dist_util.get_rank()
-    dist_util.barrier()  # Sync
 
     # Set checkpoint path
     folder_name = "diffusion_models/"
@@ -87,7 +85,7 @@ def main(namespace):
 
     # Initialize model and diffusion
     logger.log("### Creating model and diffusion...")
-    model, diffusion = create_model_and_diffusion(**args.dict())
+    model, diffusion = create_model_and_diffusion(args)
 
     # Load Pretrained Embedding Layer
     pretrained_emb_weight = fetch_pretrained_embedding(args)
@@ -112,12 +110,12 @@ def main(namespace):
     training_args_path = f'{args.checkpoint_path}/training_args.json'
     if not os.path.exists(training_args_path):
         logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
-        if dist_util.get_rank() == 0:
+        if rank == 0:
             with open(training_args_path, 'w') as fp:
-                json.dump(args.dict(), fp, indent=2)
+                print(args.json(indent=2), file=fp)
 
     # Init wandb
-    if dist_util.get_rank() == 0:
+    if rank == 0:
         # Uncomment and customize your wandb setting on your own, or just use environ.
         import wandb
         wandb.init(
@@ -125,7 +123,7 @@ def main(namespace):
             # entity=os.getenv("WANDB_ENTITY", "<your-value>"),
             # project=os.getenv("WANDB_PROJECT", "<your-value>"),
         )
-        wandb.config.update(args.__dict__, allow_val_change=True)
+        wandb.config.update(args.dict(), allow_val_change=True)
     dist_util.barrier()  # Sync last
 
     # Run train loop
@@ -141,8 +139,6 @@ def main(namespace):
         log_interval=args.log_interval,
         save_interval=args.save_interval,
         resume_checkpoint=args.resume_checkpoint,
-        use_fp16=args.use_fp16,
-        fp16_scale_growth=args.fp16_scale_growth,
         schedule_sampler=schedule_sampler,
         weight_decay=args.weight_decay,
         learning_steps=args.learning_steps,
