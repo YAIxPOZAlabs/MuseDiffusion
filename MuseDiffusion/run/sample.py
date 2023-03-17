@@ -220,8 +220,26 @@ def main(namespace):
                         sample_tokens = sample_tokens.cpu().numpy()
                         input_ids_mask_ori = input_ids_mask_ori.cpu().numpy()
 
+                        valid_count, invalid_idxes = midi_decode_fn(
+                            sequences=sample_tokens,
+                            input_ids_mask_ori=input_ids_mask_ori,
+                            output_dir=out_path,
+                            batch_index=batch_index,
+                            previous_count=(
+                                total_valid_count.item() if args.__GENERATE__ else batch_index * args.batch_size
+                            ),
+                            return_indices=True,
+                        )
+                        total_valid_count += valid_count
+
                         if args.use_corruption:
                             correct_ids = correct_ids.cpu().numpy()
+                            valid_mask = np.ones_like(correct_ids, dtype=bool)
+                            valid_mask[invalid_idxes] = False
+
+                            correct_ids = correct_ids[valid_mask]
+                            sample_tokens = sample_tokens[valid_mask]
+                            input_ids_mask_ori = input_ids_mask_ori[valid_mask]
 
                             # for ONNC (Only when dataloader is there)
                             ground_truth_midis = tuple(
@@ -232,10 +250,7 @@ def main(namespace):
                                 SequenceToMidi.split_meta_midi(s, i)
                                 for s, i in zip(sample_tokens, input_ids_mask_ori)
                             ))
-                            ground_truth_midis = np.array(ground_truth_midis)
-                            generated_midis = np.array(generated_midis)
-                            metas = np.array(metas)
-                            onnc = float(ONNC(np.concatenate((ground_truth_midis, generated_midis)), device=dev))
+                            onnc = float(ONNC(ground_truth_midis + generated_midis, device=dev))
 
                             # for CP, CV
                             total_P, wrong_P = Controllability_Pitch(metas, generated_midis)
@@ -244,17 +259,6 @@ def main(namespace):
                             total_wrong_P += wrong_P
                             total_total_V += total_V
                             total_wrong_V += wrong_V
-
-                        valid_count = midi_decode_fn(
-                            sequences=sample_tokens,
-                            input_ids_mask_ori=input_ids_mask_ori,
-                            output_dir=out_path,
-                            batch_index=batch_index,
-                            previous_count=(
-                                total_valid_count.item() if args.__GENERATE__ else batch_index * args.batch_size
-                            )
-                        )
-                        total_valid_count += valid_count
 
                         if args.use_corruption:
                             print(f"{f' Metric of Batch {batch_index} ':=^60}")

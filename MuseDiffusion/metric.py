@@ -24,7 +24,7 @@ def get_vectors(midi, note_len=128, device=None):
         if midi[i] <= 2:
             tmp_rhythm_vec /= torch.norm(tmp_rhythm_vec)
             rhythm_vec += tmp_rhythm_vec
-            tmp_rhythm_vec = torch.tensor([1e-32] * 32, dtype=torch.float32)
+            tmp_rhythm_vec = torch.tensor([1e-32] * 32, dtype=torch.float32, device=device)
             i += 1
             if midi[i-1] == 2:
                 prev_startp = -1
@@ -44,7 +44,7 @@ def get_vectors(midi, note_len=128, device=None):
             3 <= midi[i + 2] <= 130,
             304 <= midi[i + 3] <= 431
         ]):
-            raise ValueError("wrong format midi file")
+            raise ValueError("wrong format midi format at [%s - %s]: %s" % (i, midi[i:i+4], list(midi)))
         pitch = midi[i+2]
         endp = startp + midi[i+3] - 303
         harmony_vec[pitch % 12] += 1

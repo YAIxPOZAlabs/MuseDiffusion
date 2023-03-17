@@ -195,7 +195,8 @@ def batch_decode_seq2seq(
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi"
+        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi",
+        return_indices=False,
 ):
     import os
     import io
@@ -257,6 +258,8 @@ def batch_decode_seq2seq(
         ) if invalid_idxes else "") + ("=" * 60) + "\n"
     )
 
+    if return_indices:
+        return valid_count, invalid_idxes
     return valid_count
 
 
@@ -266,7 +269,8 @@ def batch_decode_generate(
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="generated_{valid_index:0>7}.midi"
+        output_file_format="generated_{valid_index:0>7}.midi",
+        return_indices=False,
 ):
     import os
     import io
@@ -274,8 +278,9 @@ def batch_decode_generate(
 
     decoder = SequenceToMidi()
     valid_index = previous_count
+    invalid_idxes = []
 
-    for seq, input_mask in zip(sequences, input_ids_mask_ori):
+    for index, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
         logger = io.StringIO()
         try:
             # we can't handle OOV error - since OOV is only logged into stdout -
@@ -283,6 +288,7 @@ def batch_decode_generate(
             with contextlib.redirect_stdout(logger):
                 decoded_midi = decoder(seq, input_mask)
         except SequenceToMidiError:
+            invalid_idxes.append(index)
             continue  # in generation, we can skip decoding failures
         log = logger.getvalue()  # to check OOV
         if log:
@@ -290,6 +296,8 @@ def batch_decode_generate(
         output_file_path = output_file_format.format(valid_index=valid_index)
         decoded_midi.dump(os.path.join(output_dir, output_file_path))
         valid_index += 1
+
+    valid_count = valid_index - previous_count
 
     print(
         (
@@ -301,4 +309,6 @@ def batch_decode_generate(
         ) + ("=" * 60) + "\n"
     )
 
-    return valid_index - previous_count
+    if return_indices:
+        return valid_count, invalid_idxes
+    return valid_count
