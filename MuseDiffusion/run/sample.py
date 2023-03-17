@@ -28,6 +28,7 @@ def main(namespace):
     # Import dependencies
     import os
     import time
+    import numpy as np
     from io import StringIO
     from contextlib import redirect_stdout
     from functools import partial
@@ -40,9 +41,6 @@ def main(namespace):
     from MuseDiffusion.utils import dist_util, logger
     from MuseDiffusion.utils.initialization import create_model_and_diffusion, seed_all
     from MuseDiffusion.utils.decode_util import batch_decode_seq2seq, batch_decode_generate, meta_to_batch
-
-    #metric
-    import numpy as np
     from MuseDiffusion.utils.decode_util import SequenceToMidi
     from MuseDiffusion.metric import ONNC, Controllability_Pitch, Controllability_Velocity
 
@@ -153,7 +151,7 @@ def main(namespace):
     generation_done = False  # for generation - indicates if generation is done
     start_t = time.time()
 
-    ## CP, CV counter variable
+    # CP, CV counter variable
     total_total_P = 0
     total_total_V = 0
     total_wrong_P = 0
@@ -172,8 +170,9 @@ def main(namespace):
         input_ids_x = cond['input_ids']
         input_ids_mask_ori = cond['input_mask']
 
-        #for metric
-        correct_ids = cond['correct_ids']
+        # for metric
+        if args.use_corruption:
+            correct_ids = cond['correct_ids']
 
         # Prepare variables for noising and sampling
         x_start = model.get_embeds(input_ids_x.to(dev))
@@ -218,32 +217,29 @@ def main(namespace):
                 # We use redirecting context manager again: to log into both stdout and log file.
                 out = StringIO()
                 try:
-                    ########## Metric example code #############
-                    # 실제로 되는지 안되는지는 돌려봐야 알듯하지만, 이런식으로 코드 짜야함
-                    
-                    decoder = SequenceToMidi()
-                    
-                    # for ONNC (Only when dataloader is there)
-                    _, GT = decoder.split_meta_midi(correct_ids.cpu().numpy(), input_ids_mask_ori.cpu().numpy())
-                    _, generated = decoder.split_meta_midi(sample_tokens.cpu().numpy(), input_ids_mask_ori.cpu().numpy())
-                    concated_seq = np.concatenate((GT, generated))
-                    onnc = ONNC(concated_seq)
-                    print(onnc)
-                    # for CP, CV
-                    metas, midis = decoder.split_meta_midi(sample_tokens.cpu().numpy(), input_ids_mask_ori.cpu().numpy())
-                    total_P, wrong_P = Controllability_Pitch(metas, midis)
-                    total_V, wrong_V = Controllability_Velocity(metas, midis)
-                    print("CP: " + str(wrong_P / total_P))
-                    print("CV: " + str(wrong_V / total_V))
-                    total_total_P += total_P
-                    total_wrong_P += wrong_P
-                    total_total_V += total_V
-                    total_wrong_V += wrong_V
-
                     with redirect_stdout(out):
+                        sample_tokens = sample_tokens.cpu().numpy()
+                        input_ids_mask_ori = input_ids_mask_ori.cpu().numpy()
+
+                        if args.use_corruption:
+                            correct_ids = correct_ids.cpu().numpy()
+
+                            # for ONNC (Only when dataloader is there)
+                            ground_truth_midis, _ = SequenceToMidi.split_meta_midi(correct_ids, input_ids_mask_ori)
+                            generated_midis, metas = SequenceToMidi.split_meta_midi(sample_tokens, input_ids_mask_ori)
+                            onnc = float(ONNC(np.concatenate((ground_truth_midis, generated_midis)), device=dev))
+
+                            # for CP, CV
+                            total_P, wrong_P = Controllability_Pitch(metas, generated_midis)
+                            total_V, wrong_V = Controllability_Velocity(metas, generated_midis)
+                            total_total_P += total_P
+                            total_wrong_P += wrong_P
+                            total_total_V += total_V
+                            total_wrong_V += wrong_V
+
                         valid_count = midi_decode_fn(
-                            sequences=sample_tokens.cpu().numpy(),
-                            input_ids_mask_ori=input_ids_mask_ori.cpu().numpy(),
+                            sequences=sample_tokens,
+                            input_ids_mask_ori=input_ids_mask_ori,
                             output_dir=out_path,
                             batch_index=batch_index,
                             previous_count=(
@@ -251,6 +247,14 @@ def main(namespace):
                             )
                         )
                         total_valid_count += valid_count
+
+                        if args.use_corruption:
+                            print(f"{f' Metric of Batch {batch_index} ':=^60}")
+                            print(f"{f' ONNC: {onnc:.6f} ': ^60}")
+                            print(f"{f' CP: {wrong_P / total_P:.6f} ': ^60}")
+                            print(f"{f' CV: {wrong_V / total_V:.6f} ': ^60}")
+                            print(("=" * 60) + "\n")
+
                 finally:
                     logs_per_batch = out.getvalue()
                     with open(log_path, "a") as fp:

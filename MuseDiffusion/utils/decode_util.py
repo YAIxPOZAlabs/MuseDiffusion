@@ -68,10 +68,10 @@ class SequenceToMidi:
 
     @staticmethod
     def remove_padding(generation_result):
-        npy = np.array(generation_result)
-        assert npy.ndim == 1
-
-        eos_idx = np.where(npy == 1)[0]  # eos token == 1
+        if not isinstance(generation_result, np.ndarray):
+            generation_result = np.array(generation_result)
+        assert generation_result.ndim == 1
+        eos_idx = np.where(generation_result == 1)[0]  # eos token == 1
         if len(eos_idx) > 0:
             eos_idx = eos_idx[0].item()  # note seq 의 첫 eos 이후에 나온 토큰은 모두 패딩이 잘못 생성된 거로 간주
             return generation_result[:eos_idx + 1]
@@ -152,29 +152,26 @@ class SequenceToMidi:
                 return
         raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
 
-    def decode_event_sequence(self, encoded_meta, note_seq):
-        decoded_midi = self.decoder.decode(midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),)
-        return decoded_midi
-
-    def decode(self, seq, input_mask, output_file_path=None):
-        len_meta = len(seq) - int((input_mask.sum()))
-        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외한 개수 만큼만 사용
-        note_seq = seq[len_meta:]
-        note_seq = self.remove_padding(note_seq)
-        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
-        self.validate_generated_sequence(note_seq)
-        decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
-        if output_file_path:
-            decoded_midi.dump(output_file_path)
-        return decoded_midi
-    
-    def split_meta_midi(self, seq, input_mask):
+    @classmethod
+    def split_meta_midi(cls, seq, input_mask):
         len_meta = len(seq) - int((input_mask.sum()))
         encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
         note_seq = seq[len_meta:]
-        note_seq = self.remove_padding(note_seq)
-        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
-        return encoded_meta, note_seq
+        note_seq = cls.remove_padding(note_seq)
+        note_seq, encoded_meta = cls.restore_chord(note_seq, encoded_meta)
+        return note_seq, encoded_meta
+
+    def decode_event_sequence(self, note_seq, encoded_meta):
+        decoded_midi = self.decoder.decode(midi_info=MidiInfo(*encoded_meta, event_seq=note_seq))
+        return decoded_midi
+
+    def decode(self, seq, input_mask, output_file_path=None):
+        note_seq, encoded_meta = self.split_meta_midi(seq, input_mask)
+        self.validate_generated_sequence(note_seq)
+        decoded_midi = self.decode_event_sequence(note_seq, encoded_meta)
+        if output_file_path:
+            decoded_midi.dump(output_file_path)
+        return decoded_midi
 
     def __call__(self, *args, **kwargs):
         return self.decode(*args, **kwargs)
