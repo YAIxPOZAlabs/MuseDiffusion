@@ -59,7 +59,6 @@ def main(namespace):
     file_or_dir_name = os.path.split(args.model_path)[1].split('.pt')[0] + "." + mode
     out_path = os.path.join(base_path, file_or_dir_name + ".samples")
     log_path = os.path.join(base_path, file_or_dir_name + ".log")
-    dist_util.set_error_file_path(base_path, prefix=file_or_dir_name + ".")
 
     # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
     # logger.log() - equal to print(), but only in master process
@@ -225,8 +224,17 @@ def main(namespace):
                             correct_ids = correct_ids.cpu().numpy()
 
                             # for ONNC (Only when dataloader is there)
-                            ground_truth_midis, _ = SequenceToMidi.split_meta_midi(correct_ids, input_ids_mask_ori)
-                            generated_midis, metas = SequenceToMidi.split_meta_midi(sample_tokens, input_ids_mask_ori)
+                            ground_truth_midis = tuple(
+                                SequenceToMidi.split_meta_midi(c, i)[0]
+                                for c, i in zip(correct_ids, input_ids_mask_ori)
+                            )
+                            generated_midis, metas = zip(*(
+                                SequenceToMidi.split_meta_midi(s, i)
+                                for s, i in zip(sample_tokens, input_ids_mask_ori)
+                            ))
+                            ground_truth_midis = np.array(ground_truth_midis)
+                            generated_midis = np.array(generated_midis)
+                            metas = np.array(metas)
                             onnc = float(ONNC(np.concatenate((ground_truth_midis, generated_midis)), device=dev))
 
                             # for CP, CV
