@@ -170,7 +170,7 @@ def main(namespace):
         input_ids_mask_ori = cond['input_mask']
 
         # for metric
-        if args.use_corruption:
+        if not args.__GENERATE__ and args.use_corruption:
             correct_ids = cond['correct_ids']
 
         # Prepare variables for noising and sampling
@@ -232,7 +232,7 @@ def main(namespace):
                         )
                         total_valid_count += valid_count
 
-                        if args.use_corruption:
+                        if not args.__GENERATE__ and args.use_corruption:
                             correct_ids = correct_ids.cpu().numpy()
                             valid_mask = np.ones((len(correct_ids),), dtype=bool)
                             valid_mask[invalid_idxes] = False
@@ -260,7 +260,7 @@ def main(namespace):
                             total_total_V += total_V
                             total_wrong_V += wrong_V
 
-                        if args.use_corruption:
+                        if not args.__GENERATE__ and args.use_corruption:
                             print(f"{f' Metric of Batch {batch_index} ':=^60}")
                             print(f"{f' ONNC: {onnc:.6f} ': ^60}")
                             print(f"{f' CP: {wrong_P / total_P:.6f} ': ^60}")
