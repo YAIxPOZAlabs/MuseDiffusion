@@ -154,9 +154,9 @@ def sync_params(params, src=0, group=None, async_op=False):
 
 def set_error_file_path(directory=None, prefix=None):
     if is_initialized():
-        error_file = "dist_error_rank{}.log".format(get_rank())
+        error_file = "dist_error_rank{}.json".format(get_rank())
     else:
-        error_file = "dist_error.log"
+        error_file = "dist_error.json"
     if prefix is not None:
         error_file = str(prefix) + error_file
     os.environ.setdefault("TORCHELASTIC_ERROR_FILE", os.path.join(directory or os.getcwd(), error_file))

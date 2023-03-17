@@ -17,7 +17,6 @@ def run_argv_as_distributed(program_or_module, argv, dist_namespace, *, run_as_m
     import os
     import psutil
 
-    import torch
     try:
         from torch.distributed.run import run
     except ImportError as exc:
@@ -48,11 +47,8 @@ def run_argv_as_distributed(program_or_module, argv, dist_namespace, *, run_as_m
     dist_namespace.training_script = program_or_module
     dist_namespace.training_script_args = argv
 
-    @record
-    def main(args):
-        return run(args)
-
-    main(dist_namespace)
+    run = record(run)
+    run(dist_namespace)
 
 
 def create_distributed_parser(parser=None):
