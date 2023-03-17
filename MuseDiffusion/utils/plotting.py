@@ -38,10 +38,12 @@ def plot_embedding_tsne(emb_weight, title="Embedding", alpha=1.0, figsize=(16, 1
 
 def embedding_tsne_trainer_wandb_callback(self):
     import wandb
-    logs = {}
-    for r, p in zip([0, *self.ema_rate], [self.master_params, *self.ema_params]):
-        w = self._master_params_to_state_dict(p, key="word_embedding.weight")
-        key = "Embedding-{}".format("master" if r == 0 else "ema{}".format(r))
-        fig = plot_embedding_tsne(w, title=key)
-        logs[key] = wandb.Image(fig)
-    wandb.log(logs)
+    from MuseDiffusion.utils.dist_util import get_rank
+    if get_rank() == 0:
+        logs = {}
+        for r, p in zip([0, *self.ema_rate], [self.master_params, *self.ema_params]):
+            w = self._master_params_to_state_dict(p, key="word_embedding.weight")
+            key = "Embedding-{}".format("master" if r == 0 else "ema{}".format(r))
+            fig = plot_embedding_tsne(w, title=key)
+            logs[key] = wandb.Image(fig)
+        wandb.log(logs)
