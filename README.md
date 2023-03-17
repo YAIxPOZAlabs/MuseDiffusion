@@ -266,8 +266,8 @@ After training, weights and configs will be saved into `./diffusion_models/{name
 ```bash
 python3 -m MuseDiffusion modification --distributed \
 --use_corruption True \
---corr_available mt,mn,rn,rr \
---corr_max 4 \
+--corr_available rn,rr \
+--corr_max 2 \
 --corr_p 0.5 \
 --step 100 \
 --strength 0.75 \
