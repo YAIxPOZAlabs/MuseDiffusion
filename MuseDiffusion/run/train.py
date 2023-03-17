@@ -112,7 +112,7 @@ def main(namespace):
     # Save training args
     training_args_path = f'{args.checkpoint_path}/training_args.json'
     if not os.path.exists(training_args_path):
-        logger.log(f'### Saving the hyperparameters to {args.checkpoint_path}/training_args.json')
+        logger.log(f'### Saving the hyper parameters to {args.checkpoint_path}/training_args.json')
         if rank == 0:
             with open(training_args_path, 'w') as fp:
                 print(args.json(indent=2), file=fp)

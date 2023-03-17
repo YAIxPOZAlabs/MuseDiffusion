@@ -167,85 +167,83 @@ class TrainLoop:
             or self.step + self.resume_step < self.learning_steps
         ):
             cond = next(self.data)
-            self.run_step(cond)
+            self.forward_backward(cond)
+            self.optimize()
+            self.log_step()
             if self.step % self.log_interval == 0:
                 logger.dumpkvs()
             if self.eval_data is not None and self.step % self.eval_interval == 0:
+                print('eval on validation set')
                 cond_eval = next(self.eval_data)
                 self.forward_only(cond_eval)
-                print('eval on validation set')
+                for callback in self.eval_callbacks:
+                    callback(self)
                 logger.dumpkvs()
-                if dist_util.get_rank() == 0:
-                    for callback in self.eval_callbacks:
-                        callback(self)
             if self.step > 0 and self.step % self.save_interval == 0:
                 self.save()
             self.step += 1
         if (self.step - 1) % self.save_interval != 0:
             self.save()
 
-    def run_step(self, cond):
-        self.forward_backward(cond)
-        self.optimize_normal()
-        self.log_step()
+    def _forward_backward_logic(self, cond, backward: bool):
 
-    def _zero_grad(self):
+        self.zero_grad()
+
+        prev_train_mode = self.model.training
+        prev_grad_mode = torch.is_grad_enabled()
+
+        if not backward:
+            self.model.eval()
+            torch.set_grad_enabled(False)
+
+        for i in range(0, cond['input_ids'].shape[0], self.microbatch):
+
+            micro_cond = {
+                k: v[i: i + self.microbatch].to(dist_util.dev())
+                for k, v in cond.items()
+            }
+            last_batch = (i + self.microbatch) >= cond['input_ids'].shape[0]
+            t, weights = self.schedule_sampler.sample(micro_cond['input_ids'].shape[0], dist_util.dev())
+
+            compute_losses = functools.partial(
+                self.diffusion.training_losses,
+                self.ddp_model,
+                t,
+                model_kwargs=micro_cond,
+            )
+
+            if last_batch or not self.use_ddp:
+                losses = compute_losses()
+            else:
+                with self.ddp_model.no_sync():
+                    losses = compute_losses()
+
+            if backward:
+                self.log_loss_dict(t, {k: v * weights for k, v in losses.items()})
+                if isinstance(self.schedule_sampler, LossAwareSampler):
+                    self.schedule_sampler.update_with_local_losses(t, losses["loss"].detach())
+                loss = (losses["loss"] * weights).mean()
+                loss.backward()
+            else:
+                self.log_loss_dict(t, {f"eval_{k}": v * weights for k, v in losses.items()})
+
+        if not backward:
+            self.model.train(prev_train_mode)
+            torch.set_grad_enabled(prev_grad_mode)
+
+    def forward_only(self, cond):
+        self._forward_backward_logic(cond, backward=False)
+
+    def forward_backward(self, cond):
+        self._forward_backward_logic(cond, backward=True)
+
+    def zero_grad(self):
         for param in self.model_params:
             if param.grad is not None:
                 param.grad.detach_()
                 param.grad.zero_()
 
-    def _microbatch_common_forward(self, cond, i):
-
-        micro_cond = {
-            k: v[i: i + self.microbatch].to(dist_util.dev())
-            for k, v in cond.items()
-        }
-        last_batch = (i + self.microbatch) >= cond['input_ids'].shape[0]
-        t, weights = self.schedule_sampler.sample(micro_cond['input_ids'].shape[0], dist_util.dev())
-
-        compute_losses = functools.partial(
-            self.diffusion.training_losses,
-            self.ddp_model,
-            t,
-            model_kwargs=micro_cond,
-        )
-
-        if last_batch or not self.use_ddp:
-            losses = compute_losses()
-        else:
-            with self.ddp_model.no_sync():
-                losses = compute_losses()
-
-        return losses, t, weights
-
-    @torch.no_grad()
-    def forward_only(self, cond):
-        self._zero_grad()
-        for i in range(0, cond['input_ids'].shape[0], self.microbatch):
-            losses, t, weights = self._microbatch_common_forward(cond, i)
-
-            self.log_loss_dict(
-                self.diffusion, t, {f"eval_{k}": v * weights for k, v in losses.items()}
-            )
-
-    def forward_backward(self, cond):
-        self._zero_grad()
-        for i in range(0, cond['input_ids'].shape[0], self.microbatch):
-            losses, t, weights = self._microbatch_common_forward(cond, i)
-
-            if isinstance(self.schedule_sampler, LossAwareSampler):
-                self.schedule_sampler.update_with_local_losses(
-                    t, losses["loss"].detach()
-                )
-
-            loss = (losses["loss"] * weights).mean()
-            self.log_loss_dict(
-                self.diffusion, t, {k: v * weights for k, v in losses.items()}
-            )
-            loss.backward()
-
-    def optimize_normal(self):
+    def optimize(self):
         if self.gradient_clipping > 0:
             self.grad_clip()
         self._log_grad_norm()
@@ -285,13 +283,12 @@ class TrainLoop:
         logger.logkv("step", self.step + self.resume_step)
         logger.logkv("samples", (self.step + self.resume_step + 1) * self.global_batch)
 
-    @staticmethod
-    def log_loss_dict(diffusion, ts, losses):
+    def log_loss_dict(self, ts, losses):
         for key, values in losses.items():
             logger.logkv_mean(key, values.mean().item())
             # Log the quantiles (four quartiles, in particular).
             for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
-                quartile = int(4 * sub_t / diffusion.num_timesteps)
+                quartile = int(4 * sub_t / self.diffusion.num_timesteps)
                 logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
 
     def save(self):

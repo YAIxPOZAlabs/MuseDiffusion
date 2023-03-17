@@ -92,20 +92,8 @@ class CorruptionSettings(S):
         = _("dict(p=0.4)", "Default arguments for each corruption input.")
 
 
-DeprecatedSettings = type("deprecated", (S,), dict(
-    use_fp16=False,
-    fp16_scale_growth=0.001,
-    learn_sigma=False,
-    use_kl=False,
-    rescale_learned_sigmas=False,
-    sigma_small=False,
-    emb_scale_factor=1.0,
-))  # For backward compatibility - TODO: remove this
-
-
 @final
 class TrainSettings(
-        DeprecatedSettings,
         CorruptionSettings,
         DataSettings,
         ModelSettings,
