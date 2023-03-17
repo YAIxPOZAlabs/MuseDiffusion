@@ -66,11 +66,14 @@ class SequenceToMidi:
             decoder = SequenceToMidi._decoder = EventSequenceEncoder()
         return decoder
 
-    @staticmethod
-    def remove_padding(generation_result):
+    @classmethod
+    def remove_padding(cls, generation_result):
         if not isinstance(generation_result, np.ndarray):
             generation_result = np.array(generation_result)
-        assert generation_result.ndim == 1
+        if not generation_result.ndim == 2:  # batch
+            return np.stack(cls.remove_padding(single) for single in generation_result)
+        else:
+            assert generation_result.ndim == 1, "Got Unknown Dimension"
         eos_idx = np.where(generation_result == 1)[0]  # eos token == 1
         if len(eos_idx) > 0:
             eos_idx = eos_idx[0].item()  # note seq 의 첫 eos 이후에 나온 토큰은 모두 패딩이 잘못 생성된 거로 간주

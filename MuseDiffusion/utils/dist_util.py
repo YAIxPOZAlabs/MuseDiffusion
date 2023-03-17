@@ -159,7 +159,7 @@ def set_error_file_path(directory=None, prefix=None):
         error_file = "dist_error.json"
     if prefix is not None:
         error_file = str(prefix) + error_file
-    os.environ.setdefault("TORCHELASTIC_ERROR_FILE", os.path.join(directory or os.getcwd(), error_file))
+    os.environ["TORCHELASTIC_ERROR_FILE"] = os.path.join(directory or os.getcwd(), error_file)
 
 
 def find_free_port():

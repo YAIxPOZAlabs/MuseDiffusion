@@ -39,12 +39,12 @@ def get_vectors(midi, note_len=128, device=None):
         if 195 <= midi[i+1] <= 303:
             i += 2
             continue
-        try:
-            assert 131 <= midi[i+1] <= 194
-            assert 3 <= midi[i+2] <= 130
-            assert 304 <= midi[i+3] <= 431
-        except Exception as exc:
-            raise ValueError("wrong format midi file") from exc
+        if not all([
+            131 <= midi[i + 1] <= 194,
+            3 <= midi[i + 2] <= 130,
+            304 <= midi[i + 3] <= 431
+        ]):
+            raise ValueError("wrong format midi file")
         pitch = midi[i+2]
         endp = startp + midi[i+3] - 303
         harmony_vec[pitch % 12] += 1
