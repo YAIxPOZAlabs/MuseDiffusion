@@ -24,7 +24,7 @@ def get_vectors(midi, note_len=128, device=None):
         if midi[i] <= 2:
             tmp_rhythm_vec /= torch.norm(tmp_rhythm_vec)
             rhythm_vec += tmp_rhythm_vec
-            tmp_rhythm_vec = torch.tensor([1e-32] * 32, dtype=torch.float32, device=device)
+            tmp_rhythm_vec = torch.tensor([1e-8] * 32, dtype=torch.float32, device=device)
             i += 1
             if midi[i-1] == 2:
                 prev_startp = -1
@@ -32,10 +32,9 @@ def get_vectors(midi, note_len=128, device=None):
             if prev_startp != startp and prev_highest_pitch >= 0:
                 melody_vec[(cur_highest_pitch - prev_highest_pitch) % 12] += 1
             break
-        has_pos = (432 <= midi[i] <= 559)
-        startp = (midi[i] - 432) if has_pos else prev_startp
-        if not has_pos:
-            i -= 1
+        if not 432 <= midi[i] <= 559:
+            raise ValueError("position not found at %s: %s" % (i, midi[i]))
+        startp = midi[i] - 432
         if 195 <= midi[i+1] <= 303:
             i += 2
             continue
