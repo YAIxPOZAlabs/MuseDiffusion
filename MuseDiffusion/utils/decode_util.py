@@ -139,7 +139,35 @@ class SequenceToMidi:
         return new_seq, new_meta
 
     @staticmethod
-    def validate_generated_sequence(seq):
+    def new_val(seq):
+        i = 0
+        i_max = len(seq)
+        while True:
+            if i >= i_max:
+                break  # raise
+            elif seq[i] == 1:  # EOS
+                return
+            elif seq[i] == 2:  # BAR
+                i += 1
+                continue
+            elif seq[i] not in range(TOKEN_OFFSET.POSITION.value, TOKEN_OFFSET.BPM.value):
+                break  # raise
+            if seq[i + 1] in range(TOKEN_OFFSET.NOTE_VELOCITY.value, TOKEN_OFFSET.CHORD_START.value):
+                if all([
+                    seq[i + 2] in range(TOKEN_OFFSET.PITCH.value, TOKEN_OFFSET.NOTE_VELOCITY.value),
+                    seq[i + 3] in range(TOKEN_OFFSET.NOTE_DURATION.value, TOKEN_OFFSET.POSITION.value)
+                ]):
+                    i += 4
+                    continue
+                break
+            elif seq[i + 1] in range(TOKEN_OFFSET.CHORD_START.value, TOKEN_OFFSET.NOTE_DURATION.value):
+                i += 2
+                continue
+            break
+        raise SequenceToMidiError("STRICT VALIDATION OF SEQUENCE FAILED")
+
+    @classmethod
+    def validate_generated_sequence(cls, seq):
         for idx, token in enumerate(seq):
             if idx + 2 > len(seq) - 1:
                 break
@@ -149,6 +177,7 @@ class SequenceToMidi:
                     and seq[idx + 1] in range(TOKEN_OFFSET.PITCH.value, TOKEN_OFFSET.NOTE_VELOCITY.value)
                     and seq[idx + 2] in range(TOKEN_OFFSET.NOTE_DURATION.value, TOKEN_OFFSET.POSITION.value)
             ):
+                cls.new_val(seq)
                 return
         raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
 

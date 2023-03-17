@@ -234,7 +234,7 @@ def main(namespace):
 
                         if args.use_corruption:
                             correct_ids = correct_ids.cpu().numpy()
-                            valid_mask = np.ones_like(correct_ids, dtype=bool)
+                            valid_mask = np.ones((len(correct_ids),), dtype=bool)
                             valid_mask[invalid_idxes] = False
 
                             correct_ids = correct_ids[valid_mask]
