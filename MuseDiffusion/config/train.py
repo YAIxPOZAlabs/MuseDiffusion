@@ -89,7 +89,7 @@ class CorruptionSettings(S):
     corr_p: float \
         = _(0.5, "Probability to choice each corruption.")
     corr_kwargs: str \
-        = _("dict(p=0.4)", "Default arguments for each corruption input.")
+        = _("", "Default arguments for each corruption input. e.g. 'dict(p=0.4)'")
 
 
 @final

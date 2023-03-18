@@ -1,5 +1,6 @@
 from random import Random as _Random
 import reprlib as _reprlib
+
 import torch as _torch
 
 generator = _Random()  # To available seeding in seed_all function
@@ -43,10 +44,8 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
         self.corr_kwargs = corr_kwargs
         return self
 
+    @_torch.no_grad()
     def __call__(self, seq: _torch.Tensor, inplace: bool = False):
-        if _torch.is_grad_enabled():
-            with _torch.no_grad():
-                return self(seq, inplace=inplace)
         assert seq.ndim == 1
         corrupted = seq if inplace else seq.clone()  # To available in-place calculation
         corr_available = list(self.corr_available)
@@ -94,20 +93,15 @@ class Corruptions:  # config key: corr_available, corr_max, corr_p
         assert key not in cls.MAP
         return decorator
 
-    @classmethod
-    def finalize(cls):
-        from types import MappingProxyType
-        cls.MAP = MappingProxyType(cls.MAP)  # Immutable type
-
     MAP = {}
 
 
-@Corruptions.register('mt', required_kwargs=['p'], p=0.5)
+@Corruptions.register('mt', required_kwargs=['p'], p=0.3)
 def masking_token(seq: _torch.Tensor, p: float, inplace: bool = False):
     """
-    masking_token으로 변경하는 함수
-    token 단위로 진행
-    이거 쓰려면 masking token값으로 730 지정해주고 embedding layer의 dim 1 추가해야됨
+    Mask tokens (12 item) to 0 randomly.
+    seq: 1-dim Sequence of [meta - 0 - note_seq - zero_padding]
+    p: 0.0 ~ 1.0
     """
     corrupted = seq if inplace else seq.clone()
 
@@ -123,9 +117,9 @@ def masking_token(seq: _torch.Tensor, p: float, inplace: bool = False):
 @Corruptions.register('mn', required_kwargs=['p'], p=0.5)
 def masking_note(seq: _torch.Tensor, p: float, inplace: bool = False):
     """
-    masking_token으로 변경하는 함수
-    note (position - velocity - pitch - duration) 단위로 진행
-    이거 쓰려면 masking token값으로 730 지정해주고 embedding layer의 dim 1 추가해야됨
+    Mask note (position - velocity - pitch - duration) to 0 randomly.
+    seq: 1-dim Sequence of [meta - 0 - note_seq - zero_padding]
+    p: 0.0 ~ 1.0
     """
     corrupted = seq if inplace else seq.clone()
 
@@ -143,9 +137,10 @@ def masking_note(seq: _torch.Tensor, p: float, inplace: bool = False):
 def randomize_note(seq: _torch.Tensor, p: float, inplace: bool = False):
     """
     주어진 확률(혹은 비율) p 만큼의 note의 pitch, duration, velocity, position? 을 랜덤하게 변경하는 함수
-    seq: meta+0+note_seq+zero_padding (torch type)
-    p: 0.0~1.0 사이값
-    note token 순서: position - velocity - pitch - duration 순으로 존재
+    seq: 1-dim Sequence of [meta - 0 - note_seq - zero_padding]
+    p: 0.0 ~ 1.0
+
+    note token order: position - velocity - pitch - duration
     pitch token range: 3 ~ 130
     velocity: 131 ~ 194
     duration: 304~431
@@ -153,7 +148,7 @@ def randomize_note(seq: _torch.Tensor, p: float, inplace: bool = False):
     """
     corrupted = seq if inplace else seq.clone()
 
-    # velocity token index 찾기 (velocity token 범위: 131~194)
+    # search velocity token index (velocity range: 131~194)
     vel_idx, = _torch.nonzero(_torch.logical_and(131 <= seq, seq <= 194), as_tuple=True)
 
     for idx in vel_idx:
@@ -163,17 +158,7 @@ def randomize_note(seq: _torch.Tensor, p: float, inplace: bool = False):
             corrupted[idx] = generator.randint(131, 194)  # new_velocity
             corrupted[idx+1] = generator.randint(3, 130)  # new_pitch
             corrupted[idx+2] = generator.randint(304, 431)  # new_duration
-            # seq[idx-1] = new_position --> 이건 쓸까말까
     return corrupted
-
-
-# @Corruptions.register('at', required_kwargs=['p'], p=0.5)
-# def adding_token(seq: _torch.Tensor, mask: _torch.Tensor, p: float, inplace: bool = False):
-#     """
-#     단일 토큰 추가 하는 함수 - input_mask 역시 약간의 변화 필요
-#     """
-#     ...
-#     raise NotImplementedError
 
 
 @Corruptions.register('rr', required_kwargs=['count'], count=3)
@@ -210,5 +195,4 @@ def random_rotating(seq: _torch.Tensor, count: int, inplace: bool = False):
     return rotated
 
 
-Corruptions.finalize()
 __all__ = tuple(v for v in vars() if not v.startswith('_'))
