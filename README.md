@@ -386,9 +386,9 @@ $$\large{L(w) = \mathbb E _{q_{\phi}} \[\sum_{t=2}^T||y_0-\tilde f_\theta(z_t,t)
 
 **Embbeding Space**
 
-|                              Our Embedding                               |                              ComMU's Embedding                              |
-|:------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|
-| <img src="assets/figure02_tsne_ours.png" alt="Our embedding" width=100%> | <img src="assets/figure03_tsne_commu.png" alt="ComMU embedding" width=100%> |
+|                               Our Embedding                               |                              ComMU's Embedding                              |
+|:-------------------------------------------------------------------------:|:---------------------------------------------------------------------------:|
+| <img src="assets/figure02_tsne_ours.jpeg" alt="Our embedding" width=100%> | <img src="assets/figure03_tsne_commu.png" alt="ComMU embedding" width=100%> |
 
 <br>
 
