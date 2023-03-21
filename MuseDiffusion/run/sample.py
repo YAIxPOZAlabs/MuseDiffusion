@@ -56,7 +56,6 @@ def main(namespace):
     file_or_dir_name = os.path.split(args.model_path)[1].split('.pt')[0] + "." + mode
     out_path = os.path.join(base_path, file_or_dir_name + ".samples")
     log_path = os.path.join(base_path, file_or_dir_name + ".log")
-    dist_util.set_error_file_path(base_path, prefix=file_or_dir_name + ".")
 
     # In sampling, we will log decoding results MANUALLY, so we will not configure logger properly.
     # logger.log() - equal to print(), but only in master process
