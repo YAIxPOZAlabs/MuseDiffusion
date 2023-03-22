@@ -172,7 +172,7 @@ def main(namespace):
             x_noised = torch.where(torch.eq(input_ids_mask, 0), x_start, noise)
         else:
             noising_t = int(args.step * args.strength)
-            timestep = torch.full((args.batch_size, 1), noising_t - 1, device=dev)
+            timestep = torch.full((len(cond['input_ids']), 1), noising_t - 1, device=dev)
             x_noised = diffusion.q_sample(x_start.unsqueeze(-1), timestep, mask=input_ids_mask).squeeze(-1)
 
         # Run diffusion reverse step
