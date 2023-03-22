@@ -232,7 +232,7 @@ def main(namespace):
                         )
                         total_valid_count += valid_count
 
-                        if not args.__GENERATE__ and args.use_corruption:
+                        if not args.__GENERATE__ and args.use_corruption and valid_count:
                             correct_ids = correct_ids.cpu().numpy()
                             valid_mask = np.ones((len(correct_ids),), dtype=bool)
                             valid_mask[invalid_idxes] = False
