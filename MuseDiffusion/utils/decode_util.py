@@ -66,12 +66,15 @@ class SequenceToMidi:
             decoder = SequenceToMidi._decoder = EventSequenceEncoder()
         return decoder
 
+    def __init__(self, strict_validation=False):
+        self.strict_validation = strict_validation
+
     @staticmethod
     def remove_padding(generation_result):
-        npy = np.array(generation_result)
-        assert npy.ndim == 1
-
-        eos_idx = np.where(npy == 1)[0]  # eos token == 1
+        if not isinstance(generation_result, np.ndarray):
+            generation_result = np.array(generation_result)
+        assert generation_result.ndim == 1, "Got Unknown Dimension"
+        eos_idx = np.where(generation_result == 1)[0]  # eos token == 1
         if len(eos_idx) > 0:
             eos_idx = eos_idx[0].item()  # note seq 의 첫 eos 이후에 나온 토큰은 모두 패딩이 잘못 생성된 거로 간주
             return generation_result[:eos_idx + 1]
@@ -139,7 +142,7 @@ class SequenceToMidi:
         return new_seq, new_meta
 
     @staticmethod
-    def validate_generated_sequence(seq):
+    def validate_once(seq):
         for idx, token in enumerate(seq):
             if idx + 2 > len(seq) - 1:
                 break
@@ -152,24 +155,67 @@ class SequenceToMidi:
                 return
         raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
 
-    def decode_event_sequence(self, encoded_meta, note_seq):
-        decoded_midi = self.decoder.decode(midi_info=MidiInfo(*encoded_meta, event_seq=note_seq),)
+    @staticmethod
+    def validate_rigidly(seq):
+        i = 0
+        i_max = len(seq)
+        while True:
+            if i >= i_max:
+                break  # raise
+            elif seq[i] == 1:  # EOS
+                return
+            elif seq[i] == 2:  # BAR
+                i += 1
+                continue
+            elif seq[i] not in range(TOKEN_OFFSET.POSITION.value, TOKEN_OFFSET.BPM.value):
+                break  # raise
+            if seq[i + 1] in range(TOKEN_OFFSET.NOTE_VELOCITY.value, TOKEN_OFFSET.CHORD_START.value):
+                if all([
+                    seq[i + 2] in range(TOKEN_OFFSET.PITCH.value, TOKEN_OFFSET.NOTE_VELOCITY.value),
+                    seq[i + 3] in range(TOKEN_OFFSET.NOTE_DURATION.value, TOKEN_OFFSET.POSITION.value)
+                ]):
+                    i += 4
+                    continue
+                break
+            elif seq[i + 1] in range(TOKEN_OFFSET.CHORD_START.value, TOKEN_OFFSET.NOTE_DURATION.value):
+                i += 2
+                continue
+            break
+        raise SequenceToMidiError("STRICT VALIDATION OF SEQUENCE FAILED")
+
+    def validate_generated_sequence(self, seq):
+        self.validate_once(seq)
+        if self.strict_validation:
+            self.validate_rigidly(seq)
+        return
+
+    @classmethod
+    def split_meta_midi(cls, seq, input_mask):
+        len_meta = len(seq) - int((input_mask.sum()))
+        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외 11개만 사용
+        note_seq = seq[len_meta:]
+        note_seq = cls.remove_padding(note_seq)
+        note_seq, encoded_meta = cls.restore_chord(note_seq, encoded_meta)
+        return note_seq, encoded_meta
+
+    def decode_event_sequence(self, note_seq, encoded_meta):
+        decoded_midi = self.decoder.decode(midi_info=MidiInfo(*encoded_meta, event_seq=note_seq))
         return decoded_midi
 
     def decode(self, seq, input_mask, output_file_path=None):
-        len_meta = len(seq) - int((input_mask.sum()))
-        encoded_meta = seq[:len_meta - 1]  # meta 에서 eos 토큰 제외한 개수 만큼만 사용
-        note_seq = seq[len_meta:]
-        note_seq = self.remove_padding(note_seq)
-        note_seq, encoded_meta = self.restore_chord(note_seq, encoded_meta)
+        note_seq, encoded_meta = self.split_meta_midi(seq, input_mask)
         self.validate_generated_sequence(note_seq)
-        decoded_midi = self.decode_event_sequence(encoded_meta, note_seq)
+        decoded_midi = self.decode_event_sequence(note_seq, encoded_meta)
         if output_file_path:
             decoded_midi.dump(output_file_path)
         return decoded_midi
 
     def __call__(self, *args, **kwargs):
         return self.decode(*args, **kwargs)
+
+
+def split_meta_midi(seq, input_mask):
+    return SequenceToMidi.split_meta_midi(seq, input_mask)
 
 
 def meta_to_batch(midi_meta_dict, batch_size, seq_len):
@@ -184,19 +230,48 @@ def meta_to_batch(midi_meta_dict, batch_size, seq_len):
     return batch
 
 
+def decode_batch(
+        mode,
+        sequences,
+        input_ids_mask_ori,
+        batch_index,
+        previous_count,
+        output_dir,
+        return_indices=False,
+        strict_validation=False,
+):
+    if mode == "generation":
+        fn = batch_decode_generation
+    elif mode == "modification":
+        fn = batch_decode_seq2seq
+    else:
+        assert False, "Unknown decoding mode"
+    return fn(
+        sequences,
+        input_ids_mask_ori,
+        batch_index,
+        previous_count,
+        output_dir,
+        return_indices,
+        strict_validation
+    )
+
+
 def batch_decode_seq2seq(
         sequences,
         input_ids_mask_ori,
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi"
+        return_indices=False,
+        strict_validation=False,
+        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi",
 ):
     import os
     import io
     import contextlib
 
-    decoder = SequenceToMidi()
+    decoder = SequenceToMidi(strict_validation=strict_validation)
     invalid_idxes = set()
 
     for index, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
@@ -252,25 +327,30 @@ def batch_decode_seq2seq(
         ) if invalid_idxes else "") + ("=" * 60) + "\n"
     )
 
+    if return_indices:
+        return valid_count, invalid_idxes
     return valid_count
 
 
-def batch_decode_generate(
+def batch_decode_generation(
         sequences,
         input_ids_mask_ori,
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="generated_{valid_index:0>7}.midi"
+        return_indices=False,
+        strict_validation=False,
+        output_file_format="generated_{valid_index:0>7}.midi",
 ):
     import os
     import io
     import contextlib
 
-    decoder = SequenceToMidi()
+    decoder = SequenceToMidi(strict_validation=strict_validation)
     valid_index = previous_count
+    invalid_idxes = []
 
-    for seq, input_mask in zip(sequences, input_ids_mask_ori):
+    for index, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
         logger = io.StringIO()
         try:
             # we can't handle OOV error - since OOV is only logged into stdout -
@@ -278,6 +358,7 @@ def batch_decode_generate(
             with contextlib.redirect_stdout(logger):
                 decoded_midi = decoder(seq, input_mask)
         except SequenceToMidiError:
+            invalid_idxes.append(index)
             continue  # in generation, we can skip decoding failures
         log = logger.getvalue()  # to check OOV
         if log:
@@ -285,6 +366,8 @@ def batch_decode_generate(
         output_file_path = output_file_format.format(valid_index=valid_index)
         decoded_midi.dump(os.path.join(output_dir, output_file_path))
         valid_index += 1
+
+    valid_count = valid_index - previous_count
 
     print(
         (
@@ -296,4 +379,6 @@ def batch_decode_generate(
         ) + ("=" * 60) + "\n"
     )
 
-    return valid_index - previous_count
+    if return_indices:
+        return valid_count, invalid_idxes
+    return valid_count

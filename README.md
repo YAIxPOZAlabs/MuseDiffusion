@@ -275,7 +275,7 @@ python3 -m MuseDiffusion modification --distributed \
 --corr_available rn,rr \
 --corr_max 2 \
 --corr_p 0.5 \
---step 100 \
+--step 1000 \
 --strength 0.75 \
 --model_path ./diffusion_models/{name-of-model-folder}/{weight-file}
 ```
@@ -299,7 +299,7 @@ python3 -m MuseDiffusion generation --distributed \
 --rhythm {RHYTHM} \
 --chord_progression {CHORD_PROGRESSION} \
 --num_samples 1000 \
---step 100 \
+--step 1000 \
 --model_path diffusion_models/{name-of-model-folder}/{weight-file}
 ```
 
@@ -315,7 +315,7 @@ python3 -m MuseDiffusion generation --distributed \
 python3 -m MuseDiffusion generation --distributed \
 --meta_json {META_JSON_FILE_PATH} \
 --num_samples 1000 \
---step 100 \
+--step 1000 \
 --model_path diffusion_models/{name-of-model-folder}/{weight-file}
 ```
 
