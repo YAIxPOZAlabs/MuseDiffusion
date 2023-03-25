@@ -66,8 +66,11 @@ class SequenceToMidi:
             decoder = SequenceToMidi._decoder = EventSequenceEncoder()
         return decoder
 
-    @classmethod
-    def remove_padding(cls, generation_result):
+    def __init__(self, strict_validation=False):
+        self.strict_validation = strict_validation
+
+    @staticmethod
+    def remove_padding(generation_result):
         if not isinstance(generation_result, np.ndarray):
             generation_result = np.array(generation_result)
         assert generation_result.ndim == 1, "Got Unknown Dimension"
@@ -139,7 +142,21 @@ class SequenceToMidi:
         return new_seq, new_meta
 
     @staticmethod
-    def new_val(seq):
+    def validate_once(seq):
+        for idx, token in enumerate(seq):
+            if idx + 2 > len(seq) - 1:
+                break
+            elif (
+                    token in range(TOKEN_OFFSET.NOTE_VELOCITY.value, TOKEN_OFFSET.CHORD_START.value)
+                    and seq[idx - 1] in range(TOKEN_OFFSET.POSITION.value, TOKEN_OFFSET.BPM.value)
+                    and seq[idx + 1] in range(TOKEN_OFFSET.PITCH.value, TOKEN_OFFSET.NOTE_VELOCITY.value)
+                    and seq[idx + 2] in range(TOKEN_OFFSET.NOTE_DURATION.value, TOKEN_OFFSET.POSITION.value)
+            ):
+                return
+        raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
+
+    @staticmethod
+    def validate_rigidly(seq):
         i = 0
         i_max = len(seq)
         while True:
@@ -166,20 +183,11 @@ class SequenceToMidi:
             break
         raise SequenceToMidiError("STRICT VALIDATION OF SEQUENCE FAILED")
 
-    @classmethod
-    def validate_generated_sequence(cls, seq):
-        for idx, token in enumerate(seq):
-            if idx + 2 > len(seq) - 1:
-                break
-            elif (
-                    token in range(TOKEN_OFFSET.NOTE_VELOCITY.value, TOKEN_OFFSET.CHORD_START.value)
-                    and seq[idx - 1] in range(TOKEN_OFFSET.POSITION.value, TOKEN_OFFSET.BPM.value)
-                    and seq[idx + 1] in range(TOKEN_OFFSET.PITCH.value, TOKEN_OFFSET.NOTE_VELOCITY.value)
-                    and seq[idx + 2] in range(TOKEN_OFFSET.NOTE_DURATION.value, TOKEN_OFFSET.POSITION.value)
-            ):
-                cls.new_val(seq)
-                return
-        raise SequenceToMidiError("VALIDATION OF SEQUENCE FAILED")
+    def validate_generated_sequence(self, seq):
+        self.validate_once(seq)
+        if self.strict_validation:
+            self.validate_rigidly(seq)
+        return
 
     @classmethod
     def split_meta_midi(cls, seq, input_mask):
@@ -206,6 +214,10 @@ class SequenceToMidi:
         return self.decode(*args, **kwargs)
 
 
+def split_meta_midi(seq, input_mask):
+    return SequenceToMidi.split_meta_midi(seq, input_mask)
+
+
 def meta_to_batch(midi_meta_dict, batch_size, seq_len):
     import torch
     encoded_meta = MetaToSequence().execute(midi_meta_dict)
@@ -218,20 +230,48 @@ def meta_to_batch(midi_meta_dict, batch_size, seq_len):
     return batch
 
 
+def decode_batch(
+        mode,
+        sequences,
+        input_ids_mask_ori,
+        batch_index,
+        previous_count,
+        output_dir,
+        return_indices=False,
+        strict_validation=False,
+):
+    if mode == "generation":
+        fn = batch_decode_generation
+    elif mode == "modification":
+        fn = batch_decode_seq2seq
+    else:
+        assert False, "Unknown decoding mode"
+    return fn(
+        sequences,
+        input_ids_mask_ori,
+        batch_index,
+        previous_count,
+        output_dir,
+        return_indices,
+        strict_validation
+    )
+
+
 def batch_decode_seq2seq(
         sequences,
         input_ids_mask_ori,
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi",
         return_indices=False,
+        strict_validation=False,
+        output_file_format="{original_index:0>7}_batch{batch_index:0>5}_{index:0>4}.midi",
 ):
     import os
     import io
     import contextlib
 
-    decoder = SequenceToMidi()
+    decoder = SequenceToMidi(strict_validation=strict_validation)
     invalid_idxes = set()
 
     for index, (seq, input_mask) in enumerate(zip(sequences, input_ids_mask_ori)):
@@ -292,20 +332,21 @@ def batch_decode_seq2seq(
     return valid_count
 
 
-def batch_decode_generate(
+def batch_decode_generation(
         sequences,
         input_ids_mask_ori,
         batch_index,
         previous_count,
         output_dir,
-        output_file_format="generated_{valid_index:0>7}.midi",
         return_indices=False,
+        strict_validation=False,
+        output_file_format="generated_{valid_index:0>7}.midi",
 ):
     import os
     import io
     import contextlib
 
-    decoder = SequenceToMidi()
+    decoder = SequenceToMidi(strict_validation=strict_validation)
     valid_index = previous_count
     invalid_idxes = []
 
