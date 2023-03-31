@@ -165,8 +165,11 @@ MuseDiffusion
 ```bash
 mkdir diffusion_models
 cd diffusion_models
-curl -fsSL -o pretrained_weights.zip <URL_TBD>
-unzip pretrained_weights.zip && rm pretrained_weights.zip
+FILEID="TBD"
+curl -sc ~/cookie.txt "https://drive.google.com/uc?export=download&id=${FILEID}" > /dev/null
+curl -Lb ~/cookie.txt "https://drive.google.com/uc?export=download&confirm=`awk '/_warning_/ {print $NF}' ~/cookie.txt`&id=${FILEID}" \\
+    -o pretrained_weights.zip
+unzip pretrained_weights.zip && rm cookie.txt pretrained_weights.zip
 cd ..
 ```
 
