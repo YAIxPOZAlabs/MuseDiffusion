@@ -482,23 +482,46 @@ objective guideline that induces regularity, and (2) it has 12 musical metadata 
 
 ### Corruptions
 
-* TBD
+In order to further reduce the training time, we apply data bucketing when we load the data. Data Bucketing is a method to form batches by grouping similar length sequence together when processing data in batch units. By doing so, we can minimize zero-padding, which can reduce training time and help with denoising step.
+
+We preprocess the data in two ways. First, we move all the chord related tokens inside midi sequence into meta sequence so that chord information helps to create correct midi data. Then, we randomly corrupt the data so the model get the wrong data and learns to create correct note sequence .We conduct four types of data corruption. First, "Masking Token" (mt) randomly replaces each token into a masking token. Second, "Masking Note" (mn) randomly replaces each note with a masking token. Third, "Randomize Note" (rn) changes the velocity, pitch, and duration values of each note to random value. Finally, "Random Rotating" (rr) swaps the position of two randomly selected bars.
+
+> corruption arguments for training/sampling
+
+* corr_available: List of corruptions to select: string, separate with comma
+* corr_max: Max number of corruptions to select: int
+* corr_p: Probability to select each corruption: float
+* corr_kwargs: Keyword argument to put in each corruption function: 'eval'-able string
+
+```json
+{
+  "corr_available": "mt,mn,rn,rr",
+  "corr_max": 4,
+  "corr_p": 0.5,
+  "corr_kwargs": "{'p':0.4}"
+}
+```
 
 <br><hr>
 
 <h2>Experiments</h2>
-<p><b><u>Losses</u></b></p>
 <p align="center">
   <img src="assets/loss.png" alt="Loss" width=80%>
 </p>
 <br>
-<p align="center">TBD</p>
+
+Our model is based on 12 layers of Transformer Encoder, with embedding dimension 500 and diffusion steps to 2,000. We initialize the Transformer from Diffuseq trained weight and embedding function from embedding weight trained by ComMU to perform the same task but using auto-regressive model.
+
+In higher t, where the data is almost Gaussian noise, it is more difficult for the model to denoise than in smaller t.  When we divided denoising time step into four part, Q0 to Q3, we observed that losses were relatively higher at Q3 where noise is the highest. Therefore, we trained the model by selecting time t equal to the batch size and performing importance sampling based on recent 10 losses.
+
+In experiments, we move chord information in note sequence to meta data, because target sequence is much longer than source sequence and chord should not be changed.
 
 <br><hr>
 
 ## Download Pretrained Weights
 
-* TBD
+- [ ] TODO: Prepare Weight
+- [ ] TODO: Make Weight Command
 
 <br><hr>
 
