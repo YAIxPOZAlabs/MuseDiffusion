@@ -480,11 +480,11 @@ objective guideline that induces regularity, and (2) it has 12 musical metadata 
 </b></p>
 &nbsp;
 
-### Corruptions
-
 In order to further reduce the training time, we apply data bucketing when we load the data. Data Bucketing is a method to form batches by grouping similar length sequence together when processing data in batch units. By doing so, we can minimize zero-padding, which can reduce training time and help with denoising step.
 
-We preprocess the data in two ways. First, we move all the chord related tokens inside midi sequence into meta sequence so that chord information helps to create correct midi data. Then, we randomly corrupt the data so the model get the wrong data and learns to create correct note sequence .We conduct four types of data corruption. First, "Masking Token" (mt) randomly replaces each token into a masking token. Second, "Masking Note" (mn) randomly replaces each note with a masking token. Third, "Randomize Note" (rn) changes the velocity, pitch, and duration values of each note to random value. Finally, "Random Rotating" (rr) swaps the position of two randomly selected bars.
+### Corruptions
+
+We preprocess the data in two ways. First, we move all the chord related tokens inside midi sequence into meta sequence so that chord information helps to create correct midi data. Then, we randomly corrupt the data so the model get the wrong data and learns to create correct note sequence. We conduct four types of data corruption. First, "Masking Token" (mt) randomly replaces each token into a masking token. Second, "Masking Note" (mn) randomly replaces each note with a masking token. Third, "Randomize Note" (rn) changes the velocity, pitch, and duration values of each note to random value. Finally, "Random Rotating" (rr) swaps the position of two randomly selected bars.
 
 > corruption arguments for training/sampling
 
