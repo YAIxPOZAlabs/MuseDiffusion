@@ -163,14 +163,14 @@ MuseDiffusion
 <h4>With downloading pretrained one</h4>
 
 ```bash
-mkdir diffusion_models
-cd diffusion_models
-FILEID="TBD"
-curl -sc ~/cookie.txt "https://drive.google.com/uc?export=download&id=${FILEID}" > /dev/null
-curl -Lb ~/cookie.txt "https://drive.google.com/uc?export=download&confirm=`awk '/_warning_/ {print $NF}' ~/cookie.txt`&id=${FILEID}" \\
+mkdir diffusion_models && cd diffusion_models
+FILEID="17tZqUDCD5PCwdC-23TM4OamypBFJ8Fbw"
+curl -sc cookie.txt "https://drive.google.com/uc?export=download&id=${FILEID}" > /dev/null
+curl -Lb cookie.txt "https://drive.google.com/uc?export=download&confirm=`awk '/_warning_/ {print $NF}' ~/cookie.txt`&id=${FILEID}" \
     -o pretrained_weights.zip
-unzip pretrained_weights.zip && rm cookie.txt pretrained_weights.zip
-cd ..
+mkdir pretrained_weights && cd pretrained_weights
+unzip ../pretrained_weights.zip && rm ../cookie.txt ../pretrained_weights.zip
+cd ../..
 ```
 
 <h4>With Manual Training</h4>
@@ -523,8 +523,7 @@ In experiments, we move chord information in note sequence to meta data, because
 
 ## Download Pretrained Weights
 
-- [ ] TODO: Prepare Weight
-- [ ] TODO: Make Weight Command
+* You can download Pretrained Weights via [Google Drive](https://drive.google.com/file/d/17tZqUDCD5PCwdC-23TM4OamypBFJ8Fbw/view).
 
 <br><hr>
 
