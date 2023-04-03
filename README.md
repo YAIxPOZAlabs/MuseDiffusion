@@ -11,7 +11,7 @@
 <a href="mailto:dhakim@yonsei.ac.kr">
     <img src="https://img.shields.io/badge/-Gmail-D14836?style=flat-square&logo=gmail&logoColor=white" alt="Gmail"/>
 </a>
-<a href="https://www.notion.so/dhakim/1e7dc19fd1064e698a389f75404883c7?pvs=4">
+<a href="https://dhakim.notion.site/1e7dc19fd1064e698a389f75404883c7">
     <img src="https://img.shields.io/badge/-Project%20Page-000000?style=flat-square&logo=notion&logoColor=white" alt="NOTION"/>
 </a>
 <a href="./README.pdf">
