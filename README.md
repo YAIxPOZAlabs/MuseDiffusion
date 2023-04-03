@@ -311,10 +311,15 @@ python3 -m MuseDiffusion generation --distributed \
 * Type `python3 -m MuseDiffusion generation --help` for detailed usage.
 
 <details>
-<summary>Using MidiMeta JSON file, instead of arguments</summary>
+<summary>Using MidiMeta JSON file, instead of arguments (Recommended than Commandline Input)</summary>
 &nbsp;
 
 ```bash
+python3 scripts/meta_json_generator.py  # This generates meta.json in git root.
+```
+
+```bash
+# Alter {META_JSON_FILE_PATH} with meta.json
 python3 -m MuseDiffusion generation --distributed \
 --meta_json {META_JSON_FILE_PATH} \
 --num_samples 1000 \
