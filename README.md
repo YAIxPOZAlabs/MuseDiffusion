@@ -65,11 +65,9 @@ cd MuseDiffusion
 <h4>Set environment with python 3.8 and install pytorch</h4>
 
 ```bash
-python3 -m pip install virtualenv
-python3 -m virtualenv venv --python=python3.8
-source venv/bin/activate
-pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 \
-    -f https://download.pytorch.org/whl/torch_stable.html
+python3 -m pip install virtualenv && \
+python3 -m virtualenv venv --python=python3.8 && \
+source venv/bin/activate && \
 pip3 install -r requirements.txt
 ```
 
@@ -87,14 +85,23 @@ sudo apt install -y python3.8 python3.8-distutils
 </details>
 
 <details>
-<summary>(Optional) If anaconda is available, set up environments by anaconda instead of given code.</summary>
+<summary>(Optional) If anaconda is available, you can set environments by anaconda instead of given code.</summary>
 &nbsp;
 
 ```bash
-conda env create -n python=3.8 MuseDiffusion pip
+conda create -n MuseDiffusion python=3.8 pip wheel
 conda activate MuseDiffusion
-conda install pytorch==1.9.1 torchvision==0.10.1 torchaudio==0.9.1 cudatoolkit=10.2 -c pytorch
 pip3 install -r requirements.txt
+```
+
+</details>
+
+<details>
+<summary>(Recommended) <b>If docker is available, use Dockerfile instead</b>.</summary>
+&nbsp;
+
+```bash
+docker build -f Dockerfile -t musediffusion:v1 .
 ```
 
 </details>
@@ -163,13 +170,11 @@ MuseDiffusion
 <h4>With downloading pretrained one</h4>
 
 ```bash
-mkdir diffusion_models && cd diffusion_models
-FILEID="17tZqUDCD5PCwdC-23TM4OamypBFJ8Fbw"
-curl -sc cookie.txt "https://drive.google.com/uc?export=download&id=${FILEID}" > /dev/null
-curl -Lb cookie.txt "https://drive.google.com/uc?export=download&confirm=`awk '/_warning_/ {print $NF}' ~/cookie.txt`&id=${FILEID}" \
-    -o pretrained_weights.zip
-mkdir pretrained_weights && cd pretrained_weights
-unzip ../pretrained_weights.zip && rm ../cookie.txt ../pretrained_weights.zip
+mkdir diffusion_models
+mkdir diffusion_models/pretrained_weights
+cd diffusion_models/pretrained_weights
+wget https://github.com/YAIxPOZAlabs/MuseDiffusion/releases/download/1.0.0/pretrained_weights.zip
+unzip pretrained_weights.zip && rm pretrained_weights.zip
 cd ../..
 ```
 
@@ -284,6 +289,7 @@ python3 -m MuseDiffusion modification --distributed \
 ```
 * You can use arguments for `torch.distributed`, which is same as training script.
 * Type `python3 -m MuseDiffusion modification --help` for detailed usage.
+* **You can omit `--model_path` argument, if you want to use pretrained weights.**
 
 <h4>From metadata</h4>
 
@@ -309,6 +315,7 @@ python3 -m MuseDiffusion generation --distributed \
 * **In generation, MidiMeta arguments** (bpm, audio_key, ..., chord_progression) **are essential.**
 * You can use arguments for `torch.distributed`, which is same as training script.
 * Type `python3 -m MuseDiffusion generation --help` for detailed usage.
+* **You can omit `--model_path` argument, if you want to use pretrained weights.**
 
 <details>
 <summary>Using MidiMeta JSON file, instead of arguments (Recommended than Commandline Input)</summary>
