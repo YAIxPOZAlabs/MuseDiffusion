@@ -116,16 +116,15 @@ def main(namespace):
             with open(training_args_path, 'w') as fp:
                 print(args.json(indent=2), file=fp)
 
-    # Init wandb
-    if rank == 0:
-        # Uncomment and customize your wandb setting on your own, or just use environ.
-        import wandb
-        wandb.init(
-            mode=os.getenv("WANDB_MODE", "online"),
-            # entity=os.getenv("WANDB_ENTITY", "<your-value>"),
-            # project=os.getenv("WANDB_PROJECT", "<your-value>"),
-        )
-        wandb.config.update(args.dict(), allow_val_change=True)
+    # Init wandb: Uncomment and customize your wandb setting on your own, or just use environ.
+    import wandb
+    wandb.init(
+        mode=os.getenv("WANDB_MODE", "online"),
+        # entity=os.getenv("WANDB_ENTITY", "<your-value>"),
+        # project=os.getenv("WANDB_PROJECT", "<your-value>"),
+        group="DDP",
+    )
+    wandb.config.update(args.dict(), allow_val_change=True)
     dist_util.barrier()  # Sync last
 
     # Run train loop

@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.9.1-cuda11.1-cudnn8-runtime
+FROM nvcr.io/nvidia/pytorch:21.08-py3
 
 RUN pip install bert_score \
     blobfile \

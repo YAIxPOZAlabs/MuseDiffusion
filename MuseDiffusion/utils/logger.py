@@ -374,8 +374,8 @@ class Logger(object):
                 d["dummy"] = 1  # so we don't get a warning about empty dict
         # LISA
         out = d.copy()  # Return the dict for unit testing purposes
+        wandb.log({**d})
         if int(os.environ['LOCAL_RANK']) == 0:
-            wandb.log({**d})
             for fmt in self.output_formats:
                 if isinstance(fmt, KVWriter):
                     fmt.writekvs(d)
