@@ -535,7 +535,7 @@ In experiments, we move chord information in note sequence to meta data, because
 
 ## Download Pretrained Weights
 
-* You can download Pretrained Weights via [Google Drive](https://drive.google.com/file/d/17tZqUDCD5PCwdC-23TM4OamypBFJ8Fbw/view).
+* You can download Pretrained Weights in [Repository Releases](https://github.com/YAIxPOZAlabs/MuseDiffusion/releases/tag/1.0.0).
 
 <br><hr>
 
