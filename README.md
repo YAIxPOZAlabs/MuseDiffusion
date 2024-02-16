@@ -113,6 +113,12 @@ docker build -f Dockerfile -t musediffusion:v1 .
 python3 -m MuseDiffusion dataprep
 ```
 
+* If you want to use custom commu-like dataset, make dataset to npy files (refer to [this issue](https://github.com/YAIxPOZAlabs/MuseDiffusion/issues/77)) and preprocess it by this command.
+
+```bash
+python3 -m MuseDiffusion dataprep --data_dir path/to/dataset
+```
+
 <details>
 <summary>After this step, your directory structure would be like:</summary>
 &nbsp;
